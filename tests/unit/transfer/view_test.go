@@ -597,11 +597,16 @@ func TestPrimaryTaskControlsKeepTheirGeometryAcrossStates(t *testing.T) {
 		} else if progress.Bounds != trackBaseline {
 			t.Errorf("%s track moved %v -> %v", tc.status, trackBaseline, progress.Bounds)
 		}
-		for _, label := range []string{"从头下载", "在文件夹中显示", "移除任务（保留文件）"} {
-			control, ok := tt.AccessByRole(ui.RoleButton, label)
-			if !ok || control.Bounds.W != b.Bounds.W || control.Bounds.H != b.Bounds.H {
-				t.Errorf("%s %s does not share the action size", tc.status, label)
-			}
+		if _, ok := tt.Find("从头下载"); ok != task.CanRestart {
+			t.Errorf("%s restart visibility %v", tc.status, ok)
+		}
+		if _, ok := tt.Find("在文件夹中显示"); ok {
+			t.Error("reveal shown without a file")
+		}
+		card, _ := tt.Find("a.zip")
+		remove, ok := tt.Find("移除任务（保留文件）")
+		if !ok || remove.Y > card.Y+20 || remove.X+remove.W < card.X+card.W-20 || slices.Contains(tt.Texts(), "移除") {
+			t.Errorf("remove must be an icon in upper right: %v %v", card, remove)
 		}
 		if i == 0 {
 			baseline = b.Bounds

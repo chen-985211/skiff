@@ -9,9 +9,13 @@ import (
 	"skiff/internal/contexts/transfer/application"
 )
 
-// The four controls keep the same order, width and hit target in every state.
-func cardAction(c *ui.Context, icon, text, label, status string, disabled bool) bool {
-	b := ui.ButtonBase(c).Basis(0).Grow(1).MinWidth(0).Height(32).Radius(12).Center().Label(label).Tooltip(label).Disabled(disabled).Transition(controlMotion)
+// Keep action widths stable as optional controls appear and disappear.
+func cardAction(c *ui.Context, icon, text, label, status string) bool {
+	key := label
+	if status != "" {
+		key = "primary-action"
+	}
+	b := ui.ButtonBase(c.Key(key)).WidthPercent(25).MinWidth(80).Height(32).Radius(12).Center().Label(label).Tooltip(label).Transition(controlMotion)
 	b.Background(c.Theme().Surface.Alpha(.38))
 	if b.Hovered() {
 		b.Background(c.Theme().SurfaceHover)
@@ -39,6 +43,9 @@ func cardAction(c *ui.Context, icon, text, label, status string, disabled bool) 
 }
 
 func (v *View) rowActions(c *ui.Context, t application.TaskDTO) {
+	if v.Busy {
+		return
+	}
 	ui.Row(c).FillWidth().Gap(4).Children(func() {
 		var cmd application.Command
 		label, text, icon := "查看文件详情", "详情", "file"
@@ -52,7 +59,7 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO) {
 		case v.detailID == t.ID:
 			label, text, icon = "返回任务列表", "返回", "chevron"
 		}
-		if cardAction(c, icon, text, label, t.Status, v.Busy) {
+		if cardAction(c, icon, text, label, t.Status) {
 			if cmd != "" {
 				v.command(t.ID, cmd)
 			} else {
@@ -64,16 +71,25 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO) {
 				c.Invalidate()
 			}
 		}
-		if cardAction(c, "restart", "从头下载", "从头下载", "", !t.CanRestart || v.Busy) {
+		if t.CanRestart && cardAction(c, "restart", "从头下载", "从头下载", "") {
 			v.RestartID, v.RestartOpen = t.ID, true
 		}
-		if cardAction(c, "folder", "位置", "在文件夹中显示", "", t.Path == "" || v.Busy) && v.Actions.Reveal != nil {
+		if t.Path != "" && v.Actions.Reveal != nil && cardAction(c, "folder", "位置", "在文件夹中显示", "") {
 			v.Actions.Reveal(t.Path)
 		}
-		if cardAction(c, "close", "移除", "移除任务（保留文件）", "", v.Busy) {
-			v.command(t.ID, application.Remove)
-		}
 	})
+}
+
+func (v *View) removeTaskButton(c *ui.Context, id string) {
+	if v.Busy {
+		return
+	}
+	const label = "移除任务（保留文件）"
+	b := ui.ButtonBase(c.Key("remove-task")).Absolute().Top(8).Right(8).ZIndex(2).Size(30, 30).Center().Radius(15).Label(label).Tooltip(label)
+	b.Children(func() { ui.Icon(c, icons["close"]).FontSize(14).TextColor(c.Theme().TextMuted) })
+	if b.Clicked() {
+		v.command(id, application.Remove)
+	}
 }
 
 func fileIcon(name string) string {
@@ -121,7 +137,7 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 						ui.Text(c, size).ContentTransition(numberChange).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
 					}
 				})
-				ui.Icon(c, icons["chevron"]).FontSize(16).Rotate(-90).TextColor(p.muted)
+				ui.Box(c).Width(23).Shrink(0)
 			})
 		})
 		if head.Clicked() {
@@ -131,6 +147,7 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 		taskProgress(c, p, t, color)
 		ui.Box(c).Grow(1)
 		v.rowActions(c, t)
+		v.removeTaskButton(c, t.ID)
 	})
 }
 
@@ -240,7 +257,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 		card := ui.Column(c.Key(t.ID)).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(17).Gap(12).Transition(cardMotion(t.ID))
 		color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
 		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
-			ui.Row(c).Height(71).FillWidth().Gap(13).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Height(71).FillWidth().Padding(0, 23, 0, 0).Gap(13).AlignItems(ui.Center).Children(func() {
 				ui.Image(c, fileArt[fileIcon(t.Name)]).Size(65, 65).Fit(ui.Contain)
 				ui.Text(c, t.Name).FontSize(20).FontWeight(650).Grow(1).MinWidth(0).SingleLine().Tooltip(t.Name)
 
@@ -263,6 +280,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 			}
 			detailField(c, p, "位置", target)
 			v.rowActions(c, t)
+			v.removeTaskButton(c, t.ID)
 		})
 	})
 }
