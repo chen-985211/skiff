@@ -55,7 +55,12 @@ type Observation struct {
 
 func (t *Task) Observe(o Observation) {
 	switch o.Status {
-	case Waiting, Active, Paused, Complete, Failed:
+	case Waiting, Active, Paused:
+		// A restored transfer can report no lengths until its file is opened.
+		if o.Total == 0 && o.Completed == 0 {
+			o.Total, o.Completed = t.record.Total, t.record.Completed
+		}
+	case Complete, Failed:
 	default:
 		return
 	}

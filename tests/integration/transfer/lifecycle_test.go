@@ -189,7 +189,8 @@ func TestRealDownloadPauseRestartResumeAndRemoveKeepsFile(t *testing.T) {
 	if err := svc.Execute(context.Background(), id, application.Pause); err != nil {
 		t.Fatal(err)
 	}
-	if !svc.Snapshot().Tasks[0].CanResume {
+	paused := svc.Snapshot().Tasks[0]
+	if !paused.CanResume {
 		t.Fatal("pause not reflected")
 	}
 	closeProcess()
@@ -202,7 +203,10 @@ func TestRealDownloadPauseRestartResumeAndRemoveKeepsFile(t *testing.T) {
 	if err := restored.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if task := restored.Snapshot().Tasks[0]; task.ID != id || !task.CanResume {
+	if err := restored.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if task := restored.Snapshot().Tasks[0]; task.ID != id || !task.CanResume || task.Total != paused.Total || task.Completed != paused.Completed {
 		t.Fatalf("restore=%+v", task)
 	}
 	if err := restored.Execute(context.Background(), id, application.Resume); err != nil {

@@ -76,6 +76,25 @@ func TestTaskProgressIsBoundedAndCompletionIsAuthoritative(t *testing.T) {
 	}
 }
 
+func TestPausedTransferKeepsLastKnownProgressUntilEngineMeasuresAgain(t *testing.T) {
+	task := domain.Restore(domain.Record{Status: domain.Paused, Total: 100, Completed: 54})
+	for _, status := range []domain.Status{domain.Paused, domain.Waiting, domain.Active} {
+		task.Observe(domain.Observation{Status: status})
+		if r := task.Record(); r.Status != status || r.Total != 100 || r.Completed != 54 || r.Speed != 0 {
+			t.Fatalf("empty %s observation changed progress: %+v", status, r)
+		}
+	}
+	// Once the engine knows the length, even a lower count is authoritative.
+	task.Observe(domain.Observation{Status: domain.Active, Total: 120, Completed: 0})
+	if r := task.Record(); r.Total != 120 || r.Completed != 0 {
+		t.Fatalf("new measurement ignored: %+v", r)
+	}
+	task.Observe(domain.Observation{Status: domain.Complete})
+	if r := task.Record(); r.Total != 0 || r.Completed != 0 || task.Progress() != 1 {
+		t.Fatalf("empty completed file kept old counters: %+v", r)
+	}
+}
+
 func TestNewTaskKeepsStableIdentityAndStartsWaiting(t *testing.T) {
 	r := domain.NewTask("stable", "https://example.com/archive.zip", "/downloads").Record()
 	if r.ID != "stable" || r.Status != domain.Waiting || r.URL != "https://example.com/archive.zip" || r.Directory != "/downloads" || r.Name != "archive.zip" {
