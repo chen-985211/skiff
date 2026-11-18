@@ -83,7 +83,7 @@ func (v *View) composeFields(c *ui.Context, p palette) {
 	if !c.Preferences().ReduceTransparency && !c.Preferences().HighContrast {
 		fill = fill.Alpha(.66)
 	}
-	links := ui.TextAreaBase(c, &v.URLs).FillWidth().Lines(2, 5).Padding(12, 14).FontSize(13).FixedLineHeight(20).
+	links := ui.TextAreaBase(c, &v.URLs).FillWidth().Lines(4, 7).Padding(12, 14).FontSize(13).FixedLineHeight(20).
 		Radius(12).Background(fill).Label("下载链接").Placeholder("粘贴下载链接，每行一个").
 		Description("支持 HTTP 和 HTTPS 链接").AutoFocus().Disabled(v.Busy)
 	edge := p.border
@@ -98,23 +98,19 @@ func (v *View) composeFields(c *ui.Context, p palette) {
 		v.FormError = ""
 	}
 
-	v.composeDestination(c, p)
 	if v.FormError != "" {
 		ui.Text(c, v.FormError).MaxHeight(68).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
 	}
-	ui.Row(c).Justify(ui.End).AlignItems(ui.Center).Gap(8).Children(func() {
-		if secondaryAction(c, "取消").Disabled(v.Busy).Clicked() {
-			v.DialogOpen = false
-			c.Invalidate()
-		}
-		if primaryAction(c, "开始下载", "download", v.Busy).Width(106).Clicked() {
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
+		v.composeDestination(c, p)
+		if primaryAction(c, "开始下载", "download", v.Busy).Width(106).Shrink(0).Clicked() {
 			v.submit()
 		}
 	})
 }
 
 func (v *View) composeDestination(c *ui.Context, p palette) {
-	ui.Row(c).Height(32).AlignItems(ui.Center).Gap(8).Children(func() {
+	ui.Row(c).Grow(1).MinWidth(0).Height(36).AlignItems(ui.Center).Gap(8).Children(func() {
 		var label ui.Element
 		if v.Actions.PickDirectory != nil {
 			label = ui.ButtonBase(c.Key("pick-directory")).Label("选择保存目录").Tooltip("选择保存目录").
@@ -122,7 +118,7 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 		} else {
 			label = ui.Row(c)
 		}
-		label.Row().FillHeight().AlignItems(ui.Center).Gap(5).Children(func() {
+		label.Row().Shrink(0).FillHeight().AlignItems(ui.Center).Gap(5).Children(func() {
 			ui.Icon(c, icons["folder"]).FontSize(15).TextColor(p.muted)
 			ui.Text(c, "保存到").FontSize(12).TextColor(p.muted)
 			if v.Actions.PickDirectory != nil {
@@ -138,13 +134,19 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 				}
 			})
 		}
-		dir := ui.TextInputBase(c, &v.Directory).Grow(1).MinWidth(0).FillHeight().PaddingX(6).
-			Radius(6).FontSize(12).Label("保存目录").Tooltip(v.Directory).Disabled(v.Busy)
-		if dir.Focused() || c.Preferences().HighContrast {
-			dir.Border(1, p.border)
-		}
-		if dir.Changed() {
-			v.FormError = ""
-		}
+		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Justify(ui.Center).Children(func() {
+			dir := ui.TextInputBase(c, &v.Directory).Absolute().Left(0).Right(0).Top(0).Bottom(0).PaddingX(6).
+				Radius(6).FontSize(12).Label("保存目录").Tooltip(v.Directory).Disabled(v.Busy)
+			if dir.Focused() || c.Preferences().HighContrast {
+				dir.Border(1, p.border)
+			}
+			if !dir.Focused() {
+				dir.TextColor(ui.Transparent)
+				ui.Text(c, v.Directory).Margin(0, 6).FontSize(12).SingleLine().TruncateMiddle().IgnoreInput(true).AccessHidden(true)
+			}
+			if dir.Changed() {
+				v.FormError = ""
+			}
+		})
 	})
 }

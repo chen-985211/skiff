@@ -75,7 +75,7 @@ func TestDownloadFormFitsMinimumWindowInBothThemes(t *testing.T) {
 		v.Directory = "/downloads"
 		v.DialogOpen = true
 		tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Dark: dark})
-		for _, name := range []string{"下载链接", "保存目录", "开始下载", "取消"} {
+		for _, name := range []string{"下载链接", "保存目录", "开始下载"} {
 			rect, ok := tt.Find(name)
 			if !ok || rect.X < 0 || rect.Y < 0 || rect.X+rect.W > 800 || rect.Y+rect.H > 560 {
 				t.Errorf("dark=%v: %s out of bounds: %+v", dark, name, rect)
