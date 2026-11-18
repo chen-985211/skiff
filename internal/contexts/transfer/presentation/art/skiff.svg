@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="case" x2=".82" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#f8f9fa"/><stop offset=".21" stop-color="#b3bdcf"/><stop offset=".53" stop-color="#505f79"/><stop offset=".79" stop-color="#293247"/><stop offset="1" stop-color="#858fa6"/>
+    </linearGradient>
+    <linearGradient id="face" x2=".9" y2=".8" gradientUnits="objectBoundingBox">
+      <stop stop-color="#77849c"/><stop offset=".44" stop-color="#434f66"/><stop offset="1" stop-color="#252d40"/>
+    </linearGradient>
+    <linearGradient id="silver" x2=".35" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#ffffff"/><stop offset=".52" stop-color="#e5f2ff"/><stop offset=".76" stop-color="#b8c8df"/><stop offset="1" stop-color="#8894ac"/>
+    </linearGradient>
+    <linearGradient id="prism" x2=".8" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#f4f6ff"/><stop offset=".36" stop-color="#b9e5e7"/><stop offset=".64" stop-color="#c5b8d7"/><stop offset="1" stop-color="#8392ad"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#case)"/>
+  <rect x="10" y="10" width="108" height="108" rx="24.5" fill="url(#face)" stroke="#c5cbd8" stroke-width=".6"/>
+  <path d="M24 77 94 24 65 78 49 68Z" fill="url(#silver)"/>
+  <path d="M49 68 94 24 63 64Z" fill="#fcfdff"/>
+  <path d="M63 64 94 24 78 79 65 78Z" fill="url(#prism)"/>
+  <path d="m24 88 77-14-21 18-54 5 12-8Z" fill="url(#silver)"/>
+  <path d="m26 97 54-5 21-18-28 13Z" fill="url(#prism)"/>
+</svg>

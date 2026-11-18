@@ -1,0 +1,9 @@
+{
+  "name": "轻舟",
+  "slug": "skiff",
+  "identifier": "app.skiff.desktop",
+  "version": "0.1.1",
+  "main": "./cmd/skiff",
+  "out": "build",
+  "icon": "resources/icon.png"
+}

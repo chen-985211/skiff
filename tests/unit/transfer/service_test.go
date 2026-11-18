@@ -1,0 +1,191 @@
+package transfer_test
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"skiff/internal/contexts/transfer/application"
+	"skiff/internal/contexts/transfer/domain"
+	"strings"
+	"testing"
+)
+
+type fakeEngine struct {
+	enqueued []application.TransferSpec
+	commands []application.Command
+	observed []application.Observation
+	addErr   error
+}
+
+func (f *fakeEngine) Enqueue(_ context.Context, spec application.TransferSpec) error {
+	f.enqueued = append(f.enqueued, spec)
+	return f.addErr
+}
+func (f *fakeEngine) Execute(_ context.Context, _ string, cmd application.Command) error {
+	f.commands = append(f.commands, cmd)
+	return nil
+}
+func (f *fakeEngine) Observe(context.Context) ([]application.Observation, error) {
+	return f.observed, nil
+}
+
+type fakeRepo struct {
+	state   application.State
+	saveErr error
+	saves   int
+}
+
+func (f *fakeRepo) Load(context.Context) (application.State, error) { return f.state, nil }
+func (f *fakeRepo) Save(_ context.Context, s application.State) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.state = s
+	f.saves++
+	return nil
+}
+func service(t *testing.T, f *fakeEngine, r *fakeRepo) *application.Service {
+	t.Helper()
+	n := 0
+	s := application.New(f, r, "/downloads", func() string { n++; return fmt.Sprintf("%016x", n) })
+	if err := s.Open(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestAddValidatesEntireBatchBeforeAnyExternalEffect(t *testing.T) {
+	f, r := &fakeEngine{}, &fakeRepo{}
+	s := service(t, f, r)
+	if _, err := s.Add(context.Background(), "https://example.com/a\nfile:///tmp/b", "/downloads"); err == nil {
+		t.Fatal("invalid batch accepted")
+	}
+	if len(f.enqueued) != 0 || len(s.Snapshot().Tasks) != 0 {
+		t.Fatal("invalid batch created tasks")
+	}
+}
+
+func TestAddCommitsIntentBeforeStartingAndReturnsIndependentSnapshot(t *testing.T) {
+	f, r := &fakeEngine{}, &fakeRepo{}
+	s := service(t, f, r)
+	n, err := s.Add(context.Background(), "https://example.com/a.zip\nhttps://example.com/a.zip", "/chosen")
+	if err != nil || n != 1 {
+		t.Fatalf("add = %d, %v", n, err)
+	}
+	if len(f.enqueued) != 1 || f.enqueued[0].Paused || r.state.Directory != "/chosen" || len(r.state.Tasks) != 1 {
+		t.Fatalf("intent not committed: %+v, %+v", f, r)
+	}
+	snap := s.Snapshot()
+	snap.Tasks[0].Name = "changed"
+	if s.Snapshot().Tasks[0].Name != "a.zip" {
+		t.Fatal("snapshot mutates live task")
+	}
+}
+
+func TestPersistenceFailurePreventsStartingUntrackedDownload(t *testing.T) {
+	f, r := &fakeEngine{}, &fakeRepo{}
+	s := service(t, f, r)
+	r.saveErr = errors.New("disk full")
+	if n, err := s.Add(context.Background(), "https://example.com/a", "/downloads"); err == nil || n != 0 {
+		t.Fatalf("add=%d, %v", n, err)
+	}
+	if len(f.enqueued) != 0 || len(s.Snapshot().Tasks) != 0 {
+		t.Fatal("untracked download started")
+	}
+}
+
+func TestAddRejectsRelativeDirectoryBeforeCreatingTasks(t *testing.T) {
+	f, r := &fakeEngine{}, &fakeRepo{}
+	s := service(t, f, r)
+	if n, err := s.Add(context.Background(), "https://example.com/a", "relative/folder"); err == nil || n != 0 {
+		t.Fatalf("relative directory accepted: %d, %v", n, err)
+	}
+	if len(f.enqueued) != 0 || len(s.Snapshot().Tasks) != 0 {
+		t.Fatal("invalid target created a task")
+	}
+}
+
+func TestFailedEnqueueRemainsVisibleAndCanBeRetried(t *testing.T) {
+	f, r := &fakeEngine{}, &fakeRepo{}
+	s := service(t, f, r)
+	f.addErr = errors.New("engine rejected transfer")
+	_, _ = s.Add(context.Background(), "https://example.com/a", "/downloads")
+	tasks := s.Snapshot().Tasks
+	if len(tasks) != 1 || !tasks[0].CanRetry || tasks[0].Error == "" {
+		t.Fatalf("failure lost: %+v", tasks)
+	}
+	f.addErr = nil
+	if err := s.Execute(context.Background(), tasks[0].ID, application.Retry); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.enqueued) != 2 || s.Snapshot().Tasks[0].CanRetry {
+		t.Fatal("retry did not restart task")
+	}
+}
+
+func TestPauseResumeAndRemoveUseCase(t *testing.T) {
+	f, r := &fakeEngine{}, &fakeRepo{}
+	s := service(t, f, r)
+	_, _ = s.Add(context.Background(), "https://example.com/a", "/downloads")
+	id := s.Snapshot().Tasks[0].ID
+	for _, cmd := range []application.Command{application.Pause, application.Resume, application.Remove} {
+		if err := s.Execute(context.Background(), id, cmd); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(s.Snapshot().Tasks) != 0 || len(f.commands) != 3 {
+		t.Fatalf("remove/commands failed: %+v", f)
+	}
+}
+
+func TestRestorePausesMissingTransfersAndKeepsCompletedHistory(t *testing.T) {
+	f := &fakeEngine{}
+	r := &fakeRepo{state: application.State{Version: 1, Directory: "/saved", Tasks: []domain.Record{
+		{ID: "unfinished", URL: "https://example.com/a", Directory: "/saved", Status: domain.Active, Completed: 25, Total: 100},
+		{ID: "done", URL: "https://example.com/b", Directory: "/saved", Status: domain.Complete, Completed: 100, Total: 100},
+	}}}
+	s := service(t, f, r)
+	if len(f.enqueued) != 1 || !f.enqueued[0].Paused || f.enqueued[0].ID != "unfinished" {
+		t.Fatalf("restore enqueue=%+v", f.enqueued)
+	}
+	snap := s.Snapshot()
+	if snap.Directory != "/saved" || snap.Tasks[0].Status != "paused" || snap.Tasks[0].Completed != 25 || snap.Tasks[1].Status != "complete" {
+		t.Fatalf("restore lost state: %+v", snap)
+	}
+}
+
+func TestRefreshAppliesEngineProgressWithoutChangingTaskIdentity(t *testing.T) {
+	f, r := &fakeEngine{}, &fakeRepo{}
+	s := service(t, f, r)
+	_, _ = s.Add(context.Background(), "https://example.com/a", "/downloads")
+	id := s.Snapshot().Tasks[0].ID
+	f.observed = []application.Observation{{ID: id, Status: "active", Total: 100, Completed: 50, Speed: 10, Name: "server-name.zip", Path: "/downloads/server-name.zip"}}
+	if err := s.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	snap := s.Snapshot()
+	if snap.Speed != 10 || snap.Active != 1 || snap.Tasks[0].Progress != .5 || snap.Tasks[0].Name != "server-name.zip" || snap.Tasks[0].ID != id {
+		t.Fatalf("bad projection: %+v", snap)
+	}
+}
+
+type partialPauseEngine struct{ fakeEngine }
+
+func (e *partialPauseEngine) Execute(ctx context.Context, id string, command application.Command) error {
+	if id == "1" && command == application.Pause {
+		return errors.New("引擎拒绝暂停")
+	}
+	return e.fakeEngine.Execute(ctx, id, command)
+}
+
+func TestPauseBatchContinuesAfterAnIndividualFailure(t *testing.T) {
+	next := 0
+	s := application.New(&partialPauseEngine{}, &fakeRepo{}, t.TempDir(), func() string { next++; return fmt.Sprint(next) })
+	if _, err := s.Add(context.Background(), "https://example.org/one.zip\nhttps://example.org/two.zip", t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	err := s.SetPaused(context.Background(), []string{"1", "2"}, true)
+	if err == nil || !strings.Contains(err.Error(), "one.zip") || s.Snapshot().Tasks[1].Status != "paused" {
+		t.Fatalf("batch lost the failure or skipped the second task: %v, %+v", err, s.Snapshot())
+	}
+}

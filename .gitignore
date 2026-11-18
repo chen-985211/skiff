@@ -1,0 +1,6 @@
+/build/
+/release/
+/skiff
+/.mygo/
+/test-results/
+.DS_Store
