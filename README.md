@@ -41,6 +41,6 @@ make package              # 当前平台的原生应用包
 
 macOS 应用在 `build/darwin-arm64/Skiff.app`。MyGo 本地打包采用 ad hoc 签名，尚未进行 Developer ID 签名与 Apple 公证。
 
-## 
+## 许可证
 
-
+Skiff 采用 [MIT 许可证](LICENSE)。
