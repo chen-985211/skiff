@@ -16,13 +16,26 @@ const (
 	fileColumnGap = 12
 )
 
-// Keep action widths stable as optional controls appear and disappear.
+// The footer keeps the same geometry when an action becomes a status.
+func cardPill(c *ui.Context, pill ui.Element, icon, text, status string) {
+	ink := c.Theme().Text
+	if status == "error" {
+		ink = c.Theme().Danger
+	}
+	pill.WidthPercent(25).MinWidth(80).MaxWidth(104).Height(32).Radius(12).Center().Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
+			ui.Icon(c, icons[icon]).TextColor(ink).FontSize(14).ContentTransition(textChange)
+			ui.Text(c, text).FontSize(11).FontWeight(550).ContentTransition(textChange)
+		})
+	})
+}
+
 func cardAction(c *ui.Context, icon, text, label, status string) bool {
 	key := label
 	if status != "" {
 		key = "primary-action"
 	}
-	b := ui.ButtonBase(c.Key(key)).WidthPercent(25).MinWidth(80).MaxWidth(104).Height(32).Radius(12).Center().Label(label).Tooltip(label).Transition(controlMotion)
+	b := ui.ButtonBase(c.Key(key)).Label(label).Tooltip(label).Transition(controlMotion)
 	b.Background(c.Theme().Surface.Alpha(.38))
 	if b.Hovered() {
 		b.Background(c.Theme().SurfaceHover)
@@ -30,22 +43,13 @@ func cardAction(c *ui.Context, icon, text, label, status string) bool {
 	if b.Pressed() {
 		b.Background(c.Theme().SurfacePressed)
 	}
-	ink := c.Theme().Text
 	if status != "" {
 		b.Description(statusText(status))
-		if status == "error" {
-			ink = c.Theme().Danger
-		}
-		if label != "返回任务列表" && !b.Hovered() && !b.Focused() {
+		if !b.Hovered() && !b.Focused() {
 			text, icon = statusText(status), stateSymbol(status)
 		}
 	}
-	b.Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
-			ui.Icon(c, icons[icon]).TextColor(ink).FontSize(14).ContentTransition(textChange)
-			ui.Text(c, text).FontSize(11).FontWeight(550).ContentTransition(textChange)
-		})
-	})
+	cardPill(c, b, icon, text, status)
 	return b.Clicked()
 }
 
@@ -63,18 +67,16 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO) {
 			label, text, icon, cmd = "继续下载", "继续", "play", application.Resume
 		case t.CanRetry:
 			label, text, icon, cmd = "重试下载", "重试下载", "retry", application.Retry
-		case v.detailID == t.ID:
-			label, text, icon = "返回任务列表", "返回", "chevron"
 		}
-		if cardAction(c, icon, text, label, t.Status) {
+		if cmd == "" && v.detailID == t.ID {
+			state := statusText(t.Status)
+			badge := ui.Box(c.Key("task-status")).Role(ui.RoleStatus).Label(state).Background(c.Theme().Surface.Alpha(.38))
+			cardPill(c, badge, stateSymbol(t.Status), state, t.Status)
+		} else if cardAction(c, icon, text, label, t.Status) {
 			if cmd != "" {
 				v.command(t.ID, cmd)
 			} else {
-				if v.detailID == t.ID {
-					v.detailID = ""
-				} else {
-					v.detailID = t.ID
-				}
+				v.detailID = t.ID
 				c.Invalidate()
 			}
 		}
@@ -277,11 +279,10 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
 			ui.Row(c).Height(44).FillWidth().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
 				fileHeading(c, p, t, 18, 2)
-				if (t.CanPause || t.CanResume || t.CanRetry) && secondaryAction(c, "返回").Label("返回任务列表").Clicked() {
+				if secondaryAction(c, "返回").Label("返回任务列表").Clicked() {
 					v.detailID = ""
 					c.Invalidate()
 				}
-
 			})
 			ui.Column(c).Grow(1).MinHeight(0).Gap(16).Children(func() {
 				ui.Column(c).Gap(6).Children(func() {

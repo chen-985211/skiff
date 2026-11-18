@@ -352,19 +352,34 @@ func TestWorkspaceCardContentAlignsAcrossPreviewAndDetail(t *testing.T) {
 	source := get("https://example.org/photo.jpg")
 	path := get("/downloads/photo.jpg")
 	back := get("返回任务列表")
-	if size.X != detailSize.X || detailSize.X != source.X || path.X != source.X || action.X != back.X || back.W > 104 {
-		t.Fatalf("preview size %v action %v; detail size %v source %v path %v action %v", size, action, detailSize, source, path, back)
+	status, ok := tt.AccessByRole(ui.RoleStatus, "已完成")
+	if !ok {
+		t.Fatal("completed detail needs a read-only completion badge")
+	}
+	badge := status.Bounds
+	if size.X != detailSize.X || detailSize.X != source.X || path.X != source.X || action.X != badge.X || badge.W > 104 {
+		t.Fatalf("preview size %v action %v; detail size %v source %v path %v status %v", size, action, detailSize, source, path, badge)
 	}
 	card, _ := tt.AccessByRole(ui.RoleGroup, "photo.jpg")
+	if back.X+back.W != card.Bounds.X+card.Bounds.W-16 || back.Y+back.H > source.Y {
+		t.Errorf("back button should be in the upper right: %v in %v", back, card.Bounds)
+	}
 	// The 44-point heading leads straight into the 16-point section gap.
 	if gap := source.Y - (card.Bounds.Y + 16 + 44); gap != 16 {
 		t.Errorf("space between heading and fields = %.1f, want 16", gap)
 	}
 	rowGap := path.Y - (source.Y + source.H)
-	actionGap := back.Y - (path.Y + path.H)
-	bottom := card.Bounds.Y + card.Bounds.H - (back.Y + back.H)
+	actionGap := badge.Y - (path.Y + path.H)
+	bottom := card.Bounds.Y + card.Bounds.H - (badge.Y + badge.H)
 	if rowGap != 6 || actionGap < 16 || bottom != 16 {
 		t.Errorf("detail gaps: between fields %.1f, before actions %.1f, below actions %.1f", rowGap, actionGap, bottom)
+	}
+	tt.ClickAt(badge.X+badge.W/2, badge.Y+badge.H/2)
+	if !tt.HasText("来源") {
+		t.Fatal("clicking the completion status closed the detail")
+	}
+	if err := tt.Click("返回任务列表"); err != nil || tt.HasText("来源") {
+		t.Fatal("header back button did not close the detail", err)
 	}
 }
 
@@ -380,12 +395,16 @@ func TestWorkspaceDetailFieldsStayInPlaceWhenDownloadCompletes(t *testing.T) {
 	}
 	task := &v.Snapshot.Tasks[0]
 	var source, path ui.Rect
+	back, _ := tt.Find("返回任务列表")
 	for _, status := range []string{"active", "paused", "complete"} {
 		task.Status, task.CanPause, task.CanResume = status, status == "active", status == "paused"
 		if status == "complete" {
 			task.Completed, task.Progress = task.Total, 1
 		}
 		tt.Frame()
+		if r, ok := tt.Find("返回任务列表"); !ok || r != back {
+			t.Errorf("%s: back button moved from %v to %v", status, back, r)
+		}
 		src, hasSource := tt.Find(task.URL)
 		dst, hasPath := tt.Find(task.Path)
 		if !hasSource || !hasPath {
