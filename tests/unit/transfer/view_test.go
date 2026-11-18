@@ -212,31 +212,55 @@ func TestReopenedDraftKeepsDirectoryWithItsLinks(t *testing.T) {
 	}
 }
 
-func TestBulkPauseAffectsOnlyEligibleSearchResults(t *testing.T) {
+func TestWorkspaceBatchActionsFollowEligibleSearchResults(t *testing.T) {
 	s := service(t, &fakeEngine{}, &fakeRepo{})
-	_, err := s.Add(context.Background(), "https://example.org/visible.zip\nhttps://example.org/hidden.zip", t.TempDir())
+	_, err := s.Add(context.Background(), "https://example.org/visible-a.zip\nhttps://example.org/visible-b.zip\nhttps://example.org/hidden.zip", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	updates := make(chan func(), 1)
 	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { updates <- fn }})
 	v.Snapshot, v.Query = s.Snapshot(), "visible"
-	tt := ui.NewTester(v.Render, 800, 560)
-	if err := tt.Click("暂停当前结果"); err != nil {
-		t.Fatal(err)
+	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	click := func(label string) {
+		t.Helper()
+		if !tt.HasText(label) {
+			t.Fatalf("missing visible action %q", label)
+		}
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case update := <-updates:
+			update()
+			tt.Frame()
+		case <-time.After(3 * time.Second):
+			t.Fatal("bulk action did not finish")
+		}
 	}
-	select {
-	case update := <-updates:
-		update()
-	case <-time.After(3 * time.Second):
-		t.Fatal("bulk action did not finish")
+	click("暂停 2 项")
+	tasks := v.Snapshot.Tasks
+	if tasks[0].Status != "paused" || tasks[1].Status != "paused" || tasks[2].Status != "waiting" {
+		t.Fatalf("unexpected bulk pause scope: %+v", tasks)
 	}
-	if v.Snapshot.Tasks[0].Status != "paused" || v.Snapshot.Tasks[1].Status != "waiting" {
-		t.Fatalf("unexpected bulk scope: %+v", v.Snapshot.Tasks)
-	}
+	v.Query = "visible-a"
 	tt.Frame()
-	if _, ok := tt.Find("暂停当前结果"); ok {
-		t.Fatal("hidden task still enables pause")
+	if _, ok := tt.Find("继续 1 项"); ok || tt.HasText("继续 2 项") {
+		t.Fatal("single search result exposes a batch action")
+	}
+	if _, ok := tt.Find("继续下载"); !ok {
+		t.Fatal("missing individual resume action")
+	}
+	v.Query = ""
+	tt.Frame()
+	if _, ok := tt.Find("暂停 1 项"); ok {
+		t.Fatal("single waiting task exposes a bulk pause action")
+	}
+	click("继续 2 项")
+	for _, task := range v.Snapshot.Tasks {
+		if task.Status != "waiting" {
+			t.Fatalf("unexpected task status after resume: %+v", task)
+		}
 	}
 }
 func TestWorkspaceShowsDestinationFolderName(t *testing.T) {

@@ -2,6 +2,7 @@ package presentation
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -13,6 +14,7 @@ func (v *View) queue(c *ui.Context, p palette) {
 	if v.detailID != "" {
 		for _, task := range v.Snapshot.Tasks {
 			if task.ID == v.detailID {
+				v.messageBanner(c)
 				v.taskDetail(c, p, task)
 				return
 			}
@@ -23,7 +25,7 @@ func (v *View) queue(c *ui.Context, p palette) {
 	items := v.filtered()
 	width, _ := c.Size()
 	available := max(float32(0), width-sidebarWidth-2*workspaceInset)
-	columns := max(1, min(len(items), int((available+cardGap)/(cardWidth+cardGap))))
+	columns := max(1, int((available+cardGap)/(cardWidth+cardGap)))
 	gridWidth := min(available, float32(columns*(cardWidth+cardGap)-cardGap))
 	toolbar := ui.Row(c.Key("queue-toolbar")).Transition(panelMotion).Shrink(0).AlignItems(ui.Center).Gap(9).Width(gridWidth).Height(workspaceHeader)
 	toolbar.Children(func() {
@@ -34,6 +36,7 @@ func (v *View) queue(c *ui.Context, p palette) {
 		v.batchAction(c, items, application.Pause)
 		v.batchAction(c, items, application.Resume)
 	})
+	v.messageBanner(c)
 	if len(items) == 0 {
 		v.empty(c, p, v.category())
 		return
@@ -62,14 +65,27 @@ func (v *View) batchAction(c *ui.Context, items []application.TaskDTO, cmd appli
 			ids = append(ids, t.ID)
 		}
 	}
-	if len(ids) == 0 {
+	if len(ids) < 2 {
 		return
 	}
-	label, icon := "继续当前结果", "play"
+	action, icon := "继续", "play"
 	if cmd == application.Pause {
-		label, icon = "暂停当前结果", "pause"
+		action, icon = "暂停", "pause"
 	}
-	if iconButton(c, icon, label, v.Busy || !v.Ready) {
+	label := fmt.Sprintf("%s %d 项", action, len(ids))
+	t := c.Theme()
+	b := ui.ButtonBase(c.Key(cmd)).Label(label).Disabled(v.Busy || !v.Ready).Height(32).PaddingX(12).Radius(16).Center().Transition(pageFade)
+	fill := t.Surface.Alpha(.40)
+	if b.Pressed() {
+		fill = t.SurfacePressed
+	}
+	b.Background(fill).Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
+			ui.Icon(c, icons[icon]).FontSize(14).TextColor(t.TextMuted)
+			ui.Text(c, label).SingleLine().FontSize(12).FontWeight(550).FontFeatures("tnum").ContentTransition(numberChange)
+		})
+	})
+	if b.Clicked() {
 		v.run("", func(ctx context.Context) error { return v.API.SetPaused(ctx, ids, cmd == application.Pause) })
 	}
 }

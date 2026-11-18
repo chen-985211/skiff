@@ -1,6 +1,7 @@
 package transfer_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -9,6 +10,45 @@ import (
 	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/presentation"
 )
+
+func TestWorkspaceBatchActionAlignsWithBrandAndCardGrid(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	for _, name := range []string{"other.zip", "match-b.zip", "match-a.zip"} {
+		v.Snapshot.Tasks = append(v.Snapshot.Tasks, application.TaskDTO{ID: name, Name: name, Status: "paused", CanResume: true})
+	}
+	tt := ui.NewTesterWith(v.Render, 800, 800, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt.SetTitleBar(ui.TitleBar{Bottom: 33})
+	get := func(label string) ui.Rect {
+		t.Helper()
+		r, found := tt.Find(label)
+		if !found {
+			t.Fatalf("missing %q", label)
+		}
+		return r
+	}
+	for _, size := range []struct {
+		width int
+		last  string
+	}{{800, "match-a.zip"}, {1020, "match-b.zip"}, {1440, "other.zip"}} {
+		tt.SetSize(size.width, 800)
+		v.Query, v.Message = "", ""
+		tt.Frame()
+		card := get(size.last)
+		brand := get("轻舟")
+		for _, state := range []struct{ query, message, button string }{
+			{"", "", "继续 3 项"},
+			{"match", "保存目录不可用", "继续 2 项"},
+		} {
+			v.Query, v.Message = state.query, state.message
+			tt.Frame()
+			button := get(state.button)
+			if math.Abs(float64((button.Y+button.H/2)-(brand.Y+brand.H/2))) > 1 || button.X+button.W != card.X+card.W {
+				t.Errorf("width %d: button %v, brand %v, grid ends at %.1f", size.width, button, brand, card.X+card.W)
+			}
+		}
+	}
+}
 
 func TestWorkspaceCardsKeepTheirSizeAndAlignmentOnResize(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
