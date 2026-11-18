@@ -100,9 +100,6 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 	kind := fileIcon(t.Name)
 	v.cardSurface(c, card, p, t.ID, color, 20).Children(func() {
 		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(71).FillWidth().Radius(13).Transition(controlMotion)
-		if head.Hovered() {
-			head.Background(p.panel.Alpha(.58))
-		}
 		head.Children(func() {
 			ui.Row(c).Fill().Gap(13).AlignItems(ui.Center).Children(func() {
 				ui.Image(c, fileArt[kind]).Size(65, 65).Fit(ui.Contain)

@@ -184,3 +184,22 @@ func TestCardMaterialExpandsAndReversesFromCurrentSize(t *testing.T) {
 		t.Fatalf("returned to %v, want original %v", end, grid)
 	}
 }
+
+func TestCardMaterialStaysVisibleOnHeaderHover(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		v := presentation.New(nil, presentation.Actions{})
+		v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "complete"}}
+		tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Dark: dark, Preferences: ui.Preferences{ReduceMotion: true}})
+		r, found := tt.Find("查看详情 one.zip")
+		if !found {
+			t.Fatal("missing card header")
+		}
+		x, y := int(r.X+r.W-40), int(r.Y+r.H/2)
+		before := tt.Image().RGBAAt(x, y)
+		tt.Move(float32(x), float32(y))
+		tt.Advance(300 * time.Millisecond)
+		if after := tt.Image().RGBAAt(x, y); before != after {
+			t.Fatalf("dark=%v: header changed on hover: %v -> %v", dark, before, after)
+		}
+	}
+}
