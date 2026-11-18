@@ -37,6 +37,12 @@ func Fragment(dst vec4, pos vec2) vec4 {
     base = mix(base,vec3(.43,.55,.71), exposure*.43*exp(-280*(edge+.044)*(edge+.044)))
     base = mix(base,vec3(.83,.91,1), exposure*.59*exp(-220*edge*edge))
     base = mix(base,vec3(1,.99,.985), exposure*.68*exp(-1450*(edge-.024)*(edge-.024)))
+    // A softer reflection follows the left facet from the top toward the sidebar.
+    left := x + .34*y - .30 + .038*sin(4*y+.55*cos(Phase)) + .36*drift
+    lilac := vec3(.89+.05*Dark,.79,.93)
+    sheen := mix(vec3(.70,.88,.92), lilac, smoothstep(-.055,.065,left))
+    sheen = mix(sheen, vec3(.99,.96,.93), .76*exp(-410*left*left))
+    base = mix(base, sheen, (.76-.13*y+.06*cos(3*y-Phase))*exp(-54*left*left))
     night := base*base*vec3(.37,.40,.49) + vec3(.015,.019,.028)
     return vec4(mix(base,night,Dark),1)
 }

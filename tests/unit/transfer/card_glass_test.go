@@ -133,6 +133,34 @@ func TestWindowLightKeepsBroadTonalFolds(t *testing.T) {
 	}
 }
 
+func TestWindowLightLeftFoldReflectsIceAndLilac(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		v := presentation.New(nil, presentation.Actions{})
+		v.Ready = true
+		tt := ui.NewTesterWith(v.Render, 1440, 900, ui.TesterOptions{Dark: dark, Preferences: ui.Preferences{ReduceMotion: true}})
+		im := tt.Image()
+		// The exposed part of the upper-left facet narrows toward the bottom.
+		// Sample below the navigation and cards so only the window is measured.
+		var ice, lilac, total int
+		for y := 360; y < 700; y += 8 {
+			for x := 16; x < 540-y/3; x += 8 {
+				c := im.RGBAAt(x, y)
+				r, g, b := int(c.R), int(c.G), int(c.B)
+				if g-r >= 8 && b > g {
+					ice++
+				}
+				if r-g >= 2 && b > r {
+					lilac++
+				}
+				total++
+			}
+		}
+		if ice < total/10 || lilac < total/20 {
+			t.Errorf("dark=%t: left fold has %d icy and %d lilac samples out of %d", dark, ice, lilac, total)
+		}
+	}
+}
+
 func TestCardMaterialExpandsAndReversesFromCurrentSize(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
