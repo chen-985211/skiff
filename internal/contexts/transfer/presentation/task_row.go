@@ -263,7 +263,8 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 			v.detailID = ""
 			c.Invalidate()
 		}
-		card := ui.Column(c.Key(t.ID)).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(16, cardInset).Gap(16).Transition(cardMotion(t.ID))
+		card := ui.Column(c.Key(t.ID)).Size(2*cardWidth+cardGap, 2*cardHeight+cardGap).
+			MaxWidthPercent(100).AlignSelf(ui.Start).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(16, cardInset).Gap(16).Transition(cardMotion(t.ID))
 		color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
 		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
 			ui.Row(c).Height(44).FillWidth().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
@@ -276,7 +277,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 			})
 			taskProgress(c, p, t, color)
 
-			ui.Column(c).Gap(6).Children(func() {
+			ui.Column(c).Grow(1).MinHeight(0).Gap(6).Children(func() {
 				detailField(c, p, "来源", t.URL)
 				target := t.Path
 				if target == "" {

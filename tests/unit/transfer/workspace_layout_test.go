@@ -332,7 +332,7 @@ func TestWorkspaceCardContentAlignsAcrossPreviewAndDetail(t *testing.T) {
 	rowGap := path.Y - (source.Y + source.H)
 	actionGap := back.Y - (path.Y + path.H)
 	bottom := card.Bounds.Y + card.Bounds.H - (back.Y + back.H)
-	if rowGap != 6 || actionGap != 16 || bottom != 16 {
+	if rowGap != 6 || actionGap < 16 || bottom != 16 {
 		t.Errorf("detail gaps: between fields %.1f, before actions %.1f, below actions %.1f", rowGap, actionGap, bottom)
 	}
 }
