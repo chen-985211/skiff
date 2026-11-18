@@ -9,13 +9,13 @@ import (
 
 var controlMotion = ui.ElementTransition{Duration: 130 * time.Millisecond, Colors: true}
 var panelMotion = ui.ElementTransition{
-	Duration: 160 * time.Millisecond, Enter: &ui.Motion{Y: 4},
+	Duration: 160 * time.Millisecond, Enter: &ui.Motion{Y: 5}, Exit: &ui.Motion{Y: -4},
 }
 
 type cardMatch string
 
 func cardMotion(id string) ui.ElementTransition {
-	return ui.ElementTransition{Match: cardMatch(id), ScaleContent: true, Duration: 260 * time.Millisecond, Enter: &ui.Motion{Y: 12, Scale: .98}}
+	return ui.ElementTransition{Match: cardMatch(id), ScaleContent: true, Duration: 260 * time.Millisecond, Enter: &ui.Motion{Y: 9, Scale: .985}, Exit: &ui.Motion{Y: -5, Scale: .985}}
 }
 
 type category struct{ id, title, icon, empty string }
@@ -38,6 +38,7 @@ func (v *View) category() category {
 }
 
 func (v *View) selectCategory(id string) {
+	v.settingsOpen = false
 	v.Filter, v.detailID = id, ""
 	v.grid = ui.GridState{}
 }
@@ -49,10 +50,6 @@ const (
 
 func (v *View) sidebar(c *ui.Context, p palette) {
 	rail := ui.Column(c).Width(sidebarWidth).FillHeight().Shrink(0).Padding(0, 12, 18)
-	rail.Background(p.tint)
-	if !c.Preferences().ReduceTransparency && !c.Preferences().HighContrast {
-		rail.Gradient(p.panel.Alpha(.38), p.haze.Alpha(.60), 153)
-	}
 	rail.Children(func() {
 		ui.Box(c).FillWidth().Height(max(20, c.TitleBar().Bottom)).DragWindow()
 		ui.Row(c).Height(64).PaddingX(8).AlignItems(ui.Center).Gap(10).DragWindow().Children(func() {
@@ -71,9 +68,12 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 		offset := nav.Spring("selection", float32(selectedIndex*(rowHeight+rowGap)), ui.SpringOptions{Duration: 270 * time.Millisecond})
 		nav.Children(func() {
 			highlight := ui.Box(c.Key("highlight")).Absolute().Top(0).Left(0).Right(0).Height(rowHeight).Translate(0, offset).IgnoreInput(true).AccessHidden(true)
+			if v.settingsOpen {
+				highlight.Opacity(0)
+			}
 			surface(c, highlight, p, p.tint, 13, false)
 			for _, cat := range categories {
-				selected := v.Filter == cat.id
+				selected := !v.settingsOpen && v.Filter == cat.id
 				button := ui.ButtonBase(c.Key(cat.id)).FillWidth().Height(rowHeight).ZIndex(1).PaddingX(11).Label(cat.title).AccessSelected(selected).Radius(13).Transition(controlMotion)
 				ink := p.muted
 				if selected {
@@ -86,7 +86,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 						ui.Icon(c, icons[cat.icon]).FontSize(17).TextColor(ink)
 						ui.Text(c, cat.title).Grow(1).FontSize(13).FontWeight(570).TextColor(ink)
 						if count := v.count(cat.id); count > 0 {
-							ui.Textf(c, "%d", count).FontFeatures("tnum").FontSize(11).TextColor(ink)
+							ui.Textf(c, "%d", count).Transition(panelMotion).ContentTransition(ui.ContentTransition{Numeric: true}).FontFeatures("tnum").FontSize(11).TextColor(ink)
 						}
 					})
 				})
@@ -96,35 +96,43 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 			}
 		})
 		ui.Box(c).Grow(1).DragWindow()
-		ui.Column(c).Padding(0, 8).Gap(11).Children(func() {
-			if v.Snapshot.Directory != "" {
-				ui.Row(c).AlignItems(ui.Center).Gap(7).Children(func() {
-					ui.Icon(c, icons["folder"]).FontSize(15).TextColor(p.muted)
-					ui.Text(c, filepath.Base(v.Snapshot.Directory)).Grow(1).MinWidth(0).FontSize(12).SingleLine().Tooltip(v.Snapshot.Directory)
+		ui.Column(c).Gap(3).Children(func() {
+			if v.Snapshot.Speed > 0 {
+				ui.Row(c.Key("speed")).PaddingX(10).Gap(8).AlignItems(ui.Center).Transition(panelMotion).Children(func() {
+					ui.Icon(c, icons["download"]).FontSize(14).TextColor(p.muted)
+					ui.Text(c, bytesText(v.Snapshot.Speed)+"/s").FontSize(11).FontFeatures("tnum").ContentTransition(ui.ContentTransition{Numeric: true}).Description("总下载速度")
 				})
 			}
-			ui.Box(c).Height(1).FillWidth().Background(p.muted.Alpha(.23))
-			ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
-				label, color := "引擎启动中", p.muted
-				switch {
-				case v.Busy:
-					label = "正在处理…"
-				case v.Ready:
-					label, color = "引擎就绪", p.green
-				case v.Message != "":
-					label, color = "引擎未就绪", c.Theme().Danger
+			if dir := v.Snapshot.Directory; dir != "" {
+				folder := ui.ButtonBase(c.Key("destination")).FillWidth().Height(34).Radius(10).PaddingX(10).Label("打开下载目录").Description(dir).Disabled(v.Actions.OpenDirectory == nil).Transition(controlMotion)
+				if folder.Hovered() {
+					folder.Background(p.panel.Alpha(.38))
 				}
-				ui.Box(c).Size(10, 10).Center().Role(ui.RoleStatus).Label(label).Tooltip(label).Children(func() {
-					ui.Box(c).Size(6, 6).Radius(3).Background(color)
+				folder.Children(func() {
+					ui.Row(c).Fill().AlignItems(ui.Center).Gap(8).Children(func() {
+						ui.Icon(c, icons["folder"]).FontSize(16).TextColor(p.muted)
+						ui.Text(c, filepath.Base(dir)).Grow(1).MinWidth(0).FontSize(12).SingleLine()
+					})
 				})
-				if !v.Ready || v.Busy {
-					ui.Text(c, label).FontSize(10)
+				if folder.Clicked() {
+					v.Actions.OpenDirectory(dir)
 				}
-				ui.Box(c).Grow(1)
-				if v.Snapshot.Speed > 0 {
-					ui.Text(c, bytesText(v.Snapshot.Speed)+"/s").FontSize(10).FontFeatures("tnum").Tooltip("总下载速度")
-				}
+			}
+			settings := ui.ButtonBase(c.Key("settings")).FillWidth().Height(34).PaddingX(10).Radius(10).Transition(controlMotion).Label("设置").AccessSelected(v.settingsOpen)
+			if v.settingsOpen || settings.Hovered() {
+				settings.Background(p.panel.Alpha(.48))
+			}
+			settings.Children(func() {
+				ui.Row(c).Fill().AlignItems(ui.Center).Gap(8).Children(func() {
+					ui.Icon(c, icons["settings"]).FontSize(16).TextColor(p.muted)
+					ui.Text(c, "设置").Grow(1).FontSize(12)
+
+				})
 			})
+			if settings.Clicked() {
+				v.settingsOpen = true
+				c.Invalidate()
+			}
 		})
 	})
 }

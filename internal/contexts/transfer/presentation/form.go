@@ -22,7 +22,7 @@ func (v *View) newDialog(c *ui.Context, p palette, reveal float32) {
 					v.DialogOpen = false
 				}
 			})
-			ui.Divider(c).Margin(2, 0)
+			ui.Box(c).Height(2)
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, "下载链接").FontWeight(600).Grow(1)
 				lines := 0
@@ -32,7 +32,7 @@ func (v *View) newDialog(c *ui.Context, p palette, reveal float32) {
 					}
 				}
 				if lines > 1 {
-					ui.Textf(c, "已输入 %d 行", lines).FontSize(11).TextColor(p.muted)
+					ui.Textf(c, "已输入 %d 行", lines).Transition(panelMotion).ContentTransition(ui.ContentTransition{Numeric: true}).FontSize(11).TextColor(p.muted)
 				}
 			})
 			if ui.TextArea(c, &v.URLs).Height(115).Padding(10).Background(p.canvas).Placeholder("粘贴 HTTP 或 HTTPS 链接，每行一个").Label("下载链接").AutoFocus().Disabled(v.Busy).Changed() {
@@ -55,9 +55,9 @@ func (v *View) newDialog(c *ui.Context, p palette, reveal float32) {
 				}
 			})
 			if v.FormError != "" {
-				ui.Text(c, v.FormError).MaxHeight(68).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
+				ui.Text(c, v.FormError).Transition(panelMotion).ContentTransition(ui.ContentTransition{}).MaxHeight(68).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
 			}
-			ui.Divider(c).Margin(2, 0)
+			ui.Box(c).Height(2)
 			ui.Row(c).Gap(8).Justify(ui.End).Margin(4, 0, 0).Children(func() {
 				if ui.Button(c, "取消").Disabled(v.Busy).Clicked() {
 					v.DialogOpen = false

@@ -38,10 +38,16 @@ type Engine interface {
 	Execute(context.Context, string, Command) error
 	Observe(context.Context) ([]Observation, error)
 }
+type Preferences struct {
+	DefaultDirectory string
+	StaticBackground bool
+}
+
 type State struct {
-	Version   int
-	Directory string
-	Tasks     []domain.Record
+	Preferences Preferences
+	Version     int
+	Directory   string
+	Tasks       []domain.Record
 }
 type Repository interface {
 	Load(context.Context) (State, error)
@@ -55,23 +61,25 @@ type TaskDTO struct {
 	CanRestart                                    bool
 }
 type Snapshot struct {
-	Tasks     []TaskDTO
-	Directory string
-	Speed     int64
-	Active    int
+	Preferences Preferences
+	Tasks       []TaskDTO
+	Directory   string
+	Speed       int64
+	Active      int
 }
 
 // Service is the single serialized entry point for download intent and progress.
 // Call it from workers, never from the UI thread.
 type Service struct {
-	mu        sync.Mutex
-	engine    Engine
-	repo      Repository
-	directory string
-	nextID    func() string
-	tasks     []domain.Task
-	dirty     bool
-	lastSave  time.Time
+	preferences Preferences
+	mu          sync.Mutex
+	engine      Engine
+	repo        Repository
+	directory   string
+	nextID      func() string
+	tasks       []domain.Task
+	dirty       bool
+	lastSave    time.Time
 }
 
 func New(engine Engine, repo Repository, directory string, nextID func() string) *Service {
@@ -84,6 +92,7 @@ func (s *Service) Open(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.preferences = state.Preferences
 	if state.Directory != "" {
 		s.directory = state.Directory
 	}
@@ -297,7 +306,11 @@ func (s *Service) Refresh(ctx context.Context) error {
 func (s *Service) Snapshot() Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	snap := Snapshot{Directory: s.directory}
+	directory := s.preferences.DefaultDirectory
+	if directory == "" {
+		directory = s.directory
+	}
+	snap := Snapshot{Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
 		dto := TaskDTO{ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
@@ -310,7 +323,7 @@ func (s *Service) Snapshot() Snapshot {
 	return snap
 }
 func (s *Service) persist(ctx context.Context) error {
-	state := State{Version: 1, Directory: s.directory}
+	state := State{Version: 1, Directory: s.directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
 		r.Speed = 0
@@ -328,4 +341,34 @@ func (s *Service) Flush(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.persist(ctx)
+}
+
+func (s *Service) SetDefaultDirectory(ctx context.Context, path string) error {
+	if !filepath.IsAbs(path) {
+		return errors.New("请选择绝对路径作为默认保存目录")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.preferences
+	next.DefaultDirectory = filepath.Clean(path)
+	return s.savePreferences(ctx, next)
+}
+
+func (s *Service) SetStaticBackground(ctx context.Context, still bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.preferences
+	next.StaticBackground = still
+	return s.savePreferences(ctx, next)
+}
+
+// Called under the service lock, alongside task and progress persistence.
+func (s *Service) savePreferences(ctx context.Context, next Preferences) error {
+	previous := s.preferences
+	s.preferences = next
+	if err := s.persist(ctx); err != nil {
+		s.preferences = previous
+		return err
+	}
+	return nil
 }

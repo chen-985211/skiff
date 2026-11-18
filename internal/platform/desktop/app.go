@@ -78,7 +78,30 @@ func Run() error {
 	})
 	mygo.App.OnWindowAllClosed(func() { mygo.App.Quit() })
 	mygo.App.WhenReady(func() {
+		downloads, _ := mygo.App.Path(mygo.PathDownloads)
+		defaultDirectory := filepath.Join(downloads, "Skiff")
 		actions := presentation.Actions{
+			OpenDirectory: func(path string) {
+				go func() {
+					var err error
+					if path == defaultDirectory {
+						err = os.MkdirAll(path, 0755)
+					}
+					if err == nil {
+						var info os.FileInfo
+						info, err = os.Stat(path)
+						if err == nil && !info.IsDir() {
+							err = errors.New("所选路径不是文件夹")
+						}
+					}
+					if err == nil {
+						err = mygo.Shell.OpenPath(path)
+					}
+					if err != nil {
+						win.Update(func() { view.Message = "无法打开保存目录：" + err.Error() })
+					}
+				}()
+			},
 			Dispatch: func(fn func()) { win.Update(fn) },
 			PickDirectory: func(current string, done func(string, error)) {
 				go func() {
@@ -116,8 +139,7 @@ func Run() error {
 				process, err = aria2.Start(ctx, dataDir, binary)
 			}
 			if err == nil {
-				target, _ := mygo.App.Path(mygo.PathDownloads)
-				service = application.New(process.Client, persistence.Repository{Path: filepath.Join(dataDir, "tasks.json")}, filepath.Join(target, "Skiff"), newID)
+				service = application.New(process.Client, persistence.Repository{Path: filepath.Join(dataDir, "tasks.json")}, defaultDirectory, newID)
 				err = service.Open(ctx)
 			}
 			close(initialized)

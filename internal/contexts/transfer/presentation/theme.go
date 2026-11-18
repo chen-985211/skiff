@@ -41,9 +41,9 @@ func appearance(c *ui.Context) palette {
 // The dock and sheet sample the surface beneath them. Cards use a quieter
 // translucent fill so that scrolling a large grid needs no per-card blur.
 func surface(c *ui.Context, e ui.Element, p palette, tint ui.Color, radius float32, frosted bool) ui.Element {
-	e.Radius(radius).Border(1, p.rim.Alpha(.72))
+	e.Radius(radius)
 	if c.Preferences().ReduceTransparency || c.Preferences().HighContrast {
-		return e.Background(p.panel).BorderColor(p.border)
+		return e.Background(p.panel).Border(1, p.border)
 	}
 	if frosted {
 		return e.Material(glass.Glass{Style: glass.Regular, Tint: p.panel.Alpha(.43)})

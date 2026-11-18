@@ -189,3 +189,41 @@ func TestPauseBatchContinuesAfterAnIndividualFailure(t *testing.T) {
 		t.Fatalf("batch lost the failure or skipped the second task: %v, %+v", err, s.Snapshot())
 	}
 }
+
+func TestPreferencesSurviveRestartAndTemporaryDestination(t *testing.T) {
+	r := &fakeRepo{}
+	s := service(t, &fakeEngine{}, r)
+	dir := t.TempDir()
+	if err := s.SetDefaultDirectory(context.Background(), dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetStaticBackground(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Add(context.Background(), "https://example.org/one", t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	again := service(t, &fakeEngine{}, r)
+	if !again.Snapshot().Preferences.StaticBackground {
+		t.Fatal("motion setting lost after restart")
+	}
+	if got := again.Snapshot().Directory; got != dir {
+		t.Fatalf("lost configured directory %q", got)
+	}
+}
+
+func TestSettingsSaveFailureKeepsPreviousValues(t *testing.T) {
+	r := &fakeRepo{}
+	s := service(t, &fakeEngine{}, r)
+	before := s.Snapshot()
+	r.saveErr = errors.New("disk full")
+	if err := s.SetDefaultDirectory(context.Background(), t.TempDir()); err == nil {
+		t.Fatal("lost save error")
+	}
+	if err := s.SetStaticBackground(context.Background(), true); err == nil {
+		t.Fatal("lost save error")
+	}
+	if got := s.Snapshot(); got.Preferences != before.Preferences || got.Directory != before.Directory {
+		t.Fatal("failed settings applied")
+	}
+}

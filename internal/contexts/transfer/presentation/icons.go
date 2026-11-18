@@ -14,7 +14,10 @@ var icons = map[string]*ui.SVG{"boat": ui.MustParseSVG(mark)}
 func init() {
 	// Angular silhouettes and clipped corners keep these legible at toolbar size.
 	symbols := map[string]string{
+		"settings": "M3 7h8m4 0h6M3 17h3m4 0h11 M13 4l3 3-3 3-3-3z M8 14l3 3-3 3-3-3z",
 		"clock":    "M8 3h8l5 5v8l-5 5H8l-5-5V8z M12 6v6l4 2",
+		"file":     "M6 3h8l4 5v13H6z M14 3v6h4",
+		"restart":  "M4 5v14 M8 12l11-7v14z",
 		"all":      "M3 5h7v6H3z M14 5h7v4l-2 2h-5z M3 15h7v5H3z M14 15h7v5h-7z",
 		"download": "M9 3h6v7h4l-7 7-7-7h4z M3 17v3h15l3-3",
 		"pause":    "M5 7l4-3h1v15H5z M15 5h4v12l-4 3z",

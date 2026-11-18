@@ -23,9 +23,8 @@ func (v *View) queue(c *ui.Context, p palette) {
 	items := v.filtered()
 	toolbar := ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(9).Height(40).Padding(0, 4)
 	toolbar.Children(func() {
-
 		if strings.TrimSpace(v.Query) != "" {
-			ui.Textf(c, "%d 个结果", len(items)).FontSize(12).TextColor(p.muted)
+			ui.Textf(c, "%d 个结果", len(items)).Transition(panelMotion).ContentTransition(ui.ContentTransition{Numeric: true}).FontSize(12).TextColor(p.muted)
 		}
 		ui.Box(c).Grow(1).FillHeight().DragWindow()
 		v.batchAction(c, items, application.Pause)
@@ -37,11 +36,15 @@ func (v *View) queue(c *ui.Context, p palette) {
 	}
 	v.grid.Key = func(i int) any { return items[i].ID }
 	v.grid.Label = func(i int) string { return items[i].Name }
-	minWidth := float32(324)
-	if len(items) == 1 {
-		minWidth, _ = c.Size()
+	// GridView estimates columns from the full window on its first frame.
+	// Account for the rail before it has measured the workspace.
+	width, _ := c.Size()
+	const minCardWidth = 350
+	minWidth := float32(minCardWidth)
+	if width-sidebarWidth-48 < 2*minCardWidth+8 {
+		minWidth = width
 	}
-	ui.GridView(c.Key(v.Filter), &v.grid, len(items), minWidth, 194, func(i int) { v.taskCard(c, p, items[i]) }).Grow(1).MinHeight(0).Label("下载任务列表")
+	ui.GridView(c.Key(v.Filter), &v.grid, len(items), minWidth, 194, func(i int) { v.taskCard(c, p, items[i]) }).Grow(1).MinHeight(0).Label("下载任务列表").Transition(panelMotion)
 }
 
 func (v *View) batchAction(c *ui.Context, items []application.TaskDTO, cmd application.Command) {
@@ -76,18 +79,16 @@ func (v *View) empty(c *ui.Context, p palette, cat category) {
 		title, icon, action = "没有匹配的任务", "search", "清除搜索"
 	case cat.id == "all":
 		icon = "tray"
-	default:
+	case len(v.Snapshot.Tasks) > 0:
 		action = "查看全部任务"
 	}
 	ui.Column(c.Key(title)).Grow(1).MinHeight(0).FillWidth().Center().Gap(14).Transition(panelMotion).Children(func() {
 		if icon == "tray" {
 			ui.Image(c, inboxArt).Size(110, 110).Fit(ui.Contain)
 		} else {
-			surface(c, ui.Box(c).Size(64, 64).Center(), p, p.tint, 21, false).Children(func() {
-				ui.Icon(c, icons[icon]).FontSize(30).TextColor(p.accent)
-			})
+			ui.Icon(c, icons[icon]).FontSize(36).TextColor(p.muted)
 		}
-		ui.Text(c, title).FontSize(19).FontWeight(650)
+		ui.Text(c, title).FontSize(15).FontWeight(520).TextColor(p.muted)
 		if action != "" && ui.Button(c, action).Height(32).PaddingX(13).Radius(8).FontSize(12).Clicked() {
 			switch {
 			case strings.TrimSpace(v.Query) != "":

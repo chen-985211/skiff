@@ -400,7 +400,7 @@ func TestFailedCardMakesRecoveryVisible(t *testing.T) {
 	tt := ui.NewTester(v.Render, 800, 528)
 	action, ok := tt.Find("重试下载")
 	if !ok || action.W < 72 || !slices.Contains(tt.Texts(), "重试下载") {
-		t.Fatal("the primary recovery action is only an icon")
+		t.Fatalf("recovery action area %v, present %v: %v", action, ok, tt.Texts())
 	}
 }
 
@@ -443,9 +443,14 @@ func TestWorkspaceNavigationAndDockPositions(t *testing.T) {
 		if search.Y < 490 || search.Y >= add.Y+add.H || search.X+search.W > add.X {
 			t.Errorf("width=%d: search and new download do not share the bottom bar: %+v %+v", width, search, add)
 		}
-		if width == 1020 && file.X+file.W < float32(width)-90 {
-			t.Errorf("single file leaves half the workspace empty: %+v", file)
+		v.Snapshot.Tasks = append(v.Snapshot.Tasks, application.TaskDTO{ID: "b", Name: "new.zip"})
+		tt.Frame()
+		withNeighbor, _ := tt.Find("查看详情 archive.zip")
+		// A filled MyGo grid cell has a two-point focus inset.
+		if diff := file.W - withNeighbor.W; diff > 2 || diff < -2 {
+			t.Errorf("width=%d: task resized when a neighbor appeared: %v -> %v", width, file.W, withNeighbor.W)
 		}
+
 	}
 }
 
@@ -458,8 +463,8 @@ func TestQuietQueueKeepsActionsAndSuppressesRedundantCopy(t *testing.T) {
 			t.Errorf("idle queue repeats %q", redundant)
 		}
 	}
-	if state, ok := tt.AccessByRole(ui.RoleStatus, "引擎就绪"); !ok || state.Bounds.W > 16 {
-		t.Error("engine state inaccessible")
+	if _, ok := tt.AccessByRole(ui.RoleStatus, "引擎就绪"); ok {
+		t.Error("idle engine indicator should be removed")
 	}
 	if _, ok := tt.AccessByRole(ui.RoleButton, "新建下载"); !ok {
 		t.Error("missing create action")
@@ -519,7 +524,7 @@ func TestCategorySelectionTravelsAcrossIntermediateRow(t *testing.T) {
 	for _, reduce := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
-		tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: reduce}})
+		tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: reduce, ReduceTransparency: true}})
 		row, _ := tt.AccessByRole(ui.RoleButton, "正在下载")
 		x, y := int(row.Bounds.X+5), int(row.Bounds.Y+row.Bounds.H/2)
 		original := tt.Image().RGBAAt(x, y)
@@ -536,5 +541,187 @@ func TestCategorySelectionTravelsAcrossIntermediateRow(t *testing.T) {
 		if changed == reduce {
 			t.Errorf("reduced=%v, intermediate row visibly highlighted=%v", reduce, changed)
 		}
+	}
+}
+
+func TestWindowLightMovesAtRestWithoutSidebarSeam(t *testing.T) {
+	for _, reduce := range []bool{false, true} {
+		v := presentation.New(nil, presentation.Actions{})
+		v.Ready = true
+		tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: reduce}})
+		tt.Advance(time.Second)
+		sample := func() []byte {
+			im := tt.Image()
+			var pixels []byte
+			for x := 32; x < 890; x += 16 {
+				color := im.RGBAAt(x, 438)
+				pixels = append(pixels, color.R, color.G, color.B)
+			}
+			return pixels
+		}
+		first := sample()
+		tt.Advance(2 * time.Second)
+		if slices.Equal(first, sample()) != reduce {
+			t.Errorf("reduced=%v: unexpected idle light movement", reduce)
+		}
+		im := tt.Image()
+		left, right := im.RGBAAt(173, 438), im.RGBAAt(174, 438)
+		if d := int(left.R) - int(right.R); d > 4 || d < -4 {
+			t.Errorf("sidebar seam %v -> %v", left, right)
+		}
+	}
+}
+
+func TestPrimaryTaskControlsKeepTheirGeometryAcrossStates(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	var baseline, trackBaseline ui.Rect
+	for i, tc := range []struct{ status, label string }{{"active", "暂停下载"}, {"paused", "继续下载"}, {"error", "重试下载"}, {"complete", "查看文件详情"}} {
+		task := application.TaskDTO{ID: "a", Name: "a.zip", Status: tc.status, Total: 1024, Completed: 512, Progress: .5, CanPause: i == 0, CanResume: i == 1, CanRetry: i == 2, CanRestart: i == 2}
+		v.Snapshot.Tasks = []application.TaskDTO{task}
+		tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+		b, ok := tt.AccessByRole(ui.RoleButton, tc.label)
+		if !ok {
+			t.Fatal(tc.label)
+		}
+		progress, _ := tt.AccessByRole(ui.RoleProgress, "下载进度")
+		if i == 0 {
+			trackBaseline = progress.Bounds
+		} else if progress.Bounds != trackBaseline {
+			t.Errorf("%s track moved %v -> %v", tc.status, trackBaseline, progress.Bounds)
+		}
+		for _, label := range []string{"从头下载", "在文件夹中显示", "移除任务（保留文件）"} {
+			control, ok := tt.AccessByRole(ui.RoleButton, label)
+			if !ok || control.Bounds.W != b.Bounds.W || control.Bounds.H != b.Bounds.H {
+				t.Errorf("%s %s does not share the action size", tc.status, label)
+			}
+		}
+		if i == 0 {
+			baseline = b.Bounds
+		} else if baseline != b.Bounds {
+			t.Errorf("%s: control moved %v -> %v", tc.status, baseline, b.Bounds)
+		}
+	}
+}
+
+func TestPauseInterpolatesTheExistingProgressTrack(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	v.Snapshot.Tasks = []application.TaskDTO{{ID: "same", Name: "sample.zip", Status: "active", CanPause: true, Total: 1024, Completed: 512, Progress: .5}}
+	tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
+	tt.Advance(time.Second)
+	bar, _ := tt.AccessByRole(ui.RoleProgress, "下载进度")
+	x, y := int(bar.Bounds.X+10), int(bar.Bounds.Y+bar.Bounds.H/2)
+	start := tt.Image().RGBAAt(x, y)
+	task := &v.Snapshot.Tasks[0]
+	task.Status, task.CanPause, task.CanResume = "paused", false, true
+	tt.Frame()
+	tt.Advance(90 * time.Millisecond)
+	mid := tt.Image().RGBAAt(x, y)
+	tt.Advance(time.Second)
+	end := tt.Image().RGBAAt(x, y)
+	if mid == start || mid == end || start == end {
+		t.Fatalf("missing intermediate track color: %v %v %v", start, mid, end)
+	}
+	paused, _ := tt.AccessByRole(ui.RoleProgress, "下载进度")
+	if paused.Bounds != bar.Bounds {
+		t.Fatalf("track shifted: %v -> %v", bar.Bounds, paused.Bounds)
+	}
+}
+
+func TestCardMaterialFollowsTransferStatus(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	v.Snapshot.Tasks = []application.TaskDTO{{ID: "same", Name: "clip.wav", Status: "paused", CanResume: true}}
+	tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt.Advance(time.Second)
+	head, _ := tt.Find("查看详情 clip.wav")
+	x, y := int(head.X+2), int(head.Y+3)
+	first := tt.Image().RGBAAt(x, y)
+	v.Snapshot.Tasks[0].Name = "clip.zip"
+	tt.Frame()
+	tt.Advance(time.Second)
+	if next := tt.Image().RGBAAt(x, y); first != next {
+		t.Errorf("type changed card material: %v -> %v", first, next)
+	}
+	v.Snapshot.Tasks[0].Status = "error"
+	tt.Frame()
+	tt.Advance(time.Second)
+	if next := tt.Image().RGBAAt(x, y); first == next {
+		t.Errorf("failure did not change the card material: %v", next)
+	}
+}
+
+func TestSettingsReplacesEngineLightAndReturnsToQueue(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	v.Filter = "paused"
+	v.Snapshot.Directory = t.TempDir()
+	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
+	if err := tt.Click("设置"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("默认保存目录") || !tt.HasText("背景流光") || !tt.HasText(v.Snapshot.Directory) {
+		t.Fatal("settings not displayed")
+	}
+	if err := tt.Click("已暂停"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("默认保存目录") || !tt.HasText("没有暂停的任务") {
+		t.Fatal("did not return to queue")
+	}
+}
+
+func TestSidebarOpensTheDirectoryItShows(t *testing.T) {
+	dir := t.TempDir()
+	var opened string
+	v := presentation.New(nil, presentation.Actions{OpenDirectory: func(path string) { opened = path }})
+	v.Snapshot.Directory = dir
+	tt := ui.NewTester(v.Render, 800, 560)
+	if err := tt.Click("打开下载目录"); err != nil {
+		t.Fatal(err)
+	}
+	if opened != dir {
+		t.Fatalf("opened %q, want %q", opened, dir)
+	}
+}
+
+func TestSettingsControlsSaveAndSupplyNextDownload(t *testing.T) {
+	s := service(t, &fakeEngine{}, &fakeRepo{})
+	dir := t.TempDir()
+	done := make(chan func(), 1)
+	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { done <- fn }, PickDirectory: func(_ string, choose func(string, error)) { choose(dir, nil) }})
+	v.Snapshot = s.Snapshot()
+	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wait := func() {
+		t.Helper()
+		select {
+		case fn := <-done:
+			fn()
+			tt.Frame()
+		case <-time.After(2 * time.Second):
+			t.Fatal("no settings update")
+		}
+	}
+	v.OpenNew()
+	tt.Frame()
+	tt.Key(0, ui.KeyEscape)
+	click("设置")
+	click("更改默认保存目录")
+	wait()
+	click("背景流光")
+	wait()
+	if !v.Snapshot.Preferences.StaticBackground || v.Snapshot.Directory != dir {
+		t.Fatalf("settings not saved: %+v", v.Snapshot)
+	}
+	v.OpenNew()
+	if v.Directory != dir {
+		t.Fatalf("new download uses %q instead of %q", v.Directory, dir)
 	}
 }

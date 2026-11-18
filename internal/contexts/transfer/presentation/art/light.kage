@@ -1,0 +1,39 @@
+package main
+
+var Phase float
+var Dark float
+
+// Soft, curved folds seen through frosted glass. Each ridge has a broad
+// shadow on one side and a much narrower, slightly prismatic reflection.
+func Fragment(dst vec4, pos vec2) vec4 {
+    uv := pos / rectSize()
+    x, y := uv.x, uv.y
+    drift := .095*sin(Phase)
+    arc := x + .43*y + .12*sin(4.6*y + .6*cos(Phase)) + drift
+    fold := arc - .87
+    second := x - .45*y + .13*cos(4*y-.7*sin(Phase)) - .74 + .055*cos(Phase)
+    steel := vec3(.57,.64,.75)
+    pearl := vec3(.95,.956,.974)
+    base := mix(steel, pearl, .24+.35*y+.12*cos(3.5*x+Phase))
+    base = mix(base, vec3(.39,.47,.61), .45*exp(-38*(fold+.19)*(fold+.19)))
+    base = mix(base, pearl, .86*exp(-43*fold*fold))
+    // Keep the most brilliant edge short, as a reflection turning toward light.
+    rim := .64*exp(-920*(fold-.057)*(fold-.057))*(.58+.38*cos(5*y+Phase))
+    base = mix(base, vec3(.995,.98,.96), rim)
+    base = mix(base, vec3(.76,.87,.97), .42*exp(-175*(second+.035)*(second+.035)))
+    base = mix(base, vec3(.86,.81,.91), .44*exp(-150*(second-.05)*(second-.05)))
+    // A second, shallower pearl edge travels across the lower fold.
+    lip := second + .075 + .023*sin(5*y-Phase)
+    base = mix(base,vec3(.97,.97,.995),.52*exp(-1300*lip*lip)*smoothstep(.16,.88,y))
+    warm := vec2(x-.82-.06*cos(Phase),y-.83-.08*sin(Phase))
+    base = mix(base,vec3(.97,.90,.81),.47*exp(-12*dot(warm,warm)))
+    // A thin returning fold crosses the diffuse field. Its lit crest and
+    // blue penumbra bend together while their strength varies along the arc.
+    edge := x - .39 - .19*cos(3.8*y + .55*sin(Phase)) - .066*cos(Phase)
+    exposure := .60 + .32*sin(3.6*y-Phase)
+    base = mix(base,vec3(.43,.55,.71), exposure*.43*exp(-280*(edge+.044)*(edge+.044)))
+    base = mix(base,vec3(.83,.91,1), exposure*.59*exp(-220*edge*edge))
+    base = mix(base,vec3(1,.99,.985), exposure*.72*exp(-1450*(edge-.024)*(edge-.024)))
+    night := base*base*vec3(.37,.40,.49) + vec3(.015,.019,.028)
+    return vec4(mix(base,night,Dark),1)
+}
