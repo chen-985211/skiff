@@ -87,8 +87,10 @@ func taskColor(c *ui.Context, p palette, status string) ui.Color {
 		return p.complete
 	case "paused":
 		return p.paused
+	case "waiting":
+		return p.waiting
 	case "error":
-		return c.Theme().Danger.Mix(c.Theme().Text, .22)
+		return c.Theme().Danger
 	default:
 		return p.muted
 	}
@@ -186,11 +188,18 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 			target = 1
 		}
 		strength := track.AnimateTo("flow", target, progressEase)
+		highContrast := c.Preferences().HighContrast
 		track.Draw(func(painter *ui.Painter, r ui.Rect) {
 			fill := r
 			if known {
 				fill.W *= max(0, min(1, fraction))
-				painter.Fill(fill, color, 2.5)
+				if highContrast {
+					painter.Fill(fill, color, 2.5)
+				} else {
+					painter.FillGradient(fill, ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
+						{At: 0, Color: color}, {At: .62, Color: color.Mix(p.ice, .48)}, {At: 1, Color: color.Mix(p.lilac, .24)},
+					}}, 2.5)
+				}
 			}
 			if strength <= 0 {
 				if active && !known {

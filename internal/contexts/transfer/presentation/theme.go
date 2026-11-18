@@ -6,8 +6,8 @@ import (
 )
 
 type palette struct {
-	shade                                                                                                    float32
-	canvas, panel, border, muted, accent, complete, paused, tint, haze, warm, rim, ice, lilac, active, scrim ui.Color
+	shade                                                                                                             float32
+	canvas, panel, border, muted, accent, complete, paused, waiting, tint, haze, warm, rim, ice, lilac, active, scrim ui.Color
 }
 
 // One mix value drives the workspace, shader and controls, including when
@@ -28,7 +28,7 @@ func appearance(c *ui.Context, shade float32) palette {
 		haze: pair("#8a98b4", "#495469"), warm: pair("#dcd5de", "#4b424e"), tint: pair("#c5cbd8", "#50596b"),
 		ice: pair("#b9e5e7", "#739ca9"), lilac: pair("#c5b8d7", "#9586a9"),
 		border: pair("#adb6c7", "#606a7a"), muted: pair("#475366", "#c6cdd9"), accent: pair("#202532", "#e6e7eb"),
-		complete: pair("#565e92", "#c1c6f1"), paused: pair("#665f73", "#cbc1d4"), active: pair("#326889", "#9cd4ed"), scrim: pair("#303443", "#131822"),
+		complete: pair("#5348a4", "#cbbfff"), paused: pair("#635c70", "#d0c5d5"), active: pair("#3559a3", "#a2ceff"), waiting: pair("#556579", "#bcc9da"), scrim: pair("#303443", "#131822"),
 	}
 	t.Text = pair("#1c2330", "#f1f3f7")
 	t.Danger, t.Warning = pair("#963f50", "#ffb5bc"), pair("#78581d", "#e9c780")

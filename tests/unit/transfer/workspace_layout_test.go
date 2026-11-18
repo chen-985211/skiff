@@ -174,6 +174,10 @@ func TestWorkspaceCompletedTrackUsesPeriwinkleInBothThemes(t *testing.T) {
 		tt := ui.NewTesterWith(v.Render, 800, 600, ui.TesterOptions{Dark: dark, Preferences: ui.Preferences{ReduceMotion: true, ReduceTransparency: true}})
 		r, _ := tt.Find("下载进度")
 		col := tt.Image().RGBAAt(int(r.X+r.W/2), int(r.Y+r.H/2))
+		edge := tt.Image().RGBAAt(int(r.X+r.W*.15), int(r.Y+r.H/2))
+		if edge == col {
+			t.Fatalf("dark=%v: completed track lacks a reflective gradient", dark)
+		}
 		if col.B <= col.G || col.B <= col.R {
 			t.Fatalf("dark=%v: completed track %v", dark, col)
 		}
