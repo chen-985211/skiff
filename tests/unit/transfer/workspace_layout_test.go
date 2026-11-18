@@ -123,7 +123,7 @@ func TestWorkspaceDetailAlignsWithNavigationAndCollapsesInPlace(t *testing.T) {
 func TestWorkspaceCategoryContentFadesAcrossFrames(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
-	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "complete", Progress: 1}}
+	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "active", Total: 100, Progress: 1}}
 	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
 	tt.Advance(time.Second)
 	track, ok := tt.Find("下载进度")
@@ -177,11 +177,17 @@ func TestWorkspaceTerminalTracksUseQuietSteelInBothThemes(t *testing.T) {
 			v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "file.zip", Status: status, Total: 100, Progress: progress}}
 			tt := ui.NewTesterWith(v.Render, 800, 600, ui.TesterOptions{Dark: dark, Preferences: ui.Preferences{ReduceMotion: true, ReduceTransparency: true}})
 			r, ok := tt.Find("下载进度")
+			if status == "complete" {
+				if ok {
+					t.Error("completed track still visible")
+				}
+				continue
+			}
 			if !ok {
 				t.Fatal("missing track")
 			}
 			col := tt.Image().RGBAAt(int(r.X+r.W*.15), int(r.Y+r.H/2))
-			if col.B <= col.R || status == "complete" && ((!dark && col.R < 145) || (dark && col.R > 155)) {
+			if col.B <= col.R {
 				t.Errorf("%s dark=%v: unexpected track color %v", status, dark, col)
 			}
 		}

@@ -10,7 +10,7 @@ import (
 )
 
 // The four controls keep the same order, width and hit target in every state.
-func cardAction(c *ui.Context, icon, text, label string, disabled bool) bool {
+func cardAction(c *ui.Context, icon, text, label, status string, disabled bool) bool {
 	b := ui.ButtonBase(c).Basis(0).Grow(1).MinWidth(0).Height(32).Radius(12).Center().Label(label).Tooltip(label).Disabled(disabled).Transition(controlMotion)
 	b.Background(c.Theme().Surface.Alpha(.38))
 	if b.Hovered() {
@@ -19,9 +19,19 @@ func cardAction(c *ui.Context, icon, text, label string, disabled bool) bool {
 	if b.Pressed() {
 		b.Background(c.Theme().SurfacePressed)
 	}
+	ink := c.Theme().Text
+	if status != "" {
+		b.Description(statusText(status))
+		if status == "error" {
+			ink = c.Theme().Danger
+		}
+		if label != "返回任务列表" && !b.Hovered() && !b.Focused() {
+			text, icon = statusText(status), stateSymbol(status)
+		}
+	}
 	b.Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
-			ui.Icon(c, icons[icon]).FontSize(14).ContentTransition(textChange)
+			ui.Icon(c, icons[icon]).TextColor(ink).FontSize(14).ContentTransition(textChange)
 			ui.Text(c, text).FontSize(11).FontWeight(550).ContentTransition(textChange)
 		})
 	})
@@ -42,7 +52,7 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO) {
 		case v.detailID == t.ID:
 			label, text, icon = "返回任务列表", "返回", "chevron"
 		}
-		if cardAction(c, icon, text, label, v.Busy) {
+		if cardAction(c, icon, text, label, t.Status, v.Busy) {
 			if cmd != "" {
 				v.command(t.ID, cmd)
 			} else {
@@ -54,13 +64,13 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO) {
 				c.Invalidate()
 			}
 		}
-		if cardAction(c, "restart", "从头下载", "从头下载", !t.CanRestart || v.Busy) {
+		if cardAction(c, "restart", "从头下载", "从头下载", "", !t.CanRestart || v.Busy) {
 			v.RestartID, v.RestartOpen = t.ID, true
 		}
-		if cardAction(c, "folder", "位置", "在文件夹中显示", t.Path == "" || v.Busy) && v.Actions.Reveal != nil {
+		if cardAction(c, "folder", "位置", "在文件夹中显示", "", t.Path == "" || v.Busy) && v.Actions.Reveal != nil {
 			v.Actions.Reveal(t.Path)
 		}
-		if cardAction(c, "close", "移除", "移除任务（保留文件）", v.Busy) {
+		if cardAction(c, "close", "移除", "移除任务（保留文件）", "", v.Busy) {
 			v.command(t.ID, application.Remove)
 		}
 	})
@@ -107,17 +117,9 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 				ui.Image(c, fileArt[kind]).Size(65, 65).Fit(ui.Contain)
 				ui.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
 					ui.Text(c, t.Name).FontSize(17).FontWeight(640).SingleLine()
-					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-						ink := color
-						if t.Status == "error" {
-							ink = c.Theme().Danger
-						}
-						ui.Icon(c, icons[stateSymbol(t.Status)]).ContentTransition(textChange).FontSize(14).TextColor(ink).Tooltip(statusText(t.Status))
-						size := taskSize(t)
-						if size != "" {
-							ui.Text(c, size).ContentTransition(numberChange).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
-						}
-					})
+					if size := taskSize(t); size != "" {
+						ui.Text(c, size).ContentTransition(numberChange).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
+					}
 				})
 				ui.Icon(c, icons["chevron"]).FontSize(16).Rotate(-90).TextColor(p.muted)
 			})
@@ -161,9 +163,12 @@ func taskSize(t application.TaskDTO) string {
 }
 
 func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Color) {
+	if t.Status == "complete" {
+		return
+	}
 	active := t.Status == "active"
 
-	section := ui.Column(c).Gap(6)
+	section := ui.Column(c.Key("progress")).Gap(6).Transition(pageFade)
 	fraction := section.AnimateTo("completion", float32(t.Progress), progressEase)
 	section.Children(func() {
 		ui.Row(c).Height(18).AlignItems(ui.Center).Children(func() {
@@ -174,12 +179,12 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 				metric = bytesText(t.Speed) + "/s"
 			}
 			ui.Text(c, metric).MinWidth(0).Grow(1).SingleLine().Tooltip(metric).FontSize(12).FontFeatures("tnum").TextColor(ink).ContentTransition(textChange)
-			if t.Total > 0 && t.Status != "complete" {
+			if t.Total > 0 {
 				ui.Textf(c, "%.0f%%", 100*t.Progress).FontSize(12).FontWeight(600).FontFeatures("tnum").ContentTransition(numberChange)
 			}
 		})
 		track := ui.Box(c).Height(5).FillWidth().Radius(2.5).Background(p.border).Clip().Role(ui.RoleProgress).Label("下载进度")
-		known := t.Total > 0 || t.Status == "complete"
+		known := t.Total > 0
 		if known {
 			track.Range(0, 1, t.Progress)
 		} else {
@@ -192,13 +197,11 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 			target = 1
 		}
 		strength := track.AnimateTo("flow", target, progressEase)
-		completion := track.AnimateTo("quiet-completion", amount(t.Status == "complete" && !c.Preferences().HighContrast), colorFade)
-		fillColor := color.Mix(p.border, .85*completion)
 		track.Draw(func(painter *ui.Painter, r ui.Rect) {
 			fill := r
 			if known {
 				fill.W *= max(0, min(1, fraction))
-				painter.Fill(fill, fillColor, 2.5)
+				painter.Fill(fill, color, 2.5)
 			}
 			if strength <= 0 {
 				if active && !known {
@@ -240,7 +243,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 			ui.Row(c).Height(71).FillWidth().Gap(13).AlignItems(ui.Center).Children(func() {
 				ui.Image(c, fileArt[fileIcon(t.Name)]).Size(65, 65).Fit(ui.Contain)
 				ui.Text(c, t.Name).FontSize(20).FontWeight(650).Grow(1).MinWidth(0).SingleLine().Tooltip(t.Name)
-				ui.Text(c, statusText(t.Status)).ContentTransition(textChange).FontSize(12).TextColor(color)
+
 				if (t.CanPause || t.CanResume || t.CanRetry) && secondaryAction(c, "返回").Label("返回任务列表").Clicked() {
 					v.detailID = ""
 					c.Invalidate()

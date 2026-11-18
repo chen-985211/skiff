@@ -41,8 +41,12 @@ func TestCardMaterialIlluminatesInterior(t *testing.T) {
 			}
 			tt.Advance(700 * time.Millisecond)
 			bar, ok := tt.Find("下载进度")
+			if tc.status == "complete" {
+				bar, ok = tt.Find("查看详情 one.zip")
+				bar.Y += bar.H + 32
+			}
 			if !ok {
-				t.Fatal("missing progress track")
+				t.Fatal("missing card sample area")
 			}
 			sample := func() []color.RGBA {
 				im := tt.Image()

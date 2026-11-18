@@ -399,7 +399,7 @@ func TestFailedCardMakesRecoveryVisible(t *testing.T) {
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "failed", Name: "__down", Status: "error", Error: "下载引擎 HTTP 状态 400", CanRetry: true, CanRestart: true}}
 	tt := ui.NewTester(v.Render, 800, 528)
 	action, ok := tt.Find("重试下载")
-	if !ok || action.W < 72 || !slices.Contains(tt.Texts(), "重试下载") {
+	if !ok || action.W < 72 || !slices.Contains(tt.Texts(), "下载失败") {
 		t.Fatalf("recovery action area %v, present %v: %v", action, ok, tt.Texts())
 	}
 }
@@ -574,18 +574,26 @@ func TestWindowLightMovesAtRestWithoutSidebarSeam(t *testing.T) {
 func TestPrimaryTaskControlsKeepTheirGeometryAcrossStates(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
+	statusLabelForTest := map[string]string{"active": "下载中", "paused": "已暂停", "waiting": "等待中", "error": "下载失败", "complete": "已完成"}
 	var baseline, trackBaseline ui.Rect
-	for i, tc := range []struct{ status, label string }{{"active", "暂停下载"}, {"paused", "继续下载"}, {"error", "重试下载"}, {"complete", "查看文件详情"}} {
-		task := application.TaskDTO{ID: "a", Name: "a.zip", Status: tc.status, Total: 1024, Completed: 512, Progress: .5, CanPause: i == 0, CanResume: i == 1, CanRetry: i == 2, CanRestart: i == 2}
+	for i, tc := range []struct{ status, label string }{{"active", "暂停下载"}, {"paused", "继续下载"}, {"error", "重试下载"}, {"complete", "查看文件详情"}, {"waiting", "暂停下载"}} {
+		task := application.TaskDTO{ID: "a", Name: "a.zip", Status: tc.status, Total: 1024, Completed: 512, Progress: .5, CanPause: i == 0 || tc.status == "waiting", CanResume: i == 1, CanRetry: i == 2, CanRestart: i == 2}
 		v.Snapshot.Tasks = []application.TaskDTO{task}
 		tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
 		b, ok := tt.AccessByRole(ui.RoleButton, tc.label)
 		if !ok {
 			t.Fatal(tc.label)
 		}
-		progress, _ := tt.AccessByRole(ui.RoleProgress, "下载进度")
+		if !strings.Contains(b.Description, statusLabelForTest[tc.status]) || !tt.HasText(statusLabelForTest[tc.status]) {
+			t.Errorf("%s: missing state on primary button: %v", tc.status, b.Description)
+		}
+		progress, hasTrack := tt.AccessByRole(ui.RoleProgress, "下载进度")
 		if i == 0 {
 			trackBaseline = progress.Bounds
+		} else if tc.status == "complete" {
+			if hasTrack {
+				t.Error("completed task still shows a track")
+			}
 		} else if progress.Bounds != trackBaseline {
 			t.Errorf("%s track moved %v -> %v", tc.status, trackBaseline, progress.Bounds)
 		}
