@@ -275,15 +275,16 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 				}
 
 			})
-			taskProgress(c, p, t, color)
-
-			ui.Column(c).Grow(1).MinHeight(0).Gap(6).Children(func() {
-				detailField(c, p, "来源", t.URL)
-				target := t.Path
-				if target == "" {
-					target = t.Directory
-				}
-				detailField(c, p, "位置", target)
+			ui.Column(c).Grow(1).MinHeight(0).Gap(16).Children(func() {
+				ui.Column(c).Gap(6).Children(func() {
+					detailField(c, p, "来源", t.URL)
+					target := t.Path
+					if target == "" {
+						target = t.Directory
+					}
+					detailField(c, p, "位置", target)
+				})
+				taskProgress(c, p, t, color)
 			})
 			v.rowActions(c, t)
 		})

@@ -336,3 +336,42 @@ func TestWorkspaceCardContentAlignsAcrossPreviewAndDetail(t *testing.T) {
 		t.Errorf("detail gaps: between fields %.1f, before actions %.1f, below actions %.1f", rowGap, actionGap, bottom)
 	}
 }
+
+func TestWorkspaceDetailFieldsStayInPlaceWhenDownloadCompletes(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Snapshot.Tasks = []application.TaskDTO{{
+		ID: "a", Name: "photo.jpg", URL: "https://example.org/photo.jpg", Path: "/downloads/photo.jpg",
+		Status: "active", CanPause: true, Total: 100, Completed: 54, Progress: .54,
+	}}
+	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	if err := tt.Click("查看详情 photo.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	task := &v.Snapshot.Tasks[0]
+	var source, path ui.Rect
+	for _, status := range []string{"active", "paused", "complete"} {
+		task.Status, task.CanPause, task.CanResume = status, status == "active", status == "paused"
+		if status == "complete" {
+			task.Completed, task.Progress = task.Total, 1
+		}
+		tt.Frame()
+		src, hasSource := tt.Find(task.URL)
+		dst, hasPath := tt.Find(task.Path)
+		if !hasSource || !hasPath {
+			t.Fatalf("%s: missing source or destination", status)
+		}
+		if status == "active" {
+			source, path = src, dst
+		} else if src != source || dst != path {
+			t.Errorf("%s: fields moved from %v, %v to %v, %v", status, source, path, src, dst)
+		}
+		track, hasTrack := tt.Find("下载进度")
+		if status == "complete" {
+			if hasTrack {
+				t.Error("completed task still shows a progress bar")
+			}
+		} else if !hasTrack || track.Y <= dst.Y+dst.H {
+			t.Errorf("%s: progress bar %v must sit below destination %v", status, track, dst)
+		}
+	}
+}
