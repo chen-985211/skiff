@@ -96,7 +96,7 @@ func (v *View) themeSelector(c *ui.Context, p palette) {
 			segment := parts.Segment(i).Size(width, 28).Radius(14).ZIndex(1).Label(item.label)
 			segment.Children(func() { ui.Text(c, item.label).FontSize(12).FontWeight(570) })
 			if segment.Changed() {
-				v.chooseTheme(item.mode)
+				v.themeSave.choose(v, &v.Snapshot.Preferences.Theme, item.mode, v.API.SetTheme)
 				c.Invalidate()
 			}
 		}
@@ -105,8 +105,8 @@ func (v *View) themeSelector(c *ui.Context, p palette) {
 
 func (v *View) lightSwitch(c *ui.Context, p palette, label ui.Element) {
 	reduced := c.Preferences().ReduceMotion
-	enabled := !v.Snapshot.Preferences.StaticBackground && !reduced
-	toggle := ui.SwitchBase(c.Key("flow-switch"), &enabled).Size(48, 32).AlignItems(ui.Center).LabelledBy(label).Disabled(v.Busy || !v.Ready || reduced)
+	enabled := !v.staticBackground() && !reduced
+	toggle := ui.SwitchBase(c.Key("flow-switch"), &enabled).Size(48, 32).AlignItems(ui.Center).LabelledBy(label).Disabled(!v.Ready || v.API == nil || reduced)
 	if reduced {
 		toggle.Description("系统已启用减少动态效果")
 	}
@@ -118,7 +118,7 @@ func (v *View) lightSwitch(c *ui.Context, p palette, label ui.Element) {
 		})
 	})
 	if toggle.Changed() {
-		still := !v.Snapshot.Preferences.StaticBackground
-		v.run("", func(ctx context.Context) error { return v.API.SetStaticBackground(ctx, still) })
+		v.flowSave.choose(v, &v.Snapshot.Preferences.StaticBackground, !v.staticBackground(), v.API.SetStaticBackground)
+		c.Invalidate()
 	}
 }

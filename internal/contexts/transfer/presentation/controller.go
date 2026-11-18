@@ -84,44 +84,53 @@ func (v *View) run(taskID string, action func(context.Context) error) {
 	}()
 }
 
-func (v *View) selectedTheme() application.ThemeMode {
-	if v.pendingTheme != nil {
-		return *v.pendingTheme
-	}
-	return v.Snapshot.Preferences.Theme
+// Each preference applies on input and serializes its own writes. The UI
+// thread owns pending and the snapshot; the worker only sees the submitted value.
+type preferenceSave[T comparable] struct {
+	pending *T
 }
 
-// Show the latest choice immediately. Serialize writes so a slower previous
-// choice can never overwrite the user's final one on disk.
-func (v *View) chooseTheme(mode application.ThemeMode) {
-	if v.API == nil || mode == v.selectedTheme() {
-		return
+func (p *preferenceSave[T]) current(saved T) T {
+	if p.pending != nil {
+		return *p.pending
 	}
-	if v.pendingTheme != nil {
-		*v.pendingTheme = mode
-		return
-	}
-	v.pendingTheme = &mode
-	v.saveTheme(mode)
+	return saved
 }
 
-func (v *View) saveTheme(mode application.ThemeMode) {
+func (p *preferenceSave[T]) choose(v *View, saved *T, choice T, write func(context.Context, T) error) {
+	if p.current(*saved) == choice {
+		return
+	}
+	if p.pending != nil {
+		*p.pending = choice
+		return
+	}
+	// The in-flight value stays immutable even if a later click retargets pending.
+	submitted := choice
+	p.pending = &choice
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		err := v.API.SetTheme(ctx, mode)
+		err := write(ctx, submitted)
 		v.dispatch(func() {
+			latest := *p.pending
+			p.pending = nil
 			if err == nil {
-				v.Snapshot.Preferences.Theme = mode
+				*saved = submitted
 			}
-			if latest := *v.pendingTheme; latest != mode {
-				v.saveTheme(latest)
-				return
-			}
-			v.pendingTheme = nil
-			if err != nil {
+			if latest != submitted {
+				p.choose(v, saved, latest, write)
+			} else if err != nil {
 				v.Message = err.Error()
 			}
 		})
 	}()
+}
+
+func (v *View) selectedTheme() application.ThemeMode {
+	return v.themeSave.current(v.Snapshot.Preferences.Theme)
+}
+
+func (v *View) staticBackground() bool {
+	return v.flowSave.current(v.Snapshot.Preferences.StaticBackground)
 }

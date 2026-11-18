@@ -13,6 +13,8 @@
 - 按 [目录约定](docs/testing/TESTING_LAYOUT.md) 放置测试，按 [最低要求](docs/testing/TESTING_REQUIREMENTS.md) 验证；缺陷修复保留回归测试。
 - 执行命令见 [运行手册](docs/testing/TESTING_RUNBOOK.md)。最终汇报新增、已运行、未运行的测试和剩余风险。
 
+每次完成修改并通过相应验证后，将本次改动提交到本地 Git。
+
 ## 开发范围
 
 先完成 HTTP/HTTPS 下载主流程。不要将 BT、浏览器接管、云同步或插件系统混入基础版。移除下载任务只清理任务，不删除用户文件。测试必须使用独立临时目录、本地 HTTP 服务和独立 aria2 进程。

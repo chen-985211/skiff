@@ -16,7 +16,7 @@ func (v *View) cardSurface(c *ui.Context, card ui.Element, p palette, id string,
 	}
 	offset := float32(crc32.ChecksumIEEE([]byte(id))) * (2 * math.Pi / (1 << 32))
 	texture := ui.Local(card, "card-light", func() lightTexture { return lightTexture{} })
-	moving := !c.Preferences().ReduceMotion && !v.Snapshot.Preferences.StaticBackground
+	moving := !c.Preferences().ReduceMotion && !v.staticBackground()
 	return card.Draw(func(painter *ui.Painter, r ui.Rect) {
 		// The virtual grid caches each visible row independently of its parent.
 		if moving {

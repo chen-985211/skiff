@@ -9,7 +9,7 @@ import (
 // Animated geometry uses springs: retargeting a live MyGo channel preserves
 // both position and velocity. Progress and color have bounded endpoints.
 var (
-	themeFade       = ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseInOut, NonMotion: true}
+	themeFade       = ui.Animation{Duration: 300 * time.Millisecond, Ease: ui.CubicBezier(.33, 0, .67, 1), NonMotion: true}
 	pressSpring     = ui.Animation{Spring: ui.SpringOptions{Mass: 1, Stiffness: 900, Damping: 60}}
 	switchSpring    = ui.Animation{Spring: ui.SpringOptions{Mass: 1, Stiffness: 625, Damping: 40}}
 	selectionSpring = ui.Animation{Spring: ui.SpringOptions{Mass: 1, Stiffness: 484, Damping: 44}}

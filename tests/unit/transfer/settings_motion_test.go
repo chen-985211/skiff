@@ -1,6 +1,7 @@
 package transfer_test
 
 import (
+	"bytes"
 	"errors"
 	"math"
 	"testing"
@@ -254,5 +255,132 @@ func TestSettingsThemeKeepsLatestChoiceDuringSaveAndRevertsOnFailure(t *testing.
 	item, _ := tt.AccessByRole(ui.RoleRadio, "浅色")
 	if !item.Checked || !tt.HasText("保存任务失败：disk full") {
 		t.Fatal("failed save did not restore and explain the previous theme")
+	}
+}
+
+func TestSettingsFlowSwitchFreezesImmediatelyWithoutDimmingThePage(t *testing.T) {
+	s := service(t, &fakeEngine{}, &fakeRepo{})
+	done := make(chan func(), 1)
+	v := presentation.New(s, presentation.Actions{
+		Dispatch:      func(f func()) { done <- f },
+		PickDirectory: func(string, func(string, error)) {},
+	})
+	v.Snapshot = s.Snapshot()
+	tt := ui.NewTester(v.Render, 800, 560)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	click("设置")
+	tt.Advance(time.Second)
+	click("背景流光")
+	dir, _ := tt.AccessByRole(ui.RoleButton, "更改默认保存目录")
+	sw, _ := tt.AccessByRole(ui.RoleSwitch, "背景流光")
+	if dir.Disabled || sw.Disabled || sw.Checked {
+		t.Errorf("while saving: directory disabled=%t; switch disabled=%t, checked=%t", dir.Disabled, sw.Disabled, sw.Checked)
+	}
+	sample := func() []byte {
+		img := tt.Image()
+		var line []byte
+		for x := 20; x < 780; x += 12 {
+			line = append(line, img.RGBAAt(x, 430).R)
+		}
+		return line
+	}
+	frozen := sample()
+	tt.Advance(500 * time.Millisecond)
+	if !bytes.Equal(frozen, sample()) {
+		t.Error("the backdrop kept moving while the off preference was being saved")
+	}
+	select {
+	case apply := <-done:
+		apply()
+	case <-time.After(2 * time.Second):
+		t.Fatal("background preference was not saved")
+	}
+	tt.Frame()
+	if !bytes.Equal(frozen, sample()) {
+		t.Error("saving changed the frozen backdrop")
+	}
+}
+
+func TestSettingsThemeHasNoAbruptBrightnessStep(t *testing.T) {
+	s := service(t, &fakeEngine{}, &fakeRepo{})
+	done := make(chan func(), 1)
+	v := presentation.New(s, presentation.Actions{Dispatch: func(f func()) { done <- f }})
+	v.Snapshot = s.Snapshot()
+	v.Snapshot.Preferences.StaticBackground = true
+	tt := ui.NewTester(v.Render, 800, 560)
+	if err := tt.Click("设置"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(time.Second)
+	for _, label := range []string{"深色", "浅色"} {
+		brightness := func() int { return int(tt.Image().RGBAAt(620, 420).G) }
+		start := brightness()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case apply := <-done:
+			apply()
+		case <-time.After(2 * time.Second):
+			t.Fatal("theme was not saved")
+		}
+		prev, largest := start, 0
+		for range 26 {
+			tt.Advance(time.Second / 60)
+			level := brightness()
+			largest = max(largest, level-prev, prev-level)
+			prev = level
+		}
+		span := max(start-prev, prev-start)
+		if span < 60 || largest*7 > span {
+			t.Errorf("%s: one frame changed by %d of a %d-level theme transition", label, largest, span)
+		}
+	}
+}
+
+func TestSettingsFlowKeepsLatestChoiceAndRestoresLastSaveOnError(t *testing.T) {
+	repo := &fakeRepo{}
+	s := service(t, &fakeEngine{}, repo)
+	done := make(chan func(), 1)
+	v := presentation.New(s, presentation.Actions{Dispatch: func(f func()) { done <- f }})
+	v.Snapshot = s.Snapshot()
+	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	wait := func() {
+		t.Helper()
+		select {
+		case apply := <-done:
+			apply()
+			tt.Frame()
+		case <-time.After(2 * time.Second):
+			t.Fatal("missing background save")
+		}
+	}
+	click("设置")
+	click("背景流光")
+	click("背景流光")
+	wait()
+	wait()
+	if s.Snapshot().Preferences.StaticBackground {
+		t.Fatal("the second click did not restore motion")
+	}
+	repo.saveErr = errors.New("disk full")
+	click("背景流光")
+	wait()
+	sw, _ := tt.AccessByRole(ui.RoleSwitch, "背景流光")
+	if !sw.Checked || !tt.HasText("保存任务失败：disk full") {
+		t.Fatal("failed save did not restore the switch and explain the error")
 	}
 }

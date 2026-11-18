@@ -24,7 +24,8 @@ type Actions struct {
 	Reveal        func(string)
 }
 type View struct {
-	pendingTheme                                       *application.ThemeMode
+	themeSave                                          preferenceSave[application.ThemeMode]
+	flowSave                                           preferenceSave[bool]
 	lastDefault                                        string
 	settingsOpen                                       bool
 	light                                              windowLight
@@ -67,7 +68,7 @@ func (v *View) Render(c *ui.Context) {
 	}
 	translucent := !c.Preferences().ReduceTransparency && !c.Preferences().HighContrast
 	if translucent {
-		still := c.Preferences().ReduceMotion || v.Snapshot.Preferences.StaticBackground
+		still := c.Preferences().ReduceMotion || v.staticBackground()
 		stage.Draw(func(painter *ui.Painter, r ui.Rect) { v.light.draw(painter, r, still, shade) })
 	} else {
 		v.light.moving = false
