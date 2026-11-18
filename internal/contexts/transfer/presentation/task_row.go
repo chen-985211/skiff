@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	detailHeight  = 2*cardHeight + cardGap
 	cardInset     = 16
 	fileIconSize  = 44
 	fileColumnGap = 12
@@ -256,15 +257,17 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 	})
 }
 
-func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
-	ui.Column(c.Key("detail")).Grow(1).Padding(workspaceHeader, 0, 0).Children(func() {
+func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, columns int) {
+	ui.Column(c.Key("detail")).Grow(1).MinHeight(0).Children(func() {
 		backdrop := ui.Box(c.Key("detail-dismiss")).Absolute().Top(0).Left(0).Right(0).Bottom(0).AccessHidden(true)
 		if backdrop.Clicked() || c.Shortcut(0, ui.KeyEscape) {
 			v.detailID = ""
 			c.Invalidate()
 		}
-		card := ui.Column(c.Key(t.ID)).Size(2*cardWidth+cardGap, 2*cardHeight+cardGap).
-			MaxWidthPercent(100).AlignSelf(ui.Start).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(16, cardInset).Gap(16).Transition(cardMotion(t.ID))
+		column := min(v.detailColumn, max(0, columns-2))
+		ui.Box(c).Height(v.detailTop).MinHeight(0).Shrink(1).IgnoreInput(true)
+		card := ui.Column(c.Key(t.ID)).Size(2*cardWidth+cardGap, detailHeight).Shrink(0).Margin(0, 0, 0, float32(column*(cardWidth+cardGap))).
+			MaxWidthPercent(100).MaxHeightPercent(100).AlignSelf(ui.Start).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(16, cardInset).Gap(16).Transition(cardMotion(t.ID))
 		color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
 		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
 			ui.Row(c).Height(44).FillWidth().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {

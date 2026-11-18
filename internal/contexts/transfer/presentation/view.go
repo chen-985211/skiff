@@ -38,7 +38,8 @@ type View struct {
 	Filter, Query, URLs, Directory, FormError, Message string
 	detailID                                           string
 	taskRows                                           ui.ListState
-	gridColumns                                        int
+	gridColumns, detailColumn                          int
+	detailTop                                          float32
 }
 
 func New(api API, actions Actions) *View {

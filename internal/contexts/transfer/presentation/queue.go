@@ -11,11 +11,15 @@ import (
 )
 
 func (v *View) queue(c *ui.Context, p palette) {
+	width, _ := c.Size()
+	available := max(float32(0), width-sidebarWidth-2*workspaceInset)
+	columns := max(1, int((available+cardGap)/(cardWidth+cardGap)))
+	gridWidth := min(available, float32(columns*(cardWidth+cardGap)-cardGap))
 	if v.detailID != "" {
 		for _, task := range v.Snapshot.Tasks {
 			if task.ID == v.detailID {
-				v.messageBanner(c)
-				v.taskDetail(c, p, task)
+				v.queueHeader(c, p, gridWidth, nil)
+				v.taskDetail(c, p, task, columns)
 				return
 			}
 		}
@@ -23,28 +27,7 @@ func (v *View) queue(c *ui.Context, p palette) {
 	}
 
 	items := v.filtered()
-	width, _ := c.Size()
-	available := max(float32(0), width-sidebarWidth-2*workspaceInset)
-	columns := max(1, int((available+cardGap)/(cardWidth+cardGap)))
-	gridWidth := min(available, float32(columns*(cardWidth+cardGap)-cardGap))
-	ui.Column(c.Key("queue-header")).Shrink(0).Children(func() {
-		ui.Row(c.Key("queue-toolbar")).Transition(panelMotion).AlignItems(ui.Center).Gap(9).Width(gridWidth).Height(workspaceHeader).Children(func() {
-			ui.Box(c).Grow(1).FillHeight().DragWindow()
-			v.batchAction(c, items, application.Pause)
-			v.batchAction(c, items, application.Resume)
-		})
-		hasMessage := v.Message != ""
-		v.messageBanner(c)
-		if strings.TrimSpace(v.Query) != "" {
-			const resultGap = 12
-			count := ui.Textf(c, "%d 个结果", len(items)).Transition(panelMotion).ContentTransition(numberChange).FontSize(12).TextColor(p.muted).IgnoreInput(true)
-			if hasMessage {
-				count.AlignSelf(ui.Start).Margin(0, 0, resultGap)
-			} else {
-				count.Absolute().Left(0).Bottom(resultGap)
-			}
-		}
-	})
+	v.queueHeader(c, p, gridWidth, items)
 	if len(items) == 0 {
 		v.empty(c, p, v.category())
 		return
@@ -58,12 +41,54 @@ func (v *View) queue(c *ui.Context, p palette) {
 	v.taskRows.Key = func(row int) any { return items[row*columns].ID }
 	rows := (len(items) + columns - 1) / columns
 	ui.List(c.Key(v.Filter), &v.taskRows, rows, func(row int) {
-		ui.Row(c).Gap(cardGap).Children(func() {
+		line := ui.Row(c).Gap(cardGap)
+		line.Children(func() {
 			for i := row * columns; i < min((row+1)*columns, len(items)); i++ {
 				v.taskCard(c, p, items[i])
+				if v.detailID == items[i].ID {
+					viewport := v.taskRows.Bounds(c)
+					// The row stays at its grid position while the card animates back into it.
+					y := line.LayoutBounds().Y - viewport.Y
+					if row == rows-1 || y+detailHeight > viewport.H {
+						y -= cardHeight + cardGap
+					}
+					v.detailColumn = i % columns
+					v.detailTop = max(0, min(y, viewport.H-detailHeight))
+				}
 			}
 		})
-	}).Width(gridWidth).Gap(cardGap).AlignSelf(ui.Start).Grow(1).MinHeight(0).Label("下载任务列表").Transition(panelMotion)
+	}).Width(gridWidth).Gap(cardGap).AlignSelf(ui.Start).Grow(1).MinHeight(0).Label("下载任务列表").Transition(pageFade)
+}
+
+func (v *View) queueHeader(c *ui.Context, p palette, gridWidth float32, items []application.TaskDTO) {
+	ui.Column(c.Key("queue-header")).Shrink(0).Children(func() {
+		if v.detailID != "" {
+			if ui.Box(c.Key("detail-header")).FillWidth().Height(workspaceHeader).Clicked() {
+				v.detailID = ""
+				c.Invalidate()
+			}
+		} else {
+			ui.Row(c.Key("queue-toolbar")).Transition(panelMotion).AlignItems(ui.Center).Gap(9).Width(gridWidth).Height(workspaceHeader).Children(func() {
+				ui.Box(c).Grow(1).FillHeight().DragWindow()
+				v.batchAction(c, items, application.Pause)
+				v.batchAction(c, items, application.Resume)
+			})
+		}
+		hasMessage := v.Message != ""
+		v.messageBanner(c)
+		if strings.TrimSpace(v.Query) != "" {
+			const resultGap = 12
+			count := ui.Textf(c, "%d 个结果", len(items)).Transition(panelMotion).ContentTransition(numberChange).FontSize(12).TextColor(p.muted).IgnoreInput(true)
+			if v.detailID != "" {
+				count.Invisible()
+			}
+			if hasMessage {
+				count.AlignSelf(ui.Start).Margin(0, 0, resultGap)
+			} else {
+				count.Absolute().Left(0).Bottom(resultGap)
+			}
+		}
+	})
 }
 
 func (v *View) batchAction(c *ui.Context, items []application.TaskDTO, cmd application.Command) {
