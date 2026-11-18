@@ -49,7 +49,7 @@ func FindBinary() (string, error) {
 			return candidate, nil
 		}
 	}
-	return "", errors.New("没有找到 aria2c，请安装 aria2 后重新打开轻舟")
+	return "", errors.New("没有找到 aria2c，请安装 aria2 后重新打开 Skiff")
 }
 func Start(ctx context.Context, dataDir, binary string) (*Process, error) {
 	if err := os.MkdirAll(dataDir, 0700); err != nil {

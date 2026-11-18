@@ -68,7 +68,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 		ui.Box(c).FillWidth().Height(max(20, c.TitleBar().Bottom)).DragWindow()
 		ui.Row(c).Height(workspaceHeader).PaddingX(8).AlignItems(ui.Center).Gap(10).DragWindow().Children(func() {
 			ui.Image(c, icons["boat"]).Size(38, 38).Fit(ui.Contain)
-			ui.Text(c, "轻舟").FontSize(21).FontWeight(650)
+			ui.Text(c, "Skiff").FontSize(21).FontWeight(650)
 		})
 		ui.Column(c).ZIndex(1).Gap(rowGap).Children(func() {
 			for _, cat := range categories {

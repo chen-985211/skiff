@@ -87,7 +87,7 @@ func TestWorkspaceBatchActionAlignsWithBrandAndCardGrid(t *testing.T) {
 		v.Query, v.EngineError = "", nil
 		tt.Frame()
 		card := get(size.last)
-		brand := get("轻舟")
+		brand := get("Skiff")
 		for _, state := range []struct {
 			query     string
 			engineErr error

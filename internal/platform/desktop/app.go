@@ -25,7 +25,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	mygo.App.SetName("轻舟")
+	mygo.App.SetName("Skiff")
 	mygo.App.SetLanguages("zh-CN")
 	mygo.App.SetPath(mygo.PathUserData, dataDir)
 	if !mygo.App.RequestSingleInstanceLock() {
@@ -127,7 +127,7 @@ func Run() error {
 			},
 		}
 		view = presentation.New(nil, actions)
-		win = mygo.NewWindow(mygo.WindowOptions{Title: "轻舟", TitleBarStyle: mygo.TitleBarHiddenInset, Width: 1020, Height: 680, MinWidth: 800, MinHeight: 560, StateKey: "skiff-main", Content: ui.View(view.Render)})
+		win = mygo.NewWindow(mygo.WindowOptions{Title: "Skiff", TitleBarStyle: mygo.TitleBarHiddenInset, Width: 1020, Height: 680, MinWidth: 800, MinHeight: 560, StateKey: "skiff-main", Content: ui.View(view.Render)})
 		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 			{Role: mygo.RoleAppMenu},
 			{Label: "文件", Submenu: []*mygo.MenuItem{{Label: "新建下载…", Accelerator: "CmdOrCtrl+N", Click: func(*mygo.MenuItem, *mygo.Window) { view.OpenNew(); win.Invalidate() }}}},
