@@ -137,3 +137,39 @@ func TestWorkspaceCategoryContentFadesAcrossFrames(t *testing.T) {
 		t.Fatalf("category transition skipped intermediate opacity: %d -> %d -> %d", start, mid, end)
 	}
 }
+
+func TestWorkspaceInterruptExpansionFromEmptySpace(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip"}}
+	tt := ui.NewTester(v.Render, 1020, 680)
+	if err := tt.Click("查看详情 one.zip"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(80 * time.Millisecond)
+	tt.ClickAt(850, 465)
+	if _, ok := tt.Find("查看详情 one.zip"); !ok {
+		t.Fatal("clicking the empty workspace did not reverse expansion")
+	}
+	if err := tt.Click("查看详情 one.zip"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(time.Second)
+	if _, ok := tt.Find("收起详情 one.zip"); !ok {
+		t.Fatal("collapse could not be reversed")
+	}
+}
+
+func TestWorkspaceCompletedTrackUsesPeriwinkleInBothThemes(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		v := presentation.New(nil, presentation.Actions{})
+		v.Ready = true
+		v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "complete", Total: 100, Progress: 1}}
+		tt := ui.NewTesterWith(v.Render, 800, 600, ui.TesterOptions{Dark: dark, Preferences: ui.Preferences{ReduceMotion: true, ReduceTransparency: true}})
+		r, _ := tt.Find("下载进度")
+		col := tt.Image().RGBAAt(int(r.X+r.W/2), int(r.Y+r.H/2))
+		if col.B <= col.G || col.B <= col.R {
+			t.Fatalf("dark=%v: completed track %v", dark, col)
+		}
+	}
+}

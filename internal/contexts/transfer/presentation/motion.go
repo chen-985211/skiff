@@ -13,6 +13,7 @@ var (
 	pressSpring     = ui.Animation{Spring: ui.SpringOptions{Mass: 1, Stiffness: 900, Damping: 60}}
 	switchSpring    = ui.Animation{Spring: ui.SpringOptions{Mass: 1, Stiffness: 625, Damping: 40}}
 	selectionSpring = ui.Animation{Spring: ui.SpringOptions{Mass: 1, Stiffness: 484, Damping: 44}}
+	cardSpring      = ui.Animation{Spring: ui.SpringOptions{Mass: 1, Stiffness: 235, Damping: 31}}
 	panelSpring     = ui.Animation{Spring: ui.SpringOptions{Mass: 1, Stiffness: 324, Damping: 36}}
 	colorFade       = ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseInOut, Oklab: true}
 	progressEase    = ui.Animation{Duration: 200 * time.Millisecond, Ease: ui.EaseOut}
@@ -29,7 +30,7 @@ var (
 type cardMatch string
 
 func cardMotion(id string) ui.ElementTransition {
-	return ui.ElementTransition{Match: cardMatch(id), Fly: true, ScaleContent: true, Animation: &panelSpring, Enter: &ui.Motion{Y: 9, Scale: .985}, Exit: &ui.Motion{Y: -5, Scale: .985}}
+	return ui.ElementTransition{Match: cardMatch(id), Fly: true, Animation: &cardSpring, Enter: &ui.Motion{Y: 9, Scale: .985}, Exit: &ui.Motion{Y: -5, Scale: .985}}
 }
 
 func amount(on bool) float32 {

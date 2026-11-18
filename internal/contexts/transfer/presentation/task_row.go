@@ -84,7 +84,9 @@ func taskColor(c *ui.Context, p palette, status string) ui.Color {
 	case "active":
 		return p.active
 	case "complete":
-		return p.green
+		return p.complete
+	case "paused":
+		return p.paused
 	case "error":
 		return c.Theme().Danger.Mix(c.Theme().Text, .22)
 	default:
@@ -222,21 +224,22 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 
 func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 	ui.Column(c.Key("detail")).Grow(1).Padding(workspaceHeader, 0, 0).Children(func() {
-		card := ui.Column(c.Key(t.ID)).Role(ui.RoleGroup).Label(t.Name).Padding(17).Gap(12).Transition(cardMotion(t.ID))
+		backdrop := ui.Box(c.Key("detail-dismiss")).Absolute().Top(0).Left(0).Right(0).Bottom(0).AccessHidden(true)
+		if backdrop.Clicked() {
+			v.detailID = ""
+			c.Invalidate()
+		}
+		card := ui.Column(c.Key(t.ID)).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(17).Gap(12).Transition(cardMotion(t.ID))
 		color := card.AnimateColor("status", taskColor(c, p, t.Status), colorFade)
 		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
-			head := ui.ButtonBase(c).Height(71).FillWidth().Radius(13).Label("收起详情 " + t.Name).Tooltip("收起详情")
-			if head.Clicked() || c.Shortcut(0, ui.KeyEscape) {
-				v.detailID = ""
-				c.Invalidate()
-			}
-			head.Children(func() {
-				ui.Row(c).Fill().Gap(13).AlignItems(ui.Center).Children(func() {
-					ui.Image(c, fileArt[fileIcon(t.Name)]).Size(65, 65).Fit(ui.Contain)
-					ui.Text(c, t.Name).FontSize(22).FontWeight(660).Grow(1).MinWidth(0).SingleLine().Tooltip(t.Name)
-					ui.Text(c, statusText(t.Status)).ContentTransition(textChange).FontSize(12).TextColor(color)
-					ui.Icon(c, icons["chevron"]).FontSize(16).Rotate(180).TextColor(p.muted)
-				})
+			ui.Row(c).Height(71).FillWidth().Gap(13).AlignItems(ui.Center).Children(func() {
+				ui.Image(c, fileArt[fileIcon(t.Name)]).Size(65, 65).Fit(ui.Contain)
+				ui.Text(c, t.Name).FontSize(20).FontWeight(650).Grow(1).MinWidth(0).SingleLine().Tooltip(t.Name)
+				ui.Text(c, statusText(t.Status)).ContentTransition(textChange).FontSize(12).TextColor(color)
+				if iconButton(c, "close", "收起详情 "+t.Name, false) || c.Shortcut(0, ui.KeyEscape) {
+					v.detailID = ""
+					c.Invalidate()
+				}
 			})
 			if size := taskSize(t); size != "" {
 				ui.Text(c, size).ContentTransition(numberChange).FontSize(12).TextColor(p.muted)
