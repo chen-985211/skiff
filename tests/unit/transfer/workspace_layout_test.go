@@ -225,3 +225,30 @@ func TestWorkspaceCardBodyOpensDetailAndKeepsActionsIndependent(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkspaceCardContentAlignsAcrossPreviewAndDetail(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "photo.jpg", Status: "complete", Total: 8388608, URL: "https://example.org/photo.jpg", Path: "/downloads/photo.jpg"}}
+	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	get := func(label string) ui.Rect {
+		t.Helper()
+		r, ok := tt.Find(label)
+		if !ok {
+			t.Fatal(label)
+		}
+		return r
+	}
+	size := get("8.0 MB")
+	action := get("查看文件详情")
+	if err := tt.Click("查看详情 photo.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	detailSize := get("8.0 MB")
+	source := get("https://example.org/photo.jpg")
+	path := get("/downloads/photo.jpg")
+	back := get("返回任务列表")
+	if size.X != detailSize.X || detailSize.X != source.X || path.X != source.X || action.X != back.X || back.W > 104 {
+		t.Fatalf("preview size %v action %v; detail size %v source %v path %v action %v", size, action, detailSize, source, path, back)
+	}
+}

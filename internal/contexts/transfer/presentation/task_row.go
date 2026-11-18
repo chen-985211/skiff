@@ -9,13 +9,19 @@ import (
 	"skiff/internal/contexts/transfer/application"
 )
 
+const (
+	cardInset     = 16
+	fileIconSize  = 44
+	fileColumnGap = 12
+)
+
 // Keep action widths stable as optional controls appear and disappear.
 func cardAction(c *ui.Context, icon, text, label, status string) bool {
 	key := label
 	if status != "" {
 		key = "primary-action"
 	}
-	b := ui.ButtonBase(c.Key(key)).WidthPercent(25).MinWidth(80).Height(32).Radius(12).Center().Label(label).Tooltip(label).Transition(controlMotion)
+	b := ui.ButtonBase(c.Key(key)).WidthPercent(25).MinWidth(80).MaxWidth(104).Height(32).Radius(12).Center().Label(label).Tooltip(label).Transition(controlMotion)
 	b.Background(c.Theme().Surface.Alpha(.38))
 	if b.Hovered() {
 		b.Background(c.Theme().SurfaceHover)
@@ -46,7 +52,7 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO) {
 	if v.Busy {
 		return
 	}
-	ui.Row(c).FillWidth().Gap(4).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		var cmd application.Command
 		label, text, icon := "查看文件详情", "详情", "file"
 		switch {
@@ -122,21 +128,24 @@ func taskColor(p palette, status string) ui.Color {
 	}
 }
 
+func fileHeading(c *ui.Context, p palette, t application.TaskDTO, titleSize float32) {
+	ui.Image(c, fileArt[fileIcon(t.Name)]).Size(fileIconSize, fileIconSize).Fit(ui.Contain)
+	ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+		ui.Text(c, t.Name).FontSize(titleSize).FontWeight(640).SingleLine().TruncateMiddle().Tooltip(t.Name)
+		if size := taskSize(t); size != "" {
+			ui.Text(c, size).ContentTransition(numberChange).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
+		}
+	})
+}
+
 func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
-	card := ui.Column(c.Key(t.ID)).Size(cardWidth, cardHeight).MaxWidthPercent(100).Shrink(0).Role(ui.RoleGroup).Label(t.Name).Padding(12, 14, 10).Gap(5).Transition(cardMotion(t.ID))
+	card := ui.Column(c.Key(t.ID)).Size(cardWidth, cardHeight).MaxWidthPercent(100).Shrink(0).Role(ui.RoleGroup).Label(t.Name).Padding(12, cardInset).Gap(4).Transition(cardMotion(t.ID))
 	color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
-	kind := fileIcon(t.Name)
 	v.cardSurface(c, card, p, t.ID, color, 20).Children(func() {
 		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(54).FillWidth().Radius(13).Transition(controlMotion)
 		head.Children(func() {
-			ui.Row(c).Fill().Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Image(c, fileArt[kind]).Size(50, 50).Fit(ui.Contain)
-				ui.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
-					ui.Text(c, t.Name).FontSize(16).FontWeight(640).SingleLine().TruncateMiddle()
-					if size := taskSize(t); size != "" {
-						ui.Text(c, size).ContentTransition(numberChange).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
-					}
-				})
+			ui.Row(c).Fill().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
+				fileHeading(c, p, t, 16)
 				ui.Box(c).Width(23).Shrink(0)
 			})
 		})
@@ -254,22 +263,17 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 			v.detailID = ""
 			c.Invalidate()
 		}
-		card := ui.Column(c.Key(t.ID)).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(17).Gap(12).Transition(cardMotion(t.ID))
+		card := ui.Column(c.Key(t.ID)).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(12, cardInset).Gap(10).Transition(cardMotion(t.ID))
 		color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
 		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
-			ui.Row(c).Height(71).FillWidth().Gap(13).AlignItems(ui.Center).Children(func() {
-				ui.Image(c, fileArt[fileIcon(t.Name)]).Size(65, 65).Fit(ui.Contain)
-				ui.Text(c, t.Name).FontSize(20).FontWeight(650).Grow(1).MinWidth(0).SingleLine().TruncateMiddle().Tooltip(t.Name)
-
+			ui.Row(c).Height(54).FillWidth().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
+				fileHeading(c, p, t, 18)
 				if (t.CanPause || t.CanResume || t.CanRetry) && secondaryAction(c, "返回").Label("返回任务列表").Clicked() {
 					v.detailID = ""
 					c.Invalidate()
 				}
 
 			})
-			if size := taskSize(t); size != "" {
-				ui.Text(c, size).ContentTransition(numberChange).FontSize(12).TextColor(p.muted)
-			}
 			taskProgress(c, p, t, color)
 
 			ui.Divider(c)
@@ -285,8 +289,8 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 }
 
 func detailField(c *ui.Context, p palette, label, value string) {
-	ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
-		ui.Text(c, label).Width(44).FontSize(12).TextColor(p.muted)
+	ui.Row(c).AlignItems(ui.Center).Gap(fileColumnGap).Children(func() {
+		ui.Text(c, label).Width(fileIconSize).FontSize(12).TextColor(p.muted)
 		ui.Text(c, value).FontSize(12).Grow(1).MinWidth(0).SingleLine().Selectable().Tooltip(value)
 	})
 }

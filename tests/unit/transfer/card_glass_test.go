@@ -141,15 +141,14 @@ func TestCardMaterialExpandsAndReversesFromCurrentSize(t *testing.T) {
 		{ID: "b", Name: "two.zip", Status: "active", CanPause: true},
 	}
 	tt := ui.NewTesterWith(v.Render, 1020, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
-	// Only the paused task has this action, even when it is the second
-	// card of a row. Track the same piece of content in both layouts.
+	// Track the card surface itself: the controls stop growing at their maximum width.
 	bounds := func() ui.Rect {
 		t.Helper()
-		r, ok := tt.Find("继续下载")
+		card, ok := tt.AccessByRole(ui.RoleGroup, "one.zip")
 		if !ok {
-			t.Fatal("missing paused task's action")
+			t.Fatal("missing paused task card")
 		}
-		return r
+		return card.Bounds
 	}
 	open := func() {
 		t.Helper()
