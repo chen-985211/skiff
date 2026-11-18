@@ -86,7 +86,7 @@ func TestWorkspaceCardsKeepTheirSizeAndAlignmentOnResize(t *testing.T) {
 	const height = 800
 	tt := ui.NewTesterWith(v.Render, 800, height, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
 	tt.SetTitleBar(ui.TitleBar{Bottom: 33})
-	for _, size := range []struct{ width, columns int }{{800, 1}, {1000, 2}, {1200, 2}, {1440, 3}, {830, 1}} {
+	for _, size := range []struct{ width, columns int }{{800, 1}, {1000, 2}, {1200, 2}, {1440, 3}, {2016, 5}, {830, 1}} {
 		tt.SetSize(size.width, height)
 		tt.Frame()
 		get := func(label string) ui.Rect {
@@ -113,6 +113,14 @@ func TestWorkspaceCardsKeepTheirSizeAndAlignmentOnResize(t *testing.T) {
 		settings := get("设置")
 		if bar.X != card.X || bar.W != card.W || bar.Y+bar.H != settings.Y+settings.H || bar.Y+bar.H != height-23 {
 			t.Errorf("%d: bottom toolbar %v, card %v, settings %v", size.width, bar, card, settings)
+		}
+		add := get("新建下载")
+		if add.X+add.W != card.X+card.W || add.Y+add.H != bar.Y+bar.H {
+			t.Errorf("%d: new download button %v does not meet the right and bottom edges of %v", size.width, add, bar)
+		}
+		search := get("任务搜索")
+		if search.X != card.X || search.Y != add.Y || search.H != add.H || add.X-(search.X+search.W) != 12 {
+			t.Errorf("%d: search %v, new download %v; want aligned edges and a 12 pt gap", size.width, search, add)
 		}
 	}
 }

@@ -74,6 +74,7 @@ func (v *View) Render(c *ui.Context) {
 	} else {
 		v.light.moving = false
 	}
+	var search, composeButton ui.Element
 	stage.Children(func() {
 		v.sidebar(c, p)
 		main := ui.Column(c).Grow(1).FillHeight().MinWidth(0).Padding(0, workspaceInset)
@@ -86,18 +87,19 @@ func (v *View) Render(c *ui.Context) {
 				ui.Column(c.Key("category-" + v.Filter)).Grow(1).MinHeight(0).Transition(pageFade).Children(func() {
 					v.queue(c, p)
 				})
-				v.dock(c, p)
+				search, composeButton = v.dock(c, p)
 			}
 		})
 	})
 	// Keep the animation on the workspace, which is already on screen
 	// before the sheet is built and survives dismissal or a quick reopen.
-	target := float32(0)
-	if v.DialogOpen {
-		target = 1
+	reveal := stage.AnimateTo("compose", amount(v.DialogOpen), panelSpring)
+	if v.DialogOpen || reveal > 0 {
+		anchor := composeButton.Bounds()
+		composeButton.Opacity(0)
+		search.Opacity(max(0, 1-reveal/.35))
+		v.newDialog(c, p, anchor, reveal)
 	}
-	reveal := stage.AnimateTo("compose", target, panelSpring)
-	v.newDialog(c, p, reveal)
 	if ui.AlertDialog(c, &v.RestartOpen, "从头重新下载？", "原来的未完成文件会保留，新下载使用不同文件名。", "取消", "重新下载") == 1 {
 		v.command(v.RestartID, application.Restart)
 	}

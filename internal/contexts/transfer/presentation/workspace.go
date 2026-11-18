@@ -32,15 +32,16 @@ func (v *View) selectCategory(id string) {
 }
 
 const (
-	sidebarWidth    = 174
-	workspaceInset  = 26
-	workspaceHeader = 64
-	settingsHeight  = 34
-	footerInset     = 23
-	dockHeight      = 54
-	cardWidth       = 336
-	cardHeight      = 156
-	cardGap         = 12
+	sidebarWidth       = 174
+	workspaceInset     = 26
+	workspaceHeader    = 64
+	settingsHeight     = 34
+	footerInset        = 23
+	dockHeight         = 44
+	composeButtonWidth = 108
+	cardWidth          = 336
+	cardHeight         = 156
+	cardGap            = 12
 )
 
 func (v *View) sidebar(c *ui.Context, p palette) {
@@ -128,28 +129,33 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 	})
 }
 
-func (v *View) dock(c *ui.Context, p palette) {
+func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 	ui.Row(c.Key("task-dock")).Transition(dockMotion).Height(cardGap+dockHeight+footerInset).Shrink(0).Padding(0, 0, footerInset).AlignItems(ui.End).Justify(ui.Start).Children(func() {
-		bar := ui.Row(c).Role(ui.RoleToolbar).Label("下载工具栏").Width(cardWidth).MaxWidthPercent(100).Height(dockHeight).AlignItems(ui.Center).Padding(6, 7, 6, 18).Gap(10)
-		surface(c, bar, p, p.tint, 27, true).Shadow(0, 4, 15, 0, c.Theme().Text.Alpha(.12)).Children(func() {
-			ui.Icon(c, icons["search"]).FontSize(18).TextColor(p.muted)
-			field := ui.TextInputBase(c, &v.Query).Label("搜索下载任务").Placeholder("搜索文件名或链接").Grow(1).MinWidth(0).Height(34).FontSize(13).KeyShortcuts(ui.Cmd, ui.KeyF)
-			if !v.DialogOpen && !v.RestartOpen && c.Shortcut(ui.Cmd, ui.KeyF) {
-				field.Focus()
-			}
-			cleared := false
-			if v.Query != "" && (iconButton(c, "close", "清空搜索框", false) || field.Shortcut(0, ui.KeyEscape)) {
-				v.Query = ""
-				cleared = true
-			}
-			if cleared || field.Changed() {
-				v.detailID = ""
-				v.taskRows = ui.ListState{}
-				c.Invalidate()
-			}
-			if primaryAction(c, "新建下载", "plus", !v.Ready || v.Busy).Width(108).Height(40).KeyShortcuts(ui.Cmd, ui.KeyN).Clicked() {
+		ui.Row(c).Role(ui.RoleToolbar).Label("下载工具栏").Width(cardWidth).MaxWidthPercent(100).Height(dockHeight).Gap(cardGap).Children(func() {
+			search = ui.Row(c).Role(ui.RoleSearch).Label("任务搜索").Grow(1).MinWidth(0).FillHeight().AlignItems(ui.Center).Padding(0, 8, 0, 16).Gap(8)
+			surface(c, search, p, p.tint, dockHeight/2, true).Shadow(0, 3, 10, 0, c.Theme().Text.Alpha(.10)).Children(func() {
+				ui.Icon(c, icons["search"]).FontSize(18).TextColor(p.muted).IgnoreInput(true)
+				field := ui.TextInputBase(c, &v.Query).Label("搜索下载任务").Placeholder("搜索文件名或链接").Grow(1).MinWidth(0).FillHeight().FontSize(13).KeyShortcuts(ui.Cmd, ui.KeyF)
+				if search.Clicked() || (!v.DialogOpen && !v.RestartOpen && c.Shortcut(ui.Cmd, ui.KeyF)) {
+					field.Focus()
+				}
+				cleared := false
+				if v.Query != "" && (iconButton(c, "close", "清空搜索框", false) || field.Shortcut(0, ui.KeyEscape)) {
+					v.Query = ""
+					cleared = true
+					field.Focus()
+				}
+				if cleared || field.Changed() {
+					v.detailID = ""
+					v.taskRows = ui.ListState{}
+					c.Invalidate()
+				}
+			})
+			trigger = primaryAction(c, "新建下载", "plus", !v.Ready || v.Busy).Width(composeButtonWidth).Shrink(0).FillHeight().Radius(dockHeight/2).KeyShortcuts(ui.Cmd, ui.KeyN)
+			if trigger.Clicked() {
 				v.OpenNew()
 			}
 		})
 	})
+	return search, trigger
 }

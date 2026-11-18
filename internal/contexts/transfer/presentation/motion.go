@@ -22,7 +22,6 @@ var (
 	pageFade      = ui.ElementTransition{Animation: &colorFade, Enter: &ui.Motion{}, Exit: &ui.Motion{}}
 	panelMotion   = ui.ElementTransition{Animation: &panelSpring, Enter: &ui.Motion{Y: 7}, Exit: &ui.Motion{Y: -5}}
 	dockMotion    = ui.ElementTransition{Animation: &panelSpring, Enter: &ui.Motion{Y: 12}, Exit: &ui.Motion{Y: 12}}
-	scrimMotion   = ui.ElementTransition{Animation: &colorFade, Enter: &ui.Motion{}, Exit: &ui.Motion{}}
 	textChange    = ui.ContentTransition{Animation: &colorFade}
 	numberChange  = ui.ContentTransition{Numeric: true, Animation: &colorFade}
 )

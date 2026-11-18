@@ -28,6 +28,7 @@ func TestEmptyDownloadViewAndNewDownloadValidation(t *testing.T) {
 	if !v.DialogOpen {
 		t.Fatal("new download did not open")
 	}
+	tt.Advance(time.Second)
 	if err := tt.Click("开始下载"); err != nil {
 		t.Fatal(err)
 	}
@@ -204,6 +205,7 @@ func TestReopenedDraftKeepsDirectoryWithItsLinks(t *testing.T) {
 	if v.DialogOpen {
 		t.Fatal("escape did not dismiss form")
 	}
+	tt.Advance(time.Second)
 	if err := tt.Click("新建下载"); err != nil {
 		t.Fatal(err)
 	}
@@ -447,15 +449,15 @@ func TestSheetExpandsFromTheDockWhenOpened(t *testing.T) {
 		if err := tt.Click("新建下载"); err != nil {
 			t.Fatal(err)
 		}
-		start, _ := tt.Find("开始下载")
+		start, _ := tt.AccessByRole(ui.RoleDialog, "")
 		tt.Advance(110 * time.Millisecond)
-		middle, _ := tt.Find("开始下载")
+		middle, _ := tt.AccessByRole(ui.RoleDialog, "")
 		tt.Advance(time.Second)
-		end, _ := tt.Find("开始下载")
-		if !reduce && !(start.W < middle.W && middle.W < end.W) {
-			t.Errorf("sheet did not expand: %.1f, %.1f, %.1f", start.W, middle.W, end.W)
+		end, _ := tt.AccessByRole(ui.RoleDialog, "")
+		if !reduce && !(start.Bounds.W < middle.Bounds.W && middle.Bounds.W < end.Bounds.W) {
+			t.Errorf("sheet did not expand: %.1f, %.1f, %.1f", start.Bounds.W, middle.Bounds.W, end.Bounds.W)
 		}
-		if reduce && start != end {
+		if reduce && start.Bounds != end.Bounds {
 			t.Errorf("reduced-motion sheet moved: %v -> %v", start, end)
 		}
 	}
