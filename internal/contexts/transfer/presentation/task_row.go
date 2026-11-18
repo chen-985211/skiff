@@ -79,7 +79,7 @@ func fileIcon(name string) string {
 	}
 }
 
-func taskColor(c *ui.Context, p palette, status string) ui.Color {
+func taskColor(p palette, status string) ui.Color {
 	switch status {
 	case "active":
 		return p.active
@@ -90,7 +90,7 @@ func taskColor(c *ui.Context, p palette, status string) ui.Color {
 	case "waiting":
 		return p.waiting
 	case "error":
-		return c.Theme().Danger
+		return p.muted
 	default:
 		return p.muted
 	}
@@ -98,7 +98,7 @@ func taskColor(c *ui.Context, p palette, status string) ui.Color {
 
 func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 	card := ui.Column(c.Key(t.ID)).Size(cardWidth, cardHeight).MaxWidthPercent(100).Shrink(0).Role(ui.RoleGroup).Label(t.Name).Padding(15, 17, 12).Gap(8).Transition(cardMotion(t.ID))
-	color := card.AnimateColor("status", taskColor(c, p, t.Status), colorFade)
+	color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
 	kind := fileIcon(t.Name)
 	v.cardSurface(c, card, p, t.ID, color, 20).Children(func() {
 		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(71).FillWidth().Radius(13).Transition(controlMotion)
@@ -108,7 +108,11 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
 					ui.Text(c, t.Name).FontSize(17).FontWeight(640).SingleLine()
 					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-						ui.Icon(c, icons[stateSymbol(t.Status)]).ContentTransition(textChange).FontSize(14).TextColor(color).Tooltip(statusText(t.Status))
+						ink := color
+						if t.Status == "error" {
+							ink = c.Theme().Danger
+						}
+						ui.Icon(c, icons[stateSymbol(t.Status)]).ContentTransition(textChange).FontSize(14).TextColor(ink).Tooltip(statusText(t.Status))
 						size := taskSize(t)
 						if size != "" {
 							ui.Text(c, size).ContentTransition(numberChange).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
@@ -165,7 +169,7 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 		ui.Row(c).Height(18).AlignItems(ui.Center).Children(func() {
 			metric, ink := "", p.muted
 			if t.Error != "" {
-				metric, ink = t.Error, color
+				metric, ink = t.Error, c.Theme().Danger
 			} else if active && t.Speed > 0 {
 				metric = bytesText(t.Speed) + "/s"
 			}
@@ -188,18 +192,13 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 			target = 1
 		}
 		strength := track.AnimateTo("flow", target, progressEase)
-		highContrast := c.Preferences().HighContrast
+		completion := track.AnimateTo("quiet-completion", amount(t.Status == "complete" && !c.Preferences().HighContrast), colorFade)
+		fillColor := color.Mix(p.border, .85*completion)
 		track.Draw(func(painter *ui.Painter, r ui.Rect) {
 			fill := r
 			if known {
 				fill.W *= max(0, min(1, fraction))
-				if highContrast {
-					painter.Fill(fill, color, 2.5)
-				} else {
-					painter.FillGradient(fill, ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
-						{At: 0, Color: color}, {At: .62, Color: color.Mix(p.ice, .48)}, {At: 1, Color: color.Mix(p.lilac, .24)},
-					}}, 2.5)
-				}
+				painter.Fill(fill, fillColor, 2.5)
 			}
 			if strength <= 0 {
 				if active && !known {
@@ -236,7 +235,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 			c.Invalidate()
 		}
 		card := ui.Column(c.Key(t.ID)).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(17).Gap(12).Transition(cardMotion(t.ID))
-		color := card.AnimateColor("status", taskColor(c, p, t.Status), colorFade)
+		color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
 		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
 			ui.Row(c).Height(71).FillWidth().Gap(13).AlignItems(ui.Center).Children(func() {
 				ui.Image(c, fileArt[fileIcon(t.Name)]).Size(65, 65).Fit(ui.Contain)
