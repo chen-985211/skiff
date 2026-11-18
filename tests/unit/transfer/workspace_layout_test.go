@@ -1,6 +1,7 @@
 package transfer_test
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -18,12 +19,16 @@ func TestWorkspaceSearchCountSitsAboveFirstCard(t *testing.T) {
 		{ID: "a", Name: "archive-a.zip", Status: "paused", CanResume: true},
 	}
 	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
-	for _, tc := range []struct{ query, message, count string }{
-		{"archive-a", "", "1 个结果"},
-		{"archive", "", "2 个结果"},
-		{"archive", "保存目录不可用", "2 个结果"},
+	for _, tc := range []struct {
+		query     string
+		engineErr error
+		count     string
+	}{
+		{"archive-a", nil, "1 个结果"},
+		{"archive", nil, "2 个结果"},
+		{"archive", errors.New("无法连接下载引擎"), "2 个结果"},
 	} {
-		v.Query, v.Message = tc.query, tc.message
+		v.Query, v.EngineError = tc.query, tc.engineErr
 		tt.Frame()
 		card, okCard := tt.AccessByRole(ui.RoleGroup, "archive-a.zip")
 		count, okCount := tt.Find(tc.count)
@@ -31,8 +36,30 @@ func TestWorkspaceSearchCountSitsAboveFirstCard(t *testing.T) {
 			t.Fatalf("missing card or count for %q", tc.query)
 		}
 		if gap := card.Bounds.Y - (count.Y + count.H); count.X != card.Bounds.X || gap != 12 {
-			t.Errorf("query=%q message=%q: count x=%.1f, card x=%.1f, gap=%.1f; want aligned and 12 pt", tc.query, tc.message, count.X, card.Bounds.X, gap)
+			t.Errorf("query=%q engineErr=%v: count x=%.1f, card x=%.1f, gap=%.1f; want aligned and 12 pt", tc.query, tc.engineErr, count.X, card.Bounds.X, gap)
 		}
+	}
+}
+
+func TestWorkspaceEngineFailureKeepsCardAndSearchCountInPlace(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready, v.Query = true, "archive"
+	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "archive.zip", Status: "complete"}}
+	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	card, foundCard := tt.Find("archive.zip")
+	count, foundCount := tt.Find("1 个结果")
+	if !foundCard || !foundCount {
+		t.Fatal("missing card or search count")
+	}
+	v.EngineError = errors.New("无法连接下载引擎")
+	tt.Frame()
+	afterCard, _ := tt.Find("archive.zip")
+	afterCount, _ := tt.Find("1 个结果")
+	if afterCard != card || afterCount != count {
+		t.Errorf("engine failure moved card %v → %v or count %v → %v", card, afterCard, count, afterCount)
+	}
+	if _, ok := tt.Find("关闭提示"); ok {
+		t.Error("engine failure created a dismissible global banner")
 	}
 }
 
@@ -57,15 +84,19 @@ func TestWorkspaceBatchActionAlignsWithBrandAndCardGrid(t *testing.T) {
 		last  string
 	}{{800, "match-a.zip"}, {1020, "match-b.zip"}, {1440, "other.zip"}} {
 		tt.SetSize(size.width, 800)
-		v.Query, v.Message = "", ""
+		v.Query, v.EngineError = "", nil
 		tt.Frame()
 		card := get(size.last)
 		brand := get("轻舟")
-		for _, state := range []struct{ query, message, button string }{
-			{"", "", "继续 3 项"},
-			{"match", "保存目录不可用", "继续 2 项"},
+		for _, state := range []struct {
+			query     string
+			engineErr error
+			button    string
+		}{
+			{"", nil, "继续 3 项"},
+			{"match", errors.New("无法连接下载引擎"), "继续 2 项"},
 		} {
-			v.Query, v.Message = state.query, state.message
+			v.Query, v.EngineError = state.query, state.engineErr
 			tt.Frame()
 			button := get(state.button)
 			if math.Abs(float64((button.Y+button.H/2)-(brand.Y+brand.H/2))) > 1 || button.X+button.W != card.X+card.W {
@@ -269,7 +300,7 @@ func TestWorkspaceTerminalTracksUseQuietSteelInBothThemes(t *testing.T) {
 
 func TestWorkspaceCardBodyOpensDetailAndKeepsActionsIndependent(t *testing.T) {
 	revealed := ""
-	v := presentation.New(nil, presentation.Actions{Reveal: func(path string) { revealed = path }})
+	v := presentation.New(nil, presentation.Actions{Reveal: func(path string) error { revealed = path; return nil }})
 	v.Ready = true
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "active", Path: "/downloads/one.zip", CanPause: true, Total: 100, Progress: .4}}
 	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})

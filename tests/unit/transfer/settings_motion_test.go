@@ -256,6 +256,10 @@ func TestSettingsThemeKeepsLatestChoiceDuringSaveAndRevertsOnFailure(t *testing.
 	if !item.Checked || !tt.HasText("保存任务失败：disk full") {
 		t.Fatal("failed save did not restore and explain the previous theme")
 	}
+	click("全部任务")
+	if tt.HasText("保存任务失败：disk full") {
+		t.Error("theme save failure escaped the settings page")
+	}
 }
 
 func TestSettingsFlowSwitchFreezesImmediatelyWithoutDimmingThePage(t *testing.T) {

@@ -1,6 +1,7 @@
 package transfer_test
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"testing"
@@ -69,7 +70,7 @@ func TestWorkspaceDetailUsesAFourCellFootprint(t *testing.T) {
 
 func TestWorkspaceDetailAnchorsToScrolledSearchResults(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
-	v.Query, v.Message = "match", "保存目录不可用"
+	v.Query, v.EngineError = "match", errors.New("无法连接下载引擎")
 	for i := 15; i >= 0; i-- {
 		name := fmt.Sprintf("match-%d.zip", i)
 		v.Snapshot.Tasks = append(v.Snapshot.Tasks, application.TaskDTO{ID: name, Name: name, Status: "complete"})

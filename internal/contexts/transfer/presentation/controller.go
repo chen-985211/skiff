@@ -39,13 +39,14 @@ func (v *View) submit() {
 			v.Busy = false
 			v.Snapshot = snap
 			if n > 0 {
-				v.DialogOpen = false
-				v.URLs, v.Directory = "", ""
+				v.URLs = ""
 				v.selectCategory("all")
 				v.Query = ""
-				v.Message = ""
 				if err != nil {
-					v.Message = fmt.Sprintf("已创建 %d 个任务，部分操作失败：%v", n, err)
+					v.FormError = fmt.Sprintf("已创建 %d 个任务，部分操作失败：%v", n, err)
+				} else {
+					v.DialogOpen = false
+					v.Directory = ""
 				}
 			} else if err != nil {
 				v.FormError = err.Error()
@@ -54,9 +55,31 @@ func (v *View) submit() {
 	}()
 }
 func (v *View) command(id string, cmd application.Command) {
-	v.run(id, func(ctx context.Context) error { return v.API.Execute(ctx, id, cmd) })
+	v.queueError = nil
+	v.run(func(ctx context.Context) error { return v.API.Execute(ctx, id, cmd) }, func(err error) {
+		v.setTaskError(id, err)
+	})
 }
-func (v *View) run(taskID string, action func(context.Context) error) {
+
+func (v *View) setTaskError(id string, err error) {
+	delete(v.taskErrors, id)
+	if err == nil {
+		return
+	}
+	for _, task := range v.Snapshot.Tasks {
+		if task.ID != id {
+			continue
+		}
+		if task.Error != err.Error() {
+			v.taskErrors[id] = err
+		}
+		return
+	}
+	// A remove can take effect in the engine before saving the queue fails.
+	v.queueError = err
+}
+
+func (v *View) run(action func(context.Context) error, done func(error)) {
 	if v.Busy || v.API == nil {
 		return
 	}
@@ -69,17 +92,7 @@ func (v *View) run(taskID string, action func(context.Context) error) {
 		v.dispatch(func() {
 			v.Busy = false
 			v.Snapshot = snap
-			if err != nil {
-				v.Message = err.Error()
-				for _, t := range v.filtered() {
-					if t.ID == taskID && (v.detailID == "" || v.detailID == t.ID) && t.Error == v.Message {
-						v.Message = ""
-						break
-					}
-				}
-			} else {
-				v.Message = ""
-			}
+			done(err)
 		})
 	}()
 }
@@ -88,6 +101,7 @@ func (v *View) run(taskID string, action func(context.Context) error) {
 // thread owns pending and the snapshot; the worker only sees the submitted value.
 type preferenceSave[T comparable] struct {
 	pending *T
+	err     error
 }
 
 func (p *preferenceSave[T]) current(saved T) T {
@@ -101,6 +115,7 @@ func (p *preferenceSave[T]) choose(v *View, saved *T, choice T, write func(conte
 	if p.current(*saved) == choice {
 		return
 	}
+	p.err = nil
 	if p.pending != nil {
 		*p.pending = choice
 		return
@@ -121,7 +136,7 @@ func (p *preferenceSave[T]) choose(v *View, saved *T, choice T, write func(conte
 			if latest != submitted {
 				p.choose(v, saved, latest, write)
 			} else if err != nil {
-				v.Message = err.Error()
+				p.err = err
 			}
 		})
 	}()

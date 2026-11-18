@@ -28,7 +28,7 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 				if row.Hovered() {
 					row.Background(p.panel.Alpha(.30))
 				}
-				settingsRow(c, row, "folder", "默认保存目录", p, func(ui.Element) {
+				settingsRow(c, row, "folder", "默认保存目录", v.directoryError, p, func(ui.Element) {
 					ui.Text(c, v.Snapshot.Directory).Grow(1).MinWidth(0).SingleLine().TextAlign(ui.End).FontSize(13).TextColor(p.muted).ContentTransition(textChange)
 					ui.Icon(c, icons["chevron"]).Rotate(-90).FontSize(14).TextColor(p.muted)
 				})
@@ -36,20 +36,24 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 					v.pickDefaultDirectory()
 				}
 				settingsDivider(c, p)
-				settingsRow(c, ui.Row(c), "theme", "主题", p, func(ui.Element) { v.themeSelector(c, p) })
+				settingsRow(c, ui.Row(c), "theme", "主题", v.themeSave.err, p, func(ui.Element) { v.themeSelector(c, p) })
 				settingsDivider(c, p)
-				settingsRow(c, ui.Row(c), "light", "背景流光", p, func(label ui.Element) { v.lightSwitch(c, p, label) })
+				settingsRow(c, ui.Row(c), "light", "背景流光", v.flowSave.err, p, func(label ui.Element) { v.lightSwitch(c, p, label) })
 			})
 		})
 	})
 }
 
-func settingsRow(c *ui.Context, row ui.Element, icon, name string, p palette, control func(ui.Element)) {
+func settingsRow(c *ui.Context, row ui.Element, icon, name string, err error, p palette, control func(ui.Element)) {
 	row.Row().FillWidth().Height(70).AlignItems(ui.Center).Justify(ui.Start).PaddingX(18).Gap(12).Children(func() {
 		ui.Box(c).Size(32, 32).Center().Radius(11).Gradient(p.panel.Alpha(.74), p.tint.Alpha(.48), 135).Children(func() {
 			ui.Icon(c, icons[icon]).FontSize(18).TextColor(p.muted)
 		})
-		label := ui.Text(c, name).FontSize(14).FontWeight(600).Shrink(0)
+		var label ui.Element
+		ui.Column(c).MinWidth(0).Gap(3).Children(func() {
+			label = ui.Text(c, name).FontSize(14).FontWeight(600).Shrink(0)
+			inlineError(c, err)
+		})
 		ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Center).Justify(ui.End).Gap(10).Children(func() {
 			control(label)
 		})
@@ -61,13 +65,19 @@ func settingsDivider(c *ui.Context, p palette) {
 }
 
 func (v *View) pickDefaultDirectory() {
+	v.directoryError = nil
 	v.Actions.PickDirectory(v.Snapshot.Directory, func(path string, err error) {
 		if err != nil {
-			v.Message = err.Error()
+			v.directoryError = err
 			return
 		}
 		if path != "" {
-			v.run("", func(ctx context.Context) error { return v.API.SetDefaultDirectory(ctx, path) })
+			v.run(func(ctx context.Context) error { return v.API.SetDefaultDirectory(ctx, path) }, func(err error) {
+				v.directoryError = err
+				if err == nil {
+					v.openDirectoryError = nil
+				}
+			})
 		}
 	})
 }

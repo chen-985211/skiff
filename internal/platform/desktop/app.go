@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"github.com/egoist/mygo"
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 	"github.com/egoist/mygo/ui"
@@ -39,7 +40,7 @@ func Run() error {
 	defer cancelPoll()
 	closing, closed := false, false
 	mygo.App.OnSecondInstance(func([]string, string) {
-		if win != nil {
+		if win != nil && !closing {
 			win.Show()
 			win.Focus()
 		}
@@ -54,10 +55,8 @@ func Run() error {
 		}
 		closing = true
 		cancelPoll()
-		if view != nil {
-			view.Busy = true
-			view.Message = "正在保存下载任务…"
-			win.Invalidate()
+		if win != nil {
+			win.Hide()
 		}
 		go func() {
 			<-initialized
@@ -81,7 +80,7 @@ func Run() error {
 		downloads, _ := mygo.App.Path(mygo.PathDownloads)
 		defaultDirectory := filepath.Join(downloads, "Skiff")
 		actions := presentation.Actions{
-			OpenDirectory: func(path string) {
+			OpenDirectory: func(path string, done func(error)) {
 				go func() {
 					var err error
 					if path == defaultDirectory {
@@ -98,8 +97,9 @@ func Run() error {
 						err = mygo.Shell.OpenPath(path)
 					}
 					if err != nil {
-						win.Update(func() { view.Message = "无法打开保存目录：" + err.Error() })
+						err = fmt.Errorf("无法打开保存目录：%w", err)
 					}
+					win.Update(func() { done(err) })
 				}()
 			},
 			Dispatch: func(fn func()) { win.Update(fn) },
@@ -115,13 +115,15 @@ func Run() error {
 					})
 				}()
 			},
-			Reveal: func(path string) {
+			Reveal: func(path string) error {
 				if _, err := os.Stat(path); err != nil {
-					view.Message = "文件或文件夹不存在"
-					win.Invalidate()
-					return
+					if os.IsNotExist(err) {
+						return errors.New("文件或文件夹不存在")
+					}
+					return err
 				}
 				mygo.Shell.ShowItemInFolder(path)
+				return nil
 			},
 		}
 		view = presentation.New(nil, actions)
@@ -144,7 +146,7 @@ func Run() error {
 			}
 			close(initialized)
 			if err != nil {
-				win.Update(func() { view.Message = err.Error() })
+				win.Update(func() { view.EngineError = err })
 				return
 			}
 			initial := service.Snapshot()
@@ -167,7 +169,7 @@ func Run() error {
 						return
 					}
 					if !hadError {
-						win.Update(func() { view.Message = err.Error() })
+						win.Update(func() { view.EngineError = err })
 					}
 					hadError = true
 					continue
@@ -178,7 +180,7 @@ func Run() error {
 					win.Update(func() {
 						view.Snapshot = current
 						if recovered {
-							view.Message = ""
+							view.EngineError = nil
 						}
 					})
 					previous = current

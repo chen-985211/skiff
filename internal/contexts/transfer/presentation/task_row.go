@@ -82,7 +82,8 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO) {
 			v.RestartID, v.RestartOpen = t.ID, true
 		}
 		if t.Path != "" && v.Actions.Reveal != nil && cardAction(c, "folder", "位置", "在文件夹中显示", "") {
-			v.Actions.Reveal(t.Path)
+			v.setTaskError(t.ID, v.Actions.Reveal(t.Path))
+			c.Invalidate()
 		}
 	})
 }
@@ -154,7 +155,7 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 			v.detailID = t.ID
 			c.Invalidate()
 		}
-		taskProgress(c, p, t, color)
+		v.taskProgress(c, p, t, color)
 		ui.Box(c).Grow(1)
 		v.rowActions(c, t)
 		v.removeTaskButton(c, t.ID)
@@ -189,8 +190,10 @@ func taskSize(t application.TaskDTO) string {
 	return ""
 }
 
-func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Color) {
+func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Color) {
+	actionError := v.taskErrors[t.ID]
 	if t.Status == "complete" {
+		inlineError(c, actionError)
 		return
 	}
 	active := t.Status == "active"
@@ -200,7 +203,9 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 	section.Children(func() {
 		ui.Row(c).Height(18).AlignItems(ui.Center).Children(func() {
 			metric, ink := "", p.muted
-			if t.Error != "" {
+			if actionError != nil {
+				metric, ink = actionError.Error(), c.Theme().Danger
+			} else if t.Error != "" {
 				metric, ink = t.Error, c.Theme().Danger
 			} else if active && t.Speed > 0 {
 				metric = bytesText(t.Speed) + "/s"
@@ -287,7 +292,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 					}
 					detailField(c, p, "位置", target)
 				})
-				taskProgress(c, p, t, color)
+				v.taskProgress(c, p, t, color)
 			})
 			v.rowActions(c, t)
 		})

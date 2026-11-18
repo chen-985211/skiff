@@ -70,23 +70,14 @@ func (v *View) queueHeader(c *ui.Context, p palette, gridWidth float32, items []
 		} else {
 			ui.Row(c.Key("queue-toolbar")).Transition(panelMotion).AlignItems(ui.Center).Gap(9).Width(gridWidth).Height(workspaceHeader).Children(func() {
 				ui.Box(c).Grow(1).FillHeight().DragWindow()
+				inlineError(c, v.queueError)
 				v.batchAction(c, items, application.Pause)
 				v.batchAction(c, items, application.Resume)
 			})
 		}
-		hasMessage := v.Message != ""
-		v.messageBanner(c)
-		if strings.TrimSpace(v.Query) != "" {
+		if v.detailID == "" && strings.TrimSpace(v.Query) != "" {
 			const resultGap = 12
-			count := ui.Textf(c, "%d 个结果", len(items)).Transition(panelMotion).ContentTransition(numberChange).FontSize(12).TextColor(p.muted).IgnoreInput(true)
-			if v.detailID != "" {
-				count.Invisible()
-			}
-			if hasMessage {
-				count.AlignSelf(ui.Start).Margin(0, 0, resultGap)
-			} else {
-				count.Absolute().Left(0).Bottom(resultGap)
-			}
+			ui.Textf(c, "%d 个结果", len(items)).Transition(panelMotion).ContentTransition(numberChange).FontSize(12).TextColor(p.muted).IgnoreInput(true).Absolute().Left(0).Bottom(resultGap)
 		}
 	})
 }
@@ -119,7 +110,13 @@ func (v *View) batchAction(c *ui.Context, items []application.TaskDTO, cmd appli
 		})
 	})
 	if b.Clicked() {
-		v.run("", func(ctx context.Context) error { return v.API.SetPaused(ctx, ids, cmd == application.Pause) })
+		filter, query := v.Filter, v.Query
+		v.queueError = nil
+		v.run(func(ctx context.Context) error { return v.API.SetPaused(ctx, ids, cmd == application.Pause) }, func(err error) {
+			if v.Filter == filter && v.Query == query {
+				v.queueError = err
+			}
+		})
 	}
 }
 
@@ -129,7 +126,7 @@ func (v *View) empty(c *ui.Context, p palette, cat category) {
 	switch {
 	case !v.Ready:
 		title, icon = "正在准备下载引擎", "download"
-		if v.Message != "" {
+		if v.EngineError != nil {
 			title, icon = "下载引擎未就绪", "error"
 		}
 	case strings.TrimSpace(v.Query) != "":
@@ -146,6 +143,9 @@ func (v *View) empty(c *ui.Context, p palette, cat category) {
 			ui.Icon(c, icons[icon]).FontSize(36).TextColor(p.muted)
 		}
 		ui.Text(c, title).FontSize(15).FontWeight(520).TextColor(p.muted)
+		if !v.Ready {
+			inlineError(c, v.EngineError)
+		}
 		if action != "" && secondaryAction(c, action).Clicked() {
 			switch {
 			case strings.TrimSpace(v.Query) != "":

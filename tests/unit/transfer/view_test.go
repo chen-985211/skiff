@@ -57,10 +57,15 @@ func TestDownloadViewFiltersAndShowsActualTaskProgress(t *testing.T) {
 }
 func TestEngineStartupErrorIsVisibleAndDisablesNewDownload(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
-	v.Message = "没有找到 aria2c"
+	v.EngineError = errors.New("没有找到 aria2c")
 	tt := ui.NewTester(v.Render, 800, 560)
 	if !tt.HasText("没有找到 aria2c") {
 		t.Fatal("engine failure hidden")
+	}
+	title, ok := tt.Find("下载引擎未就绪")
+	reason, _ := tt.Find("没有找到 aria2c")
+	if !ok || reason.Y < title.Y+title.H {
+		t.Fatalf("engine failure should explain the empty state below its title: %v, %v", title, reason)
 	}
 	_ = tt.Click("新建下载")
 	if v.DialogOpen {
@@ -355,6 +360,33 @@ func TestSubmittingDialogKeepsResultVisibleUntilSubmissionReturns(t *testing.T) 
 	}
 }
 
+func TestWorkspacePartialCreationExplainsFailureInForm(t *testing.T) {
+	s := service(t, &fakeEngine{addErr: errors.New("引擎暂时不可用")}, &fakeRepo{})
+	done := make(chan func(), 1)
+	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { done <- fn }})
+	v.OpenNew()
+	v.URLs, v.Directory = "https://example.org/archive.zip", t.TempDir()
+	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	if err := tt.Click("开始下载"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case apply := <-done:
+		apply()
+	case <-time.After(3 * time.Second):
+		t.Fatal("creation did not finish")
+	}
+	tt.Frame()
+	message := "已创建 1 个任务，部分操作失败：引擎暂时不可用"
+	if !v.DialogOpen || !tt.HasText(message) || v.URLs != "" || len(v.Snapshot.Tasks) != 1 {
+		t.Fatalf("partial creation left the wrong form state: %v", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	if tt.HasText(message) || !tt.HasText("引擎暂时不可用") {
+		t.Fatal("dismissing the form should leave the affected card's own error visible")
+	}
+}
+
 func TestCardFailureActionsFitMinimumWindow(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
@@ -427,6 +459,38 @@ func TestRetryFailureIsReportedOnceOnItsCard(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("rendered %d copies of the same task failure", n)
+	}
+}
+
+func TestWorkspaceRemoveSaveFailureStaysInTaskList(t *testing.T) {
+	repo := &fakeRepo{}
+	s := service(t, &fakeEngine{}, repo)
+	if _, err := s.Add(context.Background(), "https://example.org/one.zip", t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	repo.saveErr = errors.New("disk full")
+	done := make(chan func(), 1)
+	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { done <- fn }})
+	v.Snapshot = s.Snapshot()
+	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	if err := tt.Click("移除任务（保留文件）"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case fn := <-done:
+		fn()
+	case <-time.After(3 * time.Second):
+		t.Fatal("remove did not finish")
+	}
+	tt.Frame()
+	if !tt.HasText("保存任务失败：disk full") {
+		t.Fatal("removing the card hid the persistence failure")
+	}
+	if err := tt.Click("设置"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("保存任务失败：disk full") {
+		t.Fatal("task list failure escaped into settings")
 	}
 }
 
@@ -724,7 +788,7 @@ func TestSettingsReplacesEngineLightAndReturnsToQueue(t *testing.T) {
 func TestSidebarOpensTheDirectoryItShows(t *testing.T) {
 	dir := t.TempDir()
 	var opened string
-	v := presentation.New(nil, presentation.Actions{OpenDirectory: func(path string) { opened = path }})
+	v := presentation.New(nil, presentation.Actions{OpenDirectory: func(path string, done func(error)) { opened = path; done(nil) }})
 	v.Snapshot.Directory = dir
 	tt := ui.NewTester(v.Render, 800, 560)
 	if err := tt.Click("打开下载目录"); err != nil {

@@ -18,32 +18,35 @@ type API interface {
 	Snapshot() application.Snapshot
 }
 type Actions struct {
-	OpenDirectory func(string)
+	OpenDirectory func(string, func(error))
 	Dispatch      func(func())
 	PickDirectory func(string, func(string, error))
-	Reveal        func(string)
+	Reveal        func(string) error
 }
 type View struct {
-	themeSave                                          preferenceSave[application.ThemeMode]
-	flowSave                                           preferenceSave[bool]
-	lastDefault                                        string
-	settingsOpen                                       bool
-	light                                              windowLight
-	API                                                API
-	Actions                                            Actions
-	Snapshot                                           application.Snapshot
-	Ready, Busy, DialogOpen                            bool
-	RestartOpen                                        bool
-	RestartID                                          string
-	Filter, Query, URLs, Directory, FormError, Message string
-	detailID                                           string
-	taskRows                                           ui.ListState
-	gridColumns, detailColumn                          int
-	detailTop                                          float32
+	themeSave                                      preferenceSave[application.ThemeMode]
+	flowSave                                       preferenceSave[bool]
+	lastDefault                                    string
+	settingsOpen                                   bool
+	light                                          windowLight
+	API                                            API
+	Actions                                        Actions
+	Snapshot                                       application.Snapshot
+	Ready, Busy, DialogOpen                        bool
+	RestartOpen                                    bool
+	RestartID                                      string
+	Filter, Query, URLs, Directory, FormError      string
+	EngineError                                    error
+	taskErrors                                     map[string]error
+	queueError, directoryError, openDirectoryError error
+	detailID                                       string
+	taskRows                                       ui.ListState
+	gridColumns, detailColumn                      int
+	detailTop                                      float32
 }
 
 func New(api API, actions Actions) *View {
-	return &View{API: api, Actions: actions, Filter: "all", Ready: api != nil}
+	return &View{API: api, Actions: actions, Filter: "all", Ready: api != nil, taskErrors: make(map[string]error)}
 }
 func (v *View) OpenNew() {
 	if v.Ready && !v.Busy && !v.DialogOpen && !v.RestartOpen {
@@ -82,7 +85,6 @@ func (v *View) Render(c *ui.Context) {
 		main.Children(func() {
 			ui.Box(c).Height(max(20, c.TitleBar().Bottom)).FillWidth().DragWindow()
 			if v.settingsOpen {
-				v.messageBanner(c)
 				v.settingsPage(c, p)
 			} else {
 				ui.Column(c.Key("category-" + v.Filter)).Grow(1).MinHeight(0).Transition(pageFade).Children(func() {
@@ -106,15 +108,8 @@ func (v *View) Render(c *ui.Context) {
 	}
 }
 
-func (v *View) messageBanner(c *ui.Context) {
-	if v.Message == "" {
-		return
+func inlineError(c *ui.Context, err error) {
+	if err != nil {
+		ui.Text(c, err.Error()).MinWidth(0).MaxWidthPercent(100).SingleLine().FontSize(12).TextColor(c.Theme().Danger).Tooltip(err.Error())
 	}
-	ui.Row(c.Key("message")).Transition(panelMotion).Padding(9, 12).Margin(0, 0, 10).Gap(8).AlignItems(ui.Center).Background(c.Theme().Warning.Alpha(.09)).Radius(9).Children(func() {
-		ui.Icon(c, icons["error"]).FontSize(16).TextColor(c.Theme().Warning)
-		ui.Text(c, v.Message).ContentTransition(textChange).FontSize(12).Grow(1).MinWidth(0).MaxHeight(64).Tooltip(v.Message)
-		if v.Ready && iconButton(c, "close", "关闭提示", false) {
-			v.Message = ""
-		}
-	})
 }

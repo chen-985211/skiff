@@ -28,6 +28,7 @@ func (v *View) category() category {
 func (v *View) selectCategory(id string) {
 	v.settingsOpen = false
 	v.Filter, v.detailID = id, ""
+	v.queueError = nil
 	v.taskRows = ui.ListState{}
 }
 
@@ -93,6 +94,9 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 				}
 			}
 		})
+		if v.Ready {
+			inlineError(c, v.EngineError)
+		}
 		ui.Box(c).Grow(1).DragWindow()
 		ui.Column(c).ZIndex(1).Gap(3).Children(func() {
 			if dir := v.Snapshot.Directory; dir != "" {
@@ -107,8 +111,14 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 					})
 				})
 				if folder.Clicked() {
-					v.Actions.OpenDirectory(dir)
+					v.openDirectoryError = nil
+					v.Actions.OpenDirectory(dir, func(err error) {
+						if v.Snapshot.Directory == dir {
+							v.openDirectoryError = err
+						}
+					})
 				}
+				inlineError(c, v.openDirectoryError)
 			}
 			settings := ui.ButtonBase(c.Key("settings")).FillWidth().Height(settingsHeight).PaddingX(10).Radius(10).Transition(controlMotion).Label("设置").AccessSelected(v.settingsOpen)
 			if !v.settingsOpen && settings.Hovered() {
@@ -147,6 +157,7 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 				}
 				if cleared || field.Changed() {
 					v.detailID = ""
+					v.queueError = nil
 					v.taskRows = ui.ListState{}
 					c.Invalidate()
 				}
