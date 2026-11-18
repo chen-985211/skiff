@@ -123,6 +123,14 @@ func (v *View) batchAction(c *ui.Context, items []application.TaskDTO, cmd appli
 func (v *View) empty(c *ui.Context, p palette, cat category) {
 	title, icon := cat.empty, cat.icon
 	switch {
+	case !v.Ready && v.engineOffered:
+		title, icon = "尚未安装下载引擎", "download"
+		if v.installingEngine {
+			title = "正在准备下载引擎"
+		}
+		if v.EngineError != nil {
+			title, icon = "引擎安装失败", "error"
+		}
 	case !v.Ready:
 		title, icon = "正在准备下载引擎", "download"
 		if v.EngineError != nil {

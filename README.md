@@ -16,19 +16,24 @@
 
 首版不包含 BT/磁力、浏览器下载接管、限速设置或后台托盘。
 
+## 首次使用
+
+在 Mac 上打开 Skiff。如果底部显示「下载引擎」，点击一次即可。Skiff 会按芯片架构从 GitHub 下载 aria2c，校验后安装到当前用户的应用数据目录。按钮恢复为「新建下载」后即可添加链接。已安装可用 aria2 的用户可以直接新建下载。
+
+下载使用 Motrix 项目维护的 [aria2c 1.37.0-motrix.24 发布包](https://github.com/motrixapp/aria2/releases/tag/v1.37.0-motrix.24)，支持 Apple Silicon 和 Intel。首次安装需要能访问 GitHub。
+
 ## 开发运行
 
-需要 Go **1.27.3+** 和 aria2。Go 可按 go.mod 自动选择所需工具链。
+需要 Go **1.27.3+**。Go 可按 go.mod 自动选择所需工具链。
 
 ```sh
-brew install aria2
 go mod download
 make dev
 ```
 
 `make dev` 会在代码变化后重新构建并启动开发包。macOS 开发包使用本机 ad hoc 签名。直接运行 `go tool mygo dev` 会让 MyGo 自行选择钥匙串中的开发证书。按 Ctrl+C 停止热重载。
 
-aria2 作为 Skiff 管理的独立进程运行，无需手动启动 RPC 服务。本版不内置 aria2 二进制；打包后的应用仍需要本机安装 aria2。应用会查找 PATH、Homebrew 常用路径，以及资源目录中的 `engine/aria2c`。
+aria2 由 Skiff 作为独立进程启动。运行集成测试时，可使用 `brew install aria2` 准备测试引擎，或用 `SKIFF_ARIA2_BINARY` 指向已有的 aria2c。
 
 ## 验证与构建
 

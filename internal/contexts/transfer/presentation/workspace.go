@@ -162,10 +162,24 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 					c.Invalidate()
 				}
 			})
-			trigger = primaryAction(c, "新建下载", "plus", !v.Ready || v.Busy).Width(composeButtonWidth).Shrink(0).FillHeight().Radius(dockHeight/2).KeyShortcuts(ui.Cmd, ui.KeyN)
-			if trigger.Clicked() {
-				v.OpenNew()
+			if !v.Ready && v.engineOffered {
+				label := "下载引擎"
+				if v.installingEngine {
+					label = "下载中…"
+				}
+				trigger = primaryAction(c, label, "download", v.installingEngine || v.Actions.DownloadEngine == nil)
+				if trigger.Clicked() && !v.installingEngine && v.Actions.DownloadEngine != nil {
+					v.installingEngine = true
+					v.EngineError = nil
+					v.Actions.DownloadEngine()
+				}
+			} else {
+				trigger = primaryAction(c, "新建下载", "plus", !v.Ready || v.Busy).KeyShortcuts(ui.Cmd, ui.KeyN)
+				if trigger.Clicked() {
+					v.OpenNew()
+				}
 			}
+			trigger.Width(composeButtonWidth).Shrink(0).FillHeight().Radius(dockHeight / 2)
 		})
 	})
 	return search, trigger

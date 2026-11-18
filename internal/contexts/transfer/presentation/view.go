@@ -18,10 +18,11 @@ type API interface {
 	Snapshot() application.Snapshot
 }
 type Actions struct {
-	OpenDirectory func(string, func(error))
-	Dispatch      func(func())
-	PickDirectory func(string, func(string, error))
-	Reveal        func(string) error
+	DownloadEngine func()
+	OpenDirectory  func(string, func(error))
+	Dispatch       func(func())
+	PickDirectory  func(string, func(string, error))
+	Reveal         func(string) error
 }
 type View struct {
 	themeSave                                      preferenceSave[application.ThemeMode]
@@ -37,6 +38,7 @@ type View struct {
 	RestartID                                      string
 	Filter, Query, URLs, Directory, FormError      string
 	EngineError                                    error
+	engineOffered, installingEngine                bool
 	taskErrors                                     map[string]error
 	queueError, directoryError, openDirectoryError error
 	detailID                                       string
@@ -48,6 +50,18 @@ type View struct {
 func New(api API, actions Actions) *View {
 	return &View{API: api, Actions: actions, Filter: "all", Ready: api != nil, taskErrors: make(map[string]error)}
 }
+func (v *View) OfferEngineDownload(err error) {
+	v.engineOffered = true
+	v.installingEngine = false
+	v.EngineError = err
+}
+
+func (v *View) FinishEngineStartup(api API, snapshot application.Snapshot, err error) {
+	v.engineOffered, v.installingEngine = false, false
+	v.API, v.Snapshot, v.EngineError = api, snapshot, err
+	v.Ready = api != nil && err == nil
+}
+
 func (v *View) OpenNew() {
 	if v.Ready && !v.Busy && !v.DialogOpen && !v.RestartOpen {
 		v.DialogOpen = true

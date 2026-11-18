@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/infrastructure/persistence"
 	"strconv"
 	"strings"
@@ -36,7 +37,7 @@ func FindBinary() (string, error) {
 	}
 	if exe, err := os.Executable(); err == nil {
 		for _, candidate := range []string{filepath.Join(filepath.Dir(exe), "..", "Resources", "engine", name), filepath.Join(filepath.Dir(exe), "engine", name)} {
-			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			if _, err := exec.LookPath(candidate); err == nil {
 				return filepath.Clean(candidate), nil
 			}
 		}
@@ -45,11 +46,11 @@ func FindBinary() (string, error) {
 		return binary, nil
 	}
 	for _, candidate := range []string{"/opt/homebrew/bin/aria2c", "/usr/local/bin/aria2c"} {
-		if _, err := os.Stat(candidate); err == nil {
+		if _, err := exec.LookPath(candidate); err == nil {
 			return candidate, nil
 		}
 	}
-	return "", errors.New("没有找到 aria2c，请安装 aria2 后重新打开 Skiff")
+	return "", application.ErrEngineMissing
 }
 func Start(ctx context.Context, dataDir, binary string) (*Process, error) {
 	if err := os.MkdirAll(dataDir, 0700); err != nil {

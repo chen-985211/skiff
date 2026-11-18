@@ -79,7 +79,9 @@ func Run() error {
 	mygo.App.WhenReady(func() {
 		downloads, _ := mygo.App.Path(mygo.PathDownloads)
 		defaultDirectory := filepath.Join(downloads, "Skiff")
+		installRequests := make(chan struct{}, 1)
 		actions := presentation.Actions{
+			DownloadEngine: func() { installRequests <- struct{}{} },
 			OpenDirectory: func(path string, done func(error)) {
 				go func() {
 					var err error
@@ -134,23 +136,31 @@ func Run() error {
 			{Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},
 		}))
 		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
-			defer cancel()
-			binary, err := aria2.FindBinary()
+			binary, err := application.PrepareEngine(pollCtx, aria2.NewInstallation(dataDir), installRequests, func(reason error) {
+				win.Update(func() { view.OfferEngineDownload(reason) })
+			})
+			ctx, cancel := context.WithTimeout(pollCtx, 12*time.Second)
 			if err == nil {
 				process, err = aria2.Start(ctx, dataDir, binary)
 			}
 			if err == nil {
 				service = application.New(process.Client, persistence.Repository{Path: filepath.Join(dataDir, "tasks.json")}, defaultDirectory, newID)
 				err = service.Open(ctx)
+				if err != nil {
+					// Quit must never flush a partially restored queue.
+					service = nil
+				}
 			}
+			cancel()
 			close(initialized)
 			if err != nil {
-				win.Update(func() { view.EngineError = err })
+				if pollCtx.Err() == nil {
+					win.Update(func() { view.FinishEngineStartup(nil, application.Snapshot{}, err) })
+				}
 				return
 			}
 			initial := service.Snapshot()
-			win.Update(func() { view.API = service; view.Snapshot = initial; view.Ready = true })
+			win.Update(func() { view.FinishEngineStartup(service, initial, nil) })
 			previous := initial
 			ticker := time.NewTicker(700 * time.Millisecond)
 			defer ticker.Stop()
