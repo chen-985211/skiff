@@ -221,19 +221,22 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 }
 
 func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
-	ui.Column(c.Key("detail")).Grow(1).Gap(12).Transition(panelMotion).Children(func() {
-		back := secondaryAction(c, "返回任务").AlignSelf(ui.Start).Label("收起详情 " + t.Name).Height(33).Radius(16)
-		if back.Clicked() || c.Shortcut(0, ui.KeyEscape) {
-			v.detailID = ""
-			c.Invalidate()
-		}
-		card := ui.Column(c.Key(t.ID)).Padding(22).Gap(15).Transition(cardMotion(t.ID))
+	ui.Column(c.Key("detail")).Grow(1).Padding(workspaceHeader, 0, 0).Children(func() {
+		card := ui.Column(c.Key(t.ID)).Role(ui.RoleGroup).Label(t.Name).Padding(17).Gap(12).Transition(cardMotion(t.ID))
 		color := card.AnimateColor("status", taskColor(c, p, t.Status), colorFade)
 		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Image(c, fileArt[fileIcon(t.Name)]).Size(60, 60).Fit(ui.Contain)
-				ui.Text(c, t.Name).FontSize(22).FontWeight(660).Grow(1).MinWidth(0).SingleLine().Tooltip(t.Name)
-				ui.Text(c, statusText(t.Status)).ContentTransition(textChange).FontSize(12).TextColor(color)
+			head := ui.ButtonBase(c).Height(71).FillWidth().Radius(13).Label("收起详情 " + t.Name).Tooltip("收起详情")
+			if head.Clicked() || c.Shortcut(0, ui.KeyEscape) {
+				v.detailID = ""
+				c.Invalidate()
+			}
+			head.Children(func() {
+				ui.Row(c).Fill().Gap(13).AlignItems(ui.Center).Children(func() {
+					ui.Image(c, fileArt[fileIcon(t.Name)]).Size(65, 65).Fit(ui.Contain)
+					ui.Text(c, t.Name).FontSize(22).FontWeight(660).Grow(1).MinWidth(0).SingleLine().Tooltip(t.Name)
+					ui.Text(c, statusText(t.Status)).ContentTransition(textChange).FontSize(12).TextColor(color)
+					ui.Icon(c, icons["chevron"]).FontSize(16).Rotate(180).TextColor(p.muted)
+				})
 			})
 			if size := taskSize(t); size != "" {
 				ui.Text(c, size).ContentTransition(numberChange).FontSize(12).TextColor(p.muted)

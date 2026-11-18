@@ -91,7 +91,9 @@ func (v *View) Render(c *ui.Context) {
 			if v.settingsOpen {
 				v.settingsPage(c, p)
 			} else {
-				v.queue(c, p)
+				ui.Column(c.Key("category-" + v.Filter)).Grow(1).MinHeight(0).Transition(pageFade).Children(func() {
+					v.queue(c, p)
+				})
 				v.dock(c, p)
 			}
 		})

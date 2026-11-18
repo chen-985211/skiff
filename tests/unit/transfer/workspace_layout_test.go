@@ -2,6 +2,7 @@ package transfer_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -86,5 +87,53 @@ func TestWorkspaceFirstPaintAndPartialRowUseTheSameColumns(t *testing.T) {
 	narrow, _ := tt.Find("查看详情 a")
 	if narrow.W != top.W {
 		t.Errorf("first paint: header width %.1f, want %.1f", narrow.W, top.W)
+	}
+}
+
+func TestWorkspaceDetailAlignsWithNavigationAndCollapsesInPlace(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "active", CanPause: true}}
+	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	if err := tt.Click("查看详情 one.zip"); err != nil {
+		t.Fatal(err)
+	}
+	detail, ok := tt.AccessByRole(ui.RoleGroup, "one.zip")
+	nav, _ := tt.Find("全部任务")
+	if !ok || detail.Bounds.Y != nav.Y {
+		t.Fatalf("detail %v, navigation %v", detail.Bounds, nav)
+	}
+	if _, found := tt.Find("返回任务"); found {
+		t.Error("duplicate back button")
+	}
+	if err := tt.Click("收起详情 one.zip"); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := tt.Find("查看详情 one.zip"); !found {
+		t.Fatal("did not return to card")
+	}
+}
+
+func TestWorkspaceCategoryContentFadesAcrossFrames(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "complete", Progress: 1}}
+	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
+	tt.Advance(time.Second)
+	track, ok := tt.Find("下载进度")
+	if !ok {
+		t.Fatal("missing progress track")
+	}
+	sample := func() uint8 { return tt.Image().RGBAAt(int(track.X+track.W/2), int(track.Y+track.H/2)).R }
+	start := sample()
+	if err := tt.Click("已暂停"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(90 * time.Millisecond)
+	mid := sample()
+	tt.Advance(time.Second)
+	end := sample()
+	if min(start, end) >= mid || mid >= max(start, end) {
+		t.Fatalf("category transition skipped intermediate opacity: %d -> %d -> %d", start, mid, end)
 	}
 }

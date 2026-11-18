@@ -9,7 +9,7 @@ import (
 )
 
 func (v *View) settingsPage(c *ui.Context, p palette) {
-	ui.Column(c.Key("settings-page")).Grow(1).MinHeight(0).Padding(32, 8).Transition(panelMotion).Children(func() {
+	ui.Column(c.Key("settings-page")).Grow(1).MinHeight(0).Padding(32, 8).Transition(pageFade).Children(func() {
 		list := ui.Column(c).MaxWidth(820).FillWidth().AlignSelf(ui.Center)
 		list.Children(func() {
 			ui.Text(c, "设置").FontSize(28).FontWeight(650).Margin(0, 0, 20)

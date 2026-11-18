@@ -18,6 +18,7 @@ var (
 	progressEase    = ui.Animation{Duration: 200 * time.Millisecond, Ease: ui.EaseOut}
 
 	controlMotion = ui.ElementTransition{Animation: &pressSpring, Colors: true}
+	pageFade      = ui.ElementTransition{Animation: &colorFade, Enter: &ui.Motion{}, Exit: &ui.Motion{}}
 	panelMotion   = ui.ElementTransition{Animation: &panelSpring, Enter: &ui.Motion{Y: 7}, Exit: &ui.Motion{Y: -5}}
 	dockMotion    = ui.ElementTransition{Animation: &panelSpring, Enter: &ui.Motion{Y: 12}, Exit: &ui.Motion{Y: 12}}
 	scrimMotion   = ui.ElementTransition{Animation: &colorFade, Enter: &ui.Motion{}, Exit: &ui.Motion{}}
@@ -28,7 +29,7 @@ var (
 type cardMatch string
 
 func cardMotion(id string) ui.ElementTransition {
-	return ui.ElementTransition{Match: cardMatch(id), ScaleContent: true, Animation: &panelSpring, Enter: &ui.Motion{Y: 9, Scale: .985}, Exit: &ui.Motion{Y: -5, Scale: .985}}
+	return ui.ElementTransition{Match: cardMatch(id), Fly: true, ScaleContent: true, Animation: &panelSpring, Enter: &ui.Motion{Y: 9, Scale: .985}, Exit: &ui.Motion{Y: -5, Scale: .985}}
 }
 
 func amount(on bool) float32 {
