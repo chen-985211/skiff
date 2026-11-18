@@ -193,3 +193,35 @@ func TestWorkspaceTerminalTracksUseQuietSteelInBothThemes(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkspaceCardBodyOpensDetailAndKeepsActionsIndependent(t *testing.T) {
+	revealed := ""
+	v := presentation.New(nil, presentation.Actions{Reveal: func(path string) { revealed = path }})
+	v.Ready = true
+	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "active", Path: "/downloads/one.zip", CanPause: true, Total: 100, Progress: .4}}
+	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	if err := tt.Click("在文件夹中显示"); err != nil {
+		t.Fatal(err)
+	}
+	if revealed != "/downloads/one.zip" || tt.HasText("来源") {
+		t.Fatal("file action opened details or failed to reveal")
+	}
+	for _, region := range []string{"background", "progress"} {
+		r, _ := tt.Find("one.zip")
+		x, y := r.X+r.W-12, r.Y+r.H-14
+		if region == "progress" {
+			bar, _ := tt.Find("下载进度")
+			x, y = bar.X+bar.W/2, bar.Y+bar.H/2
+		}
+		tt.ClickAt(x, y)
+		if !tt.HasText("来源") {
+			t.Fatalf("%s did not open details", region)
+		}
+		if _, ok := tt.Find("移除任务（保留文件）"); ok {
+			t.Fatal("detail exposes remove action")
+		}
+		if err := tt.Click("返回任务列表"); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

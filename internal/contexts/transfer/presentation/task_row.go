@@ -140,7 +140,7 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 				ui.Box(c).Width(23).Shrink(0)
 			})
 		})
-		if head.Clicked() {
+		if head.Clicked() || card.Clicked() {
 			v.detailID = t.ID
 			c.Invalidate()
 		}
@@ -257,7 +257,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 		card := ui.Column(c.Key(t.ID)).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(17).Gap(12).Transition(cardMotion(t.ID))
 		color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
 		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
-			ui.Row(c).Height(71).FillWidth().Padding(0, 23, 0, 0).Gap(13).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Height(71).FillWidth().Gap(13).AlignItems(ui.Center).Children(func() {
 				ui.Image(c, fileArt[fileIcon(t.Name)]).Size(65, 65).Fit(ui.Contain)
 				ui.Text(c, t.Name).FontSize(20).FontWeight(650).Grow(1).MinWidth(0).SingleLine().TruncateMiddle().Tooltip(t.Name)
 
@@ -280,7 +280,6 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 			}
 			detailField(c, p, "位置", target)
 			v.rowActions(c, t)
-			v.removeTaskButton(c, t.ID)
 		})
 	})
 }
