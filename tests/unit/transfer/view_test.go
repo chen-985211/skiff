@@ -147,19 +147,34 @@ func TestNewDownloadKeepsCurrentFormAndCountsNonblankLines(t *testing.T) {
 	}
 }
 
-func TestEmptyCategoryReturnsToAllTasks(t *testing.T) {
-	v := presentation.New(nil, presentation.Actions{})
-	v.Ready, v.Filter = true, "error"
-	v.Snapshot.Tasks = []application.TaskDTO{{ID: "ok", Name: "saved.zip", Status: "complete"}}
-	tt := ui.NewTester(v.Render, 800, 560)
-	if !tt.HasText("没有失败的任务") {
-		t.Fatalf("missing category empty state: %v", tt.Texts())
-	}
-	if err := tt.Click("查看全部任务"); err != nil {
-		t.Fatal(err)
-	}
-	if !tt.HasText("saved.zip") || v.Filter != "all" {
-		t.Fatal("all tasks were not restored")
+func TestWorkspaceEmptyCategoriesUseSidebarForAllTasks(t *testing.T) {
+	for _, tc := range []struct{ category, message, otherStatus string }{
+		{"正在下载", "当前没有正在下载的任务", "complete"},
+		{"已暂停", "没有暂停的任务", "complete"},
+		{"已完成", "还没有已完成的任务", "paused"},
+		{"下载失败", "没有失败的任务", "complete"},
+	} {
+		t.Run(tc.category, func(t *testing.T) {
+			v := presentation.New(nil, presentation.Actions{})
+			v.Ready = true
+			v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "archive.zip", Status: tc.otherStatus}}
+			tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+			if err := tt.Click(tc.category); err != nil {
+				t.Fatal(err)
+			}
+			if !tt.HasText(tc.message) {
+				t.Fatalf("missing category empty state: %v", tt.Texts())
+			}
+			if _, ok := tt.Find("查看全部任务"); ok {
+				t.Error("empty state duplicates the sidebar navigation")
+			}
+			if err := tt.Click("全部任务"); err != nil {
+				t.Fatal(err)
+			}
+			if !tt.HasText("archive.zip") || v.Filter != "all" {
+				t.Fatal("sidebar did not restore all tasks")
+			}
+		})
 	}
 }
 

@@ -122,19 +122,17 @@ func (v *View) batchAction(c *ui.Context, items []application.TaskDTO, cmd appli
 
 func (v *View) empty(c *ui.Context, p palette, cat category) {
 	title, icon := cat.empty, cat.icon
-	action := ""
+	emptySearch := v.Ready && strings.TrimSpace(v.Query) != ""
 	switch {
 	case !v.Ready:
 		title, icon = "正在准备下载引擎", "download"
 		if v.EngineError != nil {
 			title, icon = "下载引擎未就绪", "error"
 		}
-	case strings.TrimSpace(v.Query) != "":
-		title, icon, action = "没有匹配的任务", "search", "清除搜索"
+	case emptySearch:
+		title, icon = "没有匹配的任务", "search"
 	case cat.id == "all":
 		icon = "tray"
-	case len(v.Snapshot.Tasks) > 0:
-		action = "查看全部任务"
 	}
 	ui.Column(c.Key(title)).Grow(1).MinHeight(0).FillWidth().Center().Gap(14).Transition(panelMotion).Children(func() {
 		if icon == "tray" {
@@ -146,14 +144,9 @@ func (v *View) empty(c *ui.Context, p palette, cat category) {
 		if !v.Ready {
 			inlineError(c, v.EngineError)
 		}
-		if action != "" && secondaryAction(c, action).Clicked() {
-			switch {
-			case strings.TrimSpace(v.Query) != "":
-				v.Query = ""
-				v.taskRows = ui.ListState{}
-			default:
-				v.selectCategory("all")
-			}
+		if emptySearch && secondaryAction(c, "清除搜索").Clicked() {
+			v.Query = ""
+			v.taskRows = ui.ListState{}
 		}
 	})
 }
