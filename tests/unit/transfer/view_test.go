@@ -83,21 +83,32 @@ func TestDownloadFormFitsMinimumWindowInBothThemes(t *testing.T) {
 	}
 }
 
-func TestFilteredQueueShowsResultCountAndKeepsOverallSpeed(t *testing.T) {
+func TestWorkspaceSpeedOnlyAppearsOnVisibleActiveTasks(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Snapshot = application.Snapshot{Active: 1, Speed: 2048, Tasks: []application.TaskDTO{
-		{ID: "a", Name: "a.zip", Status: "active"},
+		{ID: "a", Name: "a.zip", Status: "active", Speed: 2048},
 		{ID: "b", Name: "b.zip", Status: "complete"},
 		{ID: "c", Name: "c.iso", Status: "complete"},
 	}}
 	v.Filter, v.Query = "complete", "ZIP"
 	tt := ui.NewTester(v.Render, 800, 560)
-	for _, label := range []string{"2.0 KB/s", "1 个结果", "b.zip"} {
+	for _, label := range []string{"1 个结果", "b.zip"} {
 		if !tt.HasText(label) {
 			t.Errorf("missing %q in filtered workspace: %v", label, tt.Texts())
 		}
 	}
+	if tt.HasText("2.0 KB/s") {
+		t.Error("filtered workspace shows the aggregate speed")
+	}
+	v.Filter, v.Query = "all", ""
+	tt.Frame()
+	task, _ := tt.Find("a.zip")
+	speed, ok := tt.Find("2.0 KB/s")
+	if !ok || speed.X < task.X || speed.X+speed.W > task.X+task.W {
+		t.Errorf("expected speed on active card: %v, %v", speed, task)
+	}
+
 }
 
 func TestSearchEmptyStateClearsOnlyQuery(t *testing.T) {

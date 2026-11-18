@@ -94,12 +94,6 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 		})
 		ui.Box(c).Grow(1).DragWindow()
 		ui.Column(c).ZIndex(1).Gap(3).Children(func() {
-			if v.Snapshot.Speed > 0 {
-				ui.Row(c.Key("speed")).PaddingX(10).Gap(8).AlignItems(ui.Center).Transition(panelMotion).Children(func() {
-					ui.Icon(c, icons["download"]).FontSize(14).TextColor(p.muted)
-					ui.Text(c, bytesText(v.Snapshot.Speed)+"/s").FontSize(11).FontFeatures("tnum").ContentTransition(numberChange).Description("总下载速度")
-				})
-			}
 			if dir := v.Snapshot.Directory; dir != "" {
 				folder := ui.ButtonBase(c.Key("destination")).FillWidth().Height(34).Radius(10).PaddingX(10).Label("打开下载目录").Description(dir).Disabled(v.Actions.OpenDirectory == nil).Transition(controlMotion)
 				if folder.Hovered() {
