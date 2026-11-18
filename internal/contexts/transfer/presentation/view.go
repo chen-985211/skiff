@@ -37,7 +37,8 @@ type View struct {
 	RestartID                                          string
 	Filter, Query, URLs, Directory, FormError, Message string
 	detailID                                           string
-	grid                                               ui.GridState
+	taskRows                                           ui.ListState
+	gridColumns                                        int
 }
 
 func New(api API, actions Actions) *View {
@@ -75,7 +76,7 @@ func (v *View) Render(c *ui.Context) {
 	}
 	stage.Children(func() {
 		v.sidebar(c, p)
-		main := ui.Column(c).Grow(1).FillHeight().MinWidth(0).Padding(0, 24)
+		main := ui.Column(c).Grow(1).FillHeight().MinWidth(0).Padding(0, workspaceInset)
 		main.Children(func() {
 			ui.Box(c).Height(max(20, c.TitleBar().Bottom)).FillWidth().DragWindow()
 			if v.Message != "" {

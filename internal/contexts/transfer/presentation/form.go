@@ -9,10 +9,12 @@ import (
 func (v *View) newDialog(c *ui.Context, p palette, reveal float32) {
 	open := v.DialogOpen
 	ui.DialogBase(c, &open, func(back, panel ui.Element) {
-		back.Column().Justify(ui.End).AlignItems(ui.Center).Padding(0, 0, 12, sidebarWidth).Background(p.scrim.Alpha(.23)).Transition(scrimMotion)
-		scale := .78 + .22*reveal
-		panel.TransformOrigin(.5, 1).Scale(scale, scale).Translate(0, 6*(1-reveal))
-		surface(c, panel.Column().Width(dockWidth).Padding(20, 24).Gap(11), p, p.tint, 25, true).Shadow(0, 8, 30, 0, p.accent.Alpha(.13)).Children(func() {
+		back.Column().Justify(ui.End).AlignItems(ui.Start).Padding(0, workspaceInset, footerInset, sidebarWidth+workspaceInset).Background(p.scrim.Alpha(.23)).Transition(scrimMotion)
+		const sheetWidth = 496
+		const closedScale = float32(cardWidth) / sheetWidth
+		scale := closedScale + (1-closedScale)*reveal
+		panel.TransformOrigin(0, 1).Scale(scale, scale)
+		surface(c, panel.Column().Width(sheetWidth).MaxWidthPercent(100).Padding(20, 24).Gap(11), p, p.tint, 25, true).Shadow(0, 8, 30, 0, p.accent.Alpha(.13)).Children(func() {
 			ui.Row(c).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, "新建下载").FontSize(21).FontWeight(660).Grow(1)
 				if iconButton(c, "close", "关闭新建下载", v.Busy) {

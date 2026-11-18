@@ -17,7 +17,7 @@ format-check:
 
 check-ui:
 	go test -count=1 ./tests/contract -run '^TestInterfacePolicy'
-	go test -count=1 ./tests/unit/transfer -run '^Test(Settings|CategorySelection|WindowLight|CardMaterial|PrimaryTaskControls|SheetExpands|PauseInterpolates|WorkspaceHasNoDecorative|TransferFlow)'
+	go test -count=1 ./tests/unit/transfer -run '^Test(Settings|CategorySelection|WindowLight|CardMaterial|PrimaryTaskControls|SheetExpands|PauseInterpolates|Workspace|TransferFlow)'
 
 check: format-check
 	go vet ./...

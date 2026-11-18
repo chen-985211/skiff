@@ -21,7 +21,11 @@ func (v *View) queue(c *ui.Context, p palette) {
 	}
 
 	items := v.filtered()
-	toolbar := ui.Row(c.Key("queue-toolbar")).Transition(panelMotion).Shrink(0).AlignItems(ui.Center).Gap(9).Height(40).Padding(0, 4)
+	width, _ := c.Size()
+	available := max(float32(0), width-sidebarWidth-2*workspaceInset)
+	columns := max(1, min(len(items), int((available+cardGap)/(cardWidth+cardGap))))
+	gridWidth := min(available, float32(columns*(cardWidth+cardGap)-cardGap))
+	toolbar := ui.Row(c.Key("queue-toolbar")).Transition(panelMotion).Shrink(0).AlignItems(ui.Center).Gap(9).Width(gridWidth).Height(workspaceHeader)
 	toolbar.Children(func() {
 		if strings.TrimSpace(v.Query) != "" {
 			ui.Textf(c, "%d 个结果", len(items)).Transition(panelMotion).ContentTransition(numberChange).FontSize(12).TextColor(p.muted)
@@ -34,17 +38,21 @@ func (v *View) queue(c *ui.Context, p palette) {
 		v.empty(c, p, v.category())
 		return
 	}
-	v.grid.Key = func(i int) any { return items[i].ID }
-	v.grid.Label = func(i int) string { return items[i].Name }
-	// GridView estimates columns from the full window on its first frame.
-	// Account for the rail before it has measured the workspace.
-	width, _ := c.Size()
-	const minCardWidth = 350
-	minWidth := float32(minCardWidth)
-	if width-sidebarWidth-48 < 2*minCardWidth+8 {
-		minWidth = width
+	if v.gridColumns > 0 && columns != v.gridColumns {
+		if first, last := v.taskRows.Visible(); last >= first {
+			v.taskRows.ScrollTo(first*v.gridColumns/columns, ui.Start)
+		}
 	}
-	ui.GridView(c.Key(v.Filter), &v.grid, len(items), minWidth, 194, func(i int) { v.taskCard(c, p, items[i]) }).Grow(1).MinHeight(0).Label("下载任务列表").Transition(panelMotion)
+	v.gridColumns = columns
+	v.taskRows.Key = func(row int) any { return items[row*columns].ID }
+	rows := (len(items) + columns - 1) / columns
+	ui.List(c.Key(v.Filter), &v.taskRows, rows, func(row int) {
+		ui.Row(c).Gap(cardGap).Children(func() {
+			for i := row * columns; i < min((row+1)*columns, len(items)); i++ {
+				v.taskCard(c, p, items[i])
+			}
+		})
+	}).Width(gridWidth).Gap(cardGap).AlignSelf(ui.Start).Grow(1).MinHeight(0).Label("下载任务列表").Transition(panelMotion)
 }
 
 func (v *View) batchAction(c *ui.Context, items []application.TaskDTO, cmd application.Command) {
@@ -93,7 +101,7 @@ func (v *View) empty(c *ui.Context, p palette, cat category) {
 			switch {
 			case strings.TrimSpace(v.Query) != "":
 				v.Query = ""
-				v.grid = ui.GridState{}
+				v.taskRows = ui.ListState{}
 			default:
 				v.selectCategory("all")
 			}

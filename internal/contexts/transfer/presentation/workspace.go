@@ -28,23 +28,30 @@ func (v *View) category() category {
 func (v *View) selectCategory(id string) {
 	v.settingsOpen = false
 	v.Filter, v.detailID = id, ""
-	v.grid = ui.GridState{}
+	v.taskRows = ui.ListState{}
 }
 
 const (
-	sidebarWidth = 174
-	dockWidth    = 496
+	sidebarWidth    = 174
+	workspaceInset  = 26
+	workspaceHeader = 64
+	settingsHeight  = 34
+	footerInset     = 23
+	dockHeight      = 54
+	cardWidth       = 376
+	cardHeight      = 188
+	cardGap         = 12
 )
 
 func (v *View) sidebar(c *ui.Context, p palette) {
-	rail := ui.Column(c).Width(sidebarWidth).FillHeight().Shrink(0).Padding(0, 12, 18)
+	rail := ui.Column(c).Width(sidebarWidth).FillHeight().Shrink(0).Padding(0, 12, footerInset)
 	rail.Children(func() {
 		const rowHeight, rowGap = 41, 5
 		top := max(float32(20), c.TitleBar().Bottom)
 		_, height := c.Size()
-		selectedY, selectedH := height-18-34, float32(34)
+		selectedY, selectedH := height-footerInset-settingsHeight, float32(settingsHeight)
 		if !v.settingsOpen {
-			selectedY, selectedH = top+64, rowHeight
+			selectedY, selectedH = top+workspaceHeader, rowHeight
 			for i, cat := range categories {
 				if cat.id == v.Filter {
 					selectedY += float32(i * (rowHeight + rowGap))
@@ -57,7 +64,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 		highlight := ui.Box(c.Key("selection")).Absolute().Left(12).Right(12).Top(0).Height(h).Translate(0, y).IgnoreInput(true).AccessHidden(true)
 		surface(c, highlight, p, p.tint, 13, false)
 		ui.Box(c).FillWidth().Height(max(20, c.TitleBar().Bottom)).DragWindow()
-		ui.Row(c).Height(64).PaddingX(8).AlignItems(ui.Center).Gap(10).DragWindow().Children(func() {
+		ui.Row(c).Height(workspaceHeader).PaddingX(8).AlignItems(ui.Center).Gap(10).DragWindow().Children(func() {
 			ui.Image(c, icons["boat"]).Size(38, 38).Fit(ui.Contain)
 			ui.Text(c, "轻舟").FontSize(21).FontWeight(650)
 		})
@@ -108,7 +115,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 					v.Actions.OpenDirectory(dir)
 				}
 			}
-			settings := ui.ButtonBase(c.Key("settings")).FillWidth().Height(34).PaddingX(10).Radius(10).Transition(controlMotion).Label("设置").AccessSelected(v.settingsOpen)
+			settings := ui.ButtonBase(c.Key("settings")).FillWidth().Height(settingsHeight).PaddingX(10).Radius(10).Transition(controlMotion).Label("设置").AccessSelected(v.settingsOpen)
 			if !v.settingsOpen && settings.Hovered() {
 				settings.Background(p.panel.Alpha(.48))
 			}
@@ -128,8 +135,8 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 }
 
 func (v *View) dock(c *ui.Context, p palette) {
-	ui.Row(c.Key("task-dock")).Transition(dockMotion).Height(80).Shrink(0).Center().Children(func() {
-		bar := ui.Row(c).Width(dockWidth).Height(54).AlignItems(ui.Center).Padding(6, 7, 6, 18).Gap(10)
+	ui.Row(c.Key("task-dock")).Transition(dockMotion).Height(cardGap+dockHeight+footerInset).Shrink(0).Padding(0, 0, footerInset).AlignItems(ui.End).Justify(ui.Start).Children(func() {
+		bar := ui.Row(c).Role(ui.RoleToolbar).Label("下载工具栏").Width(cardWidth).MaxWidthPercent(100).Height(dockHeight).AlignItems(ui.Center).Padding(6, 7, 6, 18).Gap(10)
 		surface(c, bar, p, p.tint, 27, true).Shadow(0, 4, 15, 0, c.Theme().Text.Alpha(.12)).Children(func() {
 			ui.Icon(c, icons["search"]).FontSize(18).TextColor(p.muted)
 			field := ui.TextInputBase(c, &v.Query).Label("搜索下载任务").Placeholder("搜索文件名或链接").Grow(1).MinWidth(0).Height(34).FontSize(13).KeyShortcuts(ui.Cmd, ui.KeyF)
@@ -143,7 +150,7 @@ func (v *View) dock(c *ui.Context, p palette) {
 			}
 			if cleared || field.Changed() {
 				v.detailID = ""
-				v.grid = ui.GridState{}
+				v.taskRows = ui.ListState{}
 				c.Invalidate()
 			}
 			if primaryAction(c, "新建下载", "plus", !v.Ready || v.Busy).Width(108).Height(40).KeyShortcuts(ui.Cmd, ui.KeyN).Clicked() {

@@ -93,7 +93,7 @@ func taskColor(c *ui.Context, p palette, status string) ui.Color {
 }
 
 func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
-	card := ui.Column(c.Key(t.ID)).Fill().Padding(15, 17, 12).Gap(8).Transition(cardMotion(t.ID))
+	card := ui.Column(c.Key(t.ID)).Size(cardWidth, cardHeight).MaxWidthPercent(100).Shrink(0).Role(ui.RoleGroup).Label(t.Name).Padding(15, 17, 12).Gap(8).Transition(cardMotion(t.ID))
 	color := card.AnimateColor("status", taskColor(c, p, t.Status), colorFade)
 	kind := fileIcon(t.Name)
 	v.cardSurface(c, card, p, t.ID, color, 20).Children(func() {

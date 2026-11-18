@@ -446,8 +446,7 @@ func TestWorkspaceNavigationAndDockPositions(t *testing.T) {
 		v.Snapshot.Tasks = append(v.Snapshot.Tasks, application.TaskDTO{ID: "b", Name: "new.zip"})
 		tt.Frame()
 		withNeighbor, _ := tt.Find("查看详情 archive.zip")
-		// A filled MyGo grid cell has a two-point focus inset.
-		if diff := file.W - withNeighbor.W; diff > 2 || diff < -2 {
+		if file.W != withNeighbor.W {
 			t.Errorf("width=%d: task resized when a neighbor appeared: %v -> %v", width, file.W, withNeighbor.W)
 		}
 
