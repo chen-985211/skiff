@@ -38,8 +38,8 @@ const (
 	settingsHeight  = 34
 	footerInset     = 23
 	dockHeight      = 54
-	cardWidth       = 376
-	cardHeight      = 188
+	cardWidth       = 336
+	cardHeight      = 156
 	cardGap         = 12
 )
 

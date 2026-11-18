@@ -123,16 +123,16 @@ func taskColor(p palette, status string) ui.Color {
 }
 
 func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
-	card := ui.Column(c.Key(t.ID)).Size(cardWidth, cardHeight).MaxWidthPercent(100).Shrink(0).Role(ui.RoleGroup).Label(t.Name).Padding(15, 17, 12).Gap(8).Transition(cardMotion(t.ID))
+	card := ui.Column(c.Key(t.ID)).Size(cardWidth, cardHeight).MaxWidthPercent(100).Shrink(0).Role(ui.RoleGroup).Label(t.Name).Padding(12, 14, 10).Gap(5).Transition(cardMotion(t.ID))
 	color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
 	kind := fileIcon(t.Name)
 	v.cardSurface(c, card, p, t.ID, color, 20).Children(func() {
-		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(71).FillWidth().Radius(13).Transition(controlMotion)
+		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(54).FillWidth().Radius(13).Transition(controlMotion)
 		head.Children(func() {
-			ui.Row(c).Fill().Gap(13).AlignItems(ui.Center).Children(func() {
-				ui.Image(c, fileArt[kind]).Size(65, 65).Fit(ui.Contain)
+			ui.Row(c).Fill().Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Image(c, fileArt[kind]).Size(50, 50).Fit(ui.Contain)
 				ui.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
-					ui.Text(c, t.Name).FontSize(17).FontWeight(640).SingleLine()
+					ui.Text(c, t.Name).FontSize(16).FontWeight(640).SingleLine().TruncateMiddle()
 					if size := taskSize(t); size != "" {
 						ui.Text(c, size).ContentTransition(numberChange).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
 					}
@@ -259,7 +259,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
 			ui.Row(c).Height(71).FillWidth().Padding(0, 23, 0, 0).Gap(13).AlignItems(ui.Center).Children(func() {
 				ui.Image(c, fileArt[fileIcon(t.Name)]).Size(65, 65).Fit(ui.Contain)
-				ui.Text(c, t.Name).FontSize(20).FontWeight(650).Grow(1).MinWidth(0).SingleLine().Tooltip(t.Name)
+				ui.Text(c, t.Name).FontSize(20).FontWeight(650).Grow(1).MinWidth(0).SingleLine().TruncateMiddle().Tooltip(t.Name)
 
 				if (t.CanPause || t.CanResume || t.CanRetry) && secondaryAction(c, "返回").Label("返回任务列表").Clicked() {
 					v.detailID = ""

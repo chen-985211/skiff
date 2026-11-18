@@ -34,13 +34,13 @@ func TestWorkspaceCardsKeepTheirSizeAndAlignmentOnResize(t *testing.T) {
 		}
 		card := get("first.zip")
 		nav := get("全部任务")
-		if card.W != 376 || card.H != 188 || card.Y != nav.Y {
+		if card.W != 336 || card.H != 156 || card.Y != nav.Y {
 			t.Errorf("%d: card %v, navigation starts at %.1f", size.width, card, nav.Y)
 		}
 		for i, name := range []string{"second.zip", "third.zip"} {
 			next := get(name)
 			column, row := (i+1)%size.columns, (i+1)/size.columns
-			if next.X != card.X+float32(column)*388 || next.Y != card.Y+float32(row)*200 || next.W != card.W || next.H != card.H {
+			if next.X != card.X+float32(column)*348 || next.Y != card.Y+float32(row)*168 || next.W != card.W || next.H != card.H {
 				t.Errorf("%d: %s at %v, first %v; want column %d row %d", size.width, name, next, card, column, row)
 			}
 		}
