@@ -13,7 +13,10 @@ func Fragment(dst vec4, pos vec2) vec4 {
     fold := arc - .87
     second := x - .45*y + .13*cos(4*y-.7*sin(Phase)) - .74 + .055*cos(Phase)
     steel := vec3(.57,.64,.75)
-    pearl := vec3(.95,.956,.974)
+    // Keep the folds in their window-relative positions. The lower-right face
+    // catches blue-grey ambient light with a local wash of pale lavender.
+    lowerRight := smoothstep(.28,.66,x)*smoothstep(.28,.70,y)
+    pearl := mix(vec3(.95,.956,.974), vec3(.84,.88,.925), lowerRight)
     base := mix(steel, pearl, .24+.35*y+.12*cos(3.5*x+Phase))
     base = mix(base, vec3(.39,.47,.61), .45*exp(-38*(fold+.19)*(fold+.19)))
     base = mix(base, pearl, .86*exp(-43*fold*fold))
@@ -25,8 +28,9 @@ func Fragment(dst vec4, pos vec2) vec4 {
     // A second, shallower pearl edge travels across the lower fold.
     lip := second + .075 + .023*sin(5*y-Phase)
     base = mix(base,vec3(.97,.97,.995),.52*exp(-1300*lip*lip)*smoothstep(.16,.88,y))
-    warm := vec2(x-.82-.06*cos(Phase),y-.83-.08*sin(Phase))
-    base = mix(base,vec3(.97,.90,.81),.47*exp(-12*dot(warm,warm)))
+    halo := vec2(x-.82-.06*cos(Phase),y-.83-.08*sin(Phase))
+    tint := mix(vec3(.97,.90,.81), vec3(.91,.837,.93), lowerRight)
+    base = mix(base,tint,(.47+.13*lowerRight)*exp(-(12+22*lowerRight)*dot(halo,halo)))
     // A thin returning fold crosses the diffuse field. Its lit crest and
     // blue penumbra bend together while their strength varies along the arc.
     turn := 3.8*y + .55*sin(Phase)

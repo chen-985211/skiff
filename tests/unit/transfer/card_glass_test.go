@@ -161,6 +161,65 @@ func TestWindowLightLeftFoldReflectsIceAndLilac(t *testing.T) {
 	}
 }
 
+func TestWindowLightLowerRightPalette(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	for _, size := range [][2]int{{1020, 680}, {2016, 1134}} {
+		w, h := size[0], size[1]
+		tt.SetSize(w, h)
+		im := tt.Image()
+		brand := im.RGBAAt(132, 38)
+		if int(brand.B)-int(brand.R) < 15 {
+			t.Errorf("%v: expected the original cool background beside the wordmark, got %v", size, brand)
+		}
+		var white, blueGrey, lavender, total int
+		for y := h * 65 / 100; y < h*96/100; y += 6 {
+			for x := w * 60 / 100; x < w*98/100; x += 6 {
+				c := im.RGBAAt(x, y)
+				r, g, b := int(c.R), int(c.G), int(c.B)
+				if min(r, g, b) > 228 {
+					white++
+				}
+				if r > 177 && g-r >= 3 && b-g >= 4 && b-r < 36 {
+					blueGrey++
+				}
+				if r > 188 && r-g >= 2 && b-r >= 4 && b-g < 28 {
+					lavender++
+				}
+				total++
+			}
+		}
+		if white > total/6 || blueGrey < total/3 || lavender < total/40 {
+			t.Errorf("%v: lower-right field has %d near-white, %d blue-grey and %d lavender samples out of %d", size, white, blueGrey, lavender, total)
+		}
+	}
+}
+
+func TestWindowLightKeepsRelativePositionOnResize(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	sample := func(w, h int) []color.RGBA {
+		tt.SetSize(w, h)
+		im := tt.Image()
+		var pixels []color.RGBA
+		for y := 60; y <= 94; y += 2 {
+			for x := 50; x <= 98; x += 2 {
+				pixels = append(pixels, im.RGBAAt(x*w/100, y*h/100))
+			}
+		}
+		return pixels
+	}
+	window := sample(1020, 680)
+	for _, size := range [][2]int{{1500, 900}, {2016, 1134}, {1020, 680}} {
+		// Pixel rounding and bitmap interpolation can differ slightly between sizes.
+		if moved := changedFraction(window, sample(size[0], size[1]), 6); moved > .02 {
+			t.Errorf("%v: %.0f%% of lower-right samples changed at the same relative position", size, 100*moved)
+		}
+	}
+}
+
 func TestCardMaterialExpandsAndReversesFromCurrentSize(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
