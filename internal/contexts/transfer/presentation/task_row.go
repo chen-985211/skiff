@@ -3,7 +3,6 @@ package presentation
 import (
 	"path"
 	"strings"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -22,8 +21,8 @@ func cardAction(c *ui.Context, icon, text, label string, disabled bool) bool {
 	}
 	b.Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
-			ui.Icon(c, icons[icon]).FontSize(14).ContentTransition(ui.ContentTransition{})
-			ui.Text(c, text).FontSize(11).FontWeight(550).ContentTransition(ui.ContentTransition{})
+			ui.Icon(c, icons[icon]).FontSize(14).ContentTransition(textChange)
+			ui.Text(c, text).FontSize(11).FontWeight(550).ContentTransition(textChange)
 		})
 	})
 	return b.Clicked()
@@ -83,10 +82,7 @@ func fileIcon(name string) string {
 func taskColor(c *ui.Context, p palette, status string) ui.Color {
 	switch status {
 	case "active":
-		if c.Theme().Dark {
-			return ui.Hex("#b0cfed")
-		}
-		return ui.Hex("#315d85")
+		return p.active
 	case "complete":
 		return p.green
 	case "error":
@@ -98,20 +94,9 @@ func taskColor(c *ui.Context, p palette, status string) ui.Color {
 
 func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 	card := ui.Column(c.Key(t.ID)).Fill().Padding(15, 17, 12).Gap(8).Transition(cardMotion(t.ID))
-	color := card.AnimateColor("status", taskColor(c, p, t.Status), ui.Animation{Duration: 230 * time.Millisecond})
+	color := card.AnimateColor("status", taskColor(c, p, t.Status), colorFade)
 	kind := fileIcon(t.Name)
-	plate := surface(c, card, p, p.tint, 20, false)
-	if !c.Preferences().HighContrast && !c.Preferences().ReduceTransparency {
-		reflected := p.tint.Mix(color, .32)
-		if c.Theme().Dark {
-			reflected = reflected.Mix(p.panel, .70)
-		}
-		plate.LinearGradient(ui.LinearGradient{Angle: 152, Stops: []ui.GradientStop{
-			{Color: reflected.Alpha(.51), At: 0}, {Color: p.panel.Alpha(.76), At: .42},
-			{Color: p.panel.Alpha(.60), At: .73}, {Color: reflected.Mix(p.panel, .52).Alpha(.56), At: 1},
-		}})
-	}
-	plate.Children(func() {
+	v.cardSurface(c, card, p, t.ID, color, 20).Children(func() {
 		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(71).FillWidth().Radius(13).Transition(controlMotion)
 		if head.Hovered() {
 			head.Background(p.panel.Alpha(.58))
@@ -122,10 +107,10 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
 					ui.Text(c, t.Name).FontSize(17).FontWeight(640).SingleLine()
 					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-						ui.Icon(c, icons[stateSymbol(t.Status)]).ContentTransition(ui.ContentTransition{}).FontSize(14).TextColor(color).Tooltip(statusText(t.Status))
+						ui.Icon(c, icons[stateSymbol(t.Status)]).ContentTransition(textChange).FontSize(14).TextColor(color).Tooltip(statusText(t.Status))
 						size := taskSize(t)
 						if size != "" {
-							ui.Text(c, size).ContentTransition(ui.ContentTransition{Numeric: true}).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
+							ui.Text(c, size).ContentTransition(numberChange).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
 						}
 					})
 				})
@@ -174,7 +159,7 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 	active := t.Status == "active"
 
 	section := ui.Column(c).Gap(6)
-	fraction := section.Animate("completion", float32(t.Progress), 220*time.Millisecond)
+	fraction := section.AnimateTo("completion", float32(t.Progress), progressEase)
 	section.Children(func() {
 		ui.Row(c).Height(18).AlignItems(ui.Center).Children(func() {
 			metric, ink := "", p.muted
@@ -183,9 +168,9 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 			} else if active && t.Speed > 0 {
 				metric = bytesText(t.Speed) + "/s"
 			}
-			ui.Text(c, metric).MinWidth(0).Grow(1).SingleLine().Tooltip(metric).FontSize(12).FontFeatures("tnum").TextColor(ink).ContentTransition(ui.ContentTransition{})
+			ui.Text(c, metric).MinWidth(0).Grow(1).SingleLine().Tooltip(metric).FontSize(12).FontFeatures("tnum").TextColor(ink).ContentTransition(textChange)
 			if t.Total > 0 && t.Status != "complete" {
-				ui.Textf(c, "%.0f%%", 100*t.Progress).FontSize(12).FontWeight(600).FontFeatures("tnum").ContentTransition(ui.ContentTransition{Numeric: true})
+				ui.Textf(c, "%.0f%%", 100*t.Progress).FontSize(12).FontWeight(600).FontFeatures("tnum").ContentTransition(numberChange)
 			}
 		})
 		track := ui.Box(c).Height(5).FillWidth().Radius(2.5).Background(p.border).Clip().Role(ui.RoleProgress).Label("下载进度")
@@ -201,7 +186,7 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 		if active && !c.Preferences().ReduceMotion && (!known || t.Speed > 0 && fraction > 0) {
 			target = 1
 		}
-		strength := track.Animate("flow", target, 200*time.Millisecond)
+		strength := track.AnimateTo("flow", target, progressEase)
 		track.Draw(func(painter *ui.Painter, r ui.Rect) {
 			fill := r
 			if known {
@@ -237,21 +222,21 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 
 func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 	ui.Column(c.Key("detail")).Grow(1).Gap(12).Transition(panelMotion).Children(func() {
-		back := ui.Button(c, "返回任务").AlignSelf(ui.Start).Label("收起详情 " + t.Name).Height(33).Radius(16)
+		back := secondaryAction(c, "返回任务").AlignSelf(ui.Start).Label("收起详情 " + t.Name).Height(33).Radius(16)
 		if back.Clicked() || c.Shortcut(0, ui.KeyEscape) {
 			v.detailID = ""
 			c.Invalidate()
 		}
 		card := ui.Column(c.Key(t.ID)).Padding(22).Gap(15).Transition(cardMotion(t.ID))
-		color := card.AnimateColor("status", taskColor(c, p, t.Status), ui.Animation{Duration: 230 * time.Millisecond})
-		surface(c, card, p, color, 22, false).Children(func() {
+		color := card.AnimateColor("status", taskColor(c, p, t.Status), colorFade)
+		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Image(c, fileArt[fileIcon(t.Name)]).Size(60, 60).Fit(ui.Contain)
 				ui.Text(c, t.Name).FontSize(22).FontWeight(660).Grow(1).MinWidth(0).SingleLine().Tooltip(t.Name)
-				ui.Text(c, statusText(t.Status)).ContentTransition(ui.ContentTransition{}).FontSize(12).TextColor(color)
+				ui.Text(c, statusText(t.Status)).ContentTransition(textChange).FontSize(12).TextColor(color)
 			})
 			if size := taskSize(t); size != "" {
-				ui.Text(c, size).ContentTransition(ui.ContentTransition{Numeric: true}).FontSize(12).TextColor(p.muted)
+				ui.Text(c, size).ContentTransition(numberChange).FontSize(12).TextColor(p.muted)
 			}
 			taskProgress(c, p, t, color)
 

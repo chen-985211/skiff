@@ -38,7 +38,20 @@ type Engine interface {
 	Execute(context.Context, string, Command) error
 	Observe(context.Context) ([]Observation, error)
 }
+type ThemeMode string
+
+const (
+	ThemeSystem ThemeMode = ""
+	ThemeLight  ThemeMode = "light"
+	ThemeDark   ThemeMode = "dark"
+)
+
+func (mode ThemeMode) valid() bool {
+	return mode == ThemeSystem || mode == ThemeLight || mode == ThemeDark
+}
+
 type Preferences struct {
+	Theme            ThemeMode `json:",omitempty"`
 	DefaultDirectory string
 	StaticBackground bool
 }
@@ -93,6 +106,9 @@ func (s *Service) Open(ctx context.Context) error {
 		return err
 	}
 	s.preferences = state.Preferences
+	if !s.preferences.Theme.valid() {
+		s.preferences.Theme = ThemeSystem
+	}
 	if state.Directory != "" {
 		s.directory = state.Directory
 	}
@@ -359,6 +375,17 @@ func (s *Service) SetStaticBackground(ctx context.Context, still bool) error {
 	defer s.mu.Unlock()
 	next := s.preferences
 	next.StaticBackground = still
+	return s.savePreferences(ctx, next)
+}
+
+func (s *Service) SetTheme(ctx context.Context, mode ThemeMode) error {
+	if !mode.valid() {
+		return errors.New("未知的主题选项")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.preferences
+	next.Theme = mode
 	return s.savePreferences(ctx, next)
 }
 

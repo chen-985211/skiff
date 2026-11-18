@@ -5,31 +5,40 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-type palette struct{ canvas, panel, border, muted, accent, green, tint, haze, warm, rim ui.Color }
+type palette struct {
+	shade                                                                                         float32
+	canvas, panel, border, muted, accent, green, tint, haze, warm, rim, ice, lilac, active, scrim ui.Color
+}
 
-func appearance(c *ui.Context) palette {
+// One mix value drives the workspace, shader and controls, including when
+// switching back to the system appearance halfway through a transition.
+func appearance(c *ui.Context, shade float32) palette {
 	t := *c.Theme()
-	p := palette{
-		haze: ui.Hex("#8a98b4"), warm: ui.Hex("#dcd5de"), rim: ui.Hex("#f8f9fa"), canvas: ui.Hex("#d6dae4"), panel: ui.Hex("#f8f9fa"),
-		border: ui.Hex("#adb6c7"), muted: ui.Hex("#475366"), accent: ui.Hex("#202532"),
-		green: ui.Hex("#24665d"), tint: ui.Hex("#c5cbd8"),
-	}
-	t.Text = ui.Hex("#1c2330")
-	t.Danger, t.Warning = ui.Hex("#963f50"), ui.Hex("#78581d")
-	if t.Dark {
-		t.Danger, t.Warning = ui.Hex("#ffb5bc"), ui.Hex("#e9c780")
-		p = palette{
-			haze: ui.Hex("#495469"), warm: ui.Hex("#4b424e"), rim: ui.Hex("#8390a5"), canvas: ui.Hex("#292e39"), panel: ui.Hex("#363c48"),
-			border: ui.Hex("#606a7a"), muted: ui.Hex("#c6cdd9"), accent: ui.Hex("#e6e7eb"),
-			green: ui.Hex("#99d9c5"), tint: ui.Hex("#50596b"),
+	if dark := shade >= .5; dark != t.Dark {
+		base := ui.LightTheme()
+		if dark {
+			base = ui.DarkTheme()
 		}
-		t.Text = ui.Hex("#f1f3f7")
+		t = *base.WithPreferences(c.Preferences())
 	}
+	pair := func(day, night string) ui.Color { return ui.Hex(day).Mix(ui.Hex(night), shade) }
+	p := palette{
+		shade:  shade,
+		canvas: pair("#d6dae4", "#292e39"), panel: pair("#f8f9fa", "#363c48"), rim: pair("#f8f9fa", "#8390a5"),
+		haze: pair("#8a98b4", "#495469"), warm: pair("#dcd5de", "#4b424e"), tint: pair("#c5cbd8", "#50596b"),
+		ice: pair("#b9e5e7", "#739ca9"), lilac: pair("#c5b8d7", "#9586a9"),
+		border: pair("#adb6c7", "#606a7a"), muted: pair("#475366", "#c6cdd9"), accent: pair("#202532", "#e6e7eb"),
+		green: pair("#24665d", "#99d9c5"), active: pair("#315d85", "#b0cfed"), scrim: pair("#303443", "#131822"),
+	}
+	t.Text = pair("#1c2330", "#f1f3f7")
+	t.Danger, t.Warning = pair("#963f50", "#ffb5bc"), pair("#78581d", "#e9c780")
 	if c.Preferences().HighContrast {
 		p.muted = p.muted.Mix(t.Text, .45)
 		p.border = p.border.Mix(t.Text, .45)
 	}
 	t = *t.WithAccent(p.accent)
+	t.AccentText = pair("#ffffff", "#18181b")
+	t.Inverse, t.InverseText = t.Text, p.panel
 	t.Background, t.Surface, t.Border, t.TextMuted = p.canvas, p.panel, p.border, p.muted
 	t.SurfaceHover, t.SurfacePressed = p.tint, p.tint.Mix(p.accent, .12)
 	t.Success, t.Focus, t.Selection = p.green, p.muted, p.haze.Alpha(.40)
@@ -38,8 +47,7 @@ func appearance(c *ui.Context) palette {
 	return p
 }
 
-// The dock and sheet sample the surface beneath them. Cards use a quieter
-// translucent fill so that scrolling a large grid needs no per-card blur.
+// The dock and sheet frost their backdrop; navigation uses a translucent fill.
 func surface(c *ui.Context, e ui.Element, p palette, tint ui.Color, radius float32, frosted bool) ui.Element {
 	e.Radius(radius)
 	if c.Preferences().ReduceTransparency || c.Preferences().HighContrast {
@@ -76,5 +84,19 @@ func primaryAction(c *ui.Context, title, icon string, disabled bool) ui.Element 
 			ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(t.AccentText)
 		})
 	})
+	return b
+}
+
+func secondaryAction(c *ui.Context, title string) ui.Element {
+	t := c.Theme()
+	b := ui.ButtonBase(c.Key(title)).Label(title).Height(32).PaddingX(14).Radius(16).Center().Transition(controlMotion)
+	fill := t.Surface
+	if b.Hovered() {
+		fill = t.SurfaceHover
+	}
+	if b.Pressed() {
+		fill = t.SurfacePressed
+	}
+	b.Background(fill).Children(func() { ui.Text(c, title).FontSize(12).FontWeight(560) })
 	return b
 }

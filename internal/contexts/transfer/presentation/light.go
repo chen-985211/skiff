@@ -12,50 +12,68 @@ import (
 //go:embed art/light.kage
 var lightSource string
 
-var light = shader.MustCompile(lightSource)
+//go:embed art/card-light.kage
+var cardLightSource string
 
-// The light has no fine texture. A small, smoothly sampled canvas is enough
-// for software renderers; native windows shade the full scene on the GPU.
+var (
+	light     = shader.MustCompile(lightSource)
+	cardLight = shader.MustCompile(cardLightSource)
+)
+
 type windowLight struct {
-	software    *ui.Canvas
-	lastFrame   time.Time
-	elapsed     time.Duration
-	cachedPhase float32
-	cachedDark  bool
-	moving      bool
+	texture   lightTexture
+	lastFrame time.Time
+	elapsed   time.Duration
+	moving    bool
 }
 
-func (l *windowLight) draw(p *ui.Painter, r ui.Rect, still, dark bool) {
+const lightCycle = 18 * time.Second
+
+func (l *windowLight) phase() float64 {
+	return l.elapsed.Seconds() * (2 * math.Pi) / lightCycle.Seconds()
+}
+
+func (l *windowLight) draw(p *ui.Painter, r ui.Rect, still bool, shade float32) {
 	now := p.Now()
-	const cycle = 18 * time.Second
 	if l.moving && !still {
-		l.elapsed = (l.elapsed + now.Sub(l.lastFrame)) % cycle
+		l.elapsed = (l.elapsed + now.Sub(l.lastFrame)) % lightCycle
 	}
 	l.lastFrame, l.moving = now, !still
-	phase := float32(l.elapsed.Seconds() * (2 * math.Pi) / cycle.Seconds())
+	phase := float32(l.phase())
 	if !still {
-		if p.Accelerated() {
-			p.AnimationFrameRate(30)
-		} else {
-			p.AnimationFrameRate(18)
-		}
+		requestLightFrame(p)
 	}
-	shade := float32(0)
-	if dark {
-		shade = 1
-	}
+	l.texture.draw(p, r, light, phase, shade)
+}
+
+// Native renderers shade the actual surface. A smoothly sampled canvas
+// keeps the same broad folds inexpensive on a software renderer.
+type lightTexture struct {
+	software                 *ui.Canvas
+	cachedPhase, cachedShade float32
+}
+
+func (t *lightTexture) draw(p *ui.Painter, r ui.Rect, program *shader.Shader, phase, shade float32) {
 	opts := shader.Options{Uniforms: map[string]any{"Phase": phase, "Dark": shade}}
 	if p.Accelerated() {
-		light.Draw(p, r, opts)
+		program.Draw(p, r, opts)
 		return
 	}
 	const w, h = 64, 44
-	if l.software == nil || l.cachedPhase != phase || l.cachedDark != dark {
-		if l.software == nil {
-			l.software = ui.NewCanvas(w, h)
+	if t.software == nil || t.cachedPhase != phase || t.cachedShade != shade {
+		if t.software == nil {
+			t.software = ui.NewCanvas(w, h)
 		}
-		l.software.Draw(p, func(cp *ui.Painter) { light.Draw(cp, ui.Rect{W: w, H: h}, opts) })
-		l.cachedPhase, l.cachedDark = phase, dark
+		t.software.Draw(p, func(cp *ui.Painter) { program.Draw(cp, ui.Rect{W: w, H: h}, opts) })
+		t.cachedPhase, t.cachedShade = phase, shade
 	}
-	p.Image(l.software.Bitmap(), r, ui.FillBox)
+	p.Image(t.software.Bitmap(), r, ui.FillBox)
+}
+
+func requestLightFrame(p *ui.Painter) {
+	if p.Accelerated() {
+		p.AnimationFrameRate(30)
+	} else {
+		p.AnimationFrameRate(18)
+	}
 }

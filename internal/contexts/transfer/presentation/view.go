@@ -2,7 +2,6 @@ package presentation
 
 import (
 	"context"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -10,6 +9,7 @@ import (
 )
 
 type API interface {
+	SetTheme(context.Context, application.ThemeMode) error
 	SetDefaultDirectory(context.Context, string) error
 	SetStaticBackground(context.Context, bool) error
 	Add(context.Context, string, string) (int, error)
@@ -24,6 +24,7 @@ type Actions struct {
 	Reveal        func(string)
 }
 type View struct {
+	pendingTheme                                       *application.ThemeMode
 	lastDefault                                        string
 	settingsOpen                                       bool
 	light                                              windowLight
@@ -52,15 +53,24 @@ func (v *View) OpenNew() {
 	}
 }
 func (v *View) Render(c *ui.Context) {
-	p := appearance(c)
+	stage := ui.Row(c).Fill().AlignItems(ui.Stretch)
+	mode := v.selectedTheme()
+	dark := mode == application.ThemeDark || mode == application.ThemeSystem && c.Theme().Dark
+	shade := stage.AnimateTo("theme", amount(dark), themeFade)
+	if c.Preferences().HighContrast {
+		shade = amount(dark)
+	}
+	p := appearance(c, shade)
+	stage.Background(p.canvas).TextColor(c.Theme().Text)
 	if c.Shortcut(ui.Cmd, ui.KeyN) {
 		v.OpenNew()
 	}
-	stage := ui.Row(c).Fill().AlignItems(ui.Stretch).Background(p.canvas)
 	translucent := !c.Preferences().ReduceTransparency && !c.Preferences().HighContrast
 	if translucent {
-		still, dark := c.Preferences().ReduceMotion || v.Snapshot.Preferences.StaticBackground, c.Theme().Dark
-		stage.Draw(func(painter *ui.Painter, r ui.Rect) { v.light.draw(painter, r, still, dark) })
+		still := c.Preferences().ReduceMotion || v.Snapshot.Preferences.StaticBackground
+		stage.Draw(func(painter *ui.Painter, r ui.Rect) { v.light.draw(painter, r, still, shade) })
+	} else {
+		v.light.moving = false
 	}
 	stage.Children(func() {
 		v.sidebar(c, p)
@@ -70,7 +80,7 @@ func (v *View) Render(c *ui.Context) {
 			if v.Message != "" {
 				ui.Row(c.Key("message")).Transition(panelMotion).Padding(9, 12).Margin(0, 0, 10).Gap(8).AlignItems(ui.Center).Background(c.Theme().Warning.Alpha(.09)).Radius(9).Children(func() {
 					ui.Icon(c, icons["error"]).FontSize(16).TextColor(c.Theme().Warning)
-					ui.Text(c, v.Message).ContentTransition(ui.ContentTransition{}).FontSize(12).Grow(1).MinWidth(0).MaxHeight(64).Tooltip(v.Message)
+					ui.Text(c, v.Message).ContentTransition(textChange).FontSize(12).Grow(1).MinWidth(0).MaxHeight(64).Tooltip(v.Message)
 					if v.Ready && iconButton(c, "close", "关闭提示", false) {
 						v.Message = ""
 					}
@@ -90,7 +100,7 @@ func (v *View) Render(c *ui.Context) {
 	if v.DialogOpen {
 		target = 1
 	}
-	reveal := stage.Animate("compose", target, 270*time.Millisecond)
+	reveal := stage.AnimateTo("compose", target, panelSpring)
 	v.newDialog(c, p, reveal)
 	if ui.AlertDialog(c, &v.RestartOpen, "从头重新下载？", "原来的未完成文件会保留，新下载使用不同文件名。", "取消", "重新下载") == 1 {
 		v.command(v.RestartID, application.Restart)

@@ -223,6 +223,9 @@ func TestSettingsSaveFailureKeepsPreviousValues(t *testing.T) {
 	if err := s.SetStaticBackground(context.Background(), true); err == nil {
 		t.Fatal("lost save error")
 	}
+	if err := s.SetTheme(context.Background(), application.ThemeDark); err == nil {
+		t.Fatal("theme save error lost")
+	}
 	if got := s.Snapshot(); got.Preferences != before.Preferences || got.Directory != before.Directory {
 		t.Fatal("failed settings applied")
 	}

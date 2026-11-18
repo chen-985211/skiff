@@ -29,11 +29,14 @@ func Fragment(dst vec4, pos vec2) vec4 {
     base = mix(base,vec3(.97,.90,.81),.47*exp(-12*dot(warm,warm)))
     // A thin returning fold crosses the diffuse field. Its lit crest and
     // blue penumbra bend together while their strength varies along the arc.
-    edge := x - .39 - .19*cos(3.8*y + .55*sin(Phase)) - .066*cos(Phase)
-    exposure := .60 + .32*sin(3.6*y-Phase)
+    turn := 3.8*y + .55*sin(Phase)
+    edge := x - .39 - .19*cos(turn) - .066*cos(Phase)
+    // As the fold turns away, the small reflection recedes into its
+    // shoulder. Keep the surrounding diffuse light visible through it.
+    exposure := (.60 + .32*sin(3.6*y-Phase))*(.79+.16*cos(turn))
     base = mix(base,vec3(.43,.55,.71), exposure*.43*exp(-280*(edge+.044)*(edge+.044)))
     base = mix(base,vec3(.83,.91,1), exposure*.59*exp(-220*edge*edge))
-    base = mix(base,vec3(1,.99,.985), exposure*.72*exp(-1450*(edge-.024)*(edge-.024)))
+    base = mix(base,vec3(1,.99,.985), exposure*.68*exp(-1450*(edge-.024)*(edge-.024)))
     night := base*base*vec3(.37,.40,.49) + vec3(.015,.019,.028)
     return vec4(mix(base,night,Dark),1)
 }

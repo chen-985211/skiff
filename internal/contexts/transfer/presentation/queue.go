@@ -21,10 +21,10 @@ func (v *View) queue(c *ui.Context, p palette) {
 	}
 
 	items := v.filtered()
-	toolbar := ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(9).Height(40).Padding(0, 4)
+	toolbar := ui.Row(c.Key("queue-toolbar")).Transition(panelMotion).Shrink(0).AlignItems(ui.Center).Gap(9).Height(40).Padding(0, 4)
 	toolbar.Children(func() {
 		if strings.TrimSpace(v.Query) != "" {
-			ui.Textf(c, "%d 个结果", len(items)).Transition(panelMotion).ContentTransition(ui.ContentTransition{Numeric: true}).FontSize(12).TextColor(p.muted)
+			ui.Textf(c, "%d 个结果", len(items)).Transition(panelMotion).ContentTransition(numberChange).FontSize(12).TextColor(p.muted)
 		}
 		ui.Box(c).Grow(1).FillHeight().DragWindow()
 		v.batchAction(c, items, application.Pause)
@@ -89,7 +89,7 @@ func (v *View) empty(c *ui.Context, p palette, cat category) {
 			ui.Icon(c, icons[icon]).FontSize(36).TextColor(p.muted)
 		}
 		ui.Text(c, title).FontSize(15).FontWeight(520).TextColor(p.muted)
-		if action != "" && ui.Button(c, action).Height(32).PaddingX(13).Radius(8).FontSize(12).Clicked() {
+		if action != "" && secondaryAction(c, action).Clicked() {
 			switch {
 			case strings.TrimSpace(v.Query) != "":
 				v.Query = ""

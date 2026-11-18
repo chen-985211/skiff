@@ -1,4 +1,4 @@
-.PHONY: run dev test test-integration format-check check package
+.PHONY: run dev test test-integration format-check check-ui check package
 
 run:
 	go run ./cmd/skiff
@@ -14,6 +14,10 @@ test-integration:
 
 format-check:
 	@test -z "$$(gofmt -l cmd internal tests)" || (gofmt -l cmd internal tests; exit 1)
+
+check-ui:
+	go test -count=1 ./tests/contract -run '^TestInterfacePolicy'
+	go test -count=1 ./tests/unit/transfer -run '^Test(Settings|CategorySelection|WindowLight|CardMaterial|PrimaryTaskControls|SheetExpands|PauseInterpolates|WorkspaceHasNoDecorative|TransferFlow)'
 
 check: format-check
 	go vet ./...

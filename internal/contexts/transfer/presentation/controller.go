@@ -83,3 +83,45 @@ func (v *View) run(taskID string, action func(context.Context) error) {
 		})
 	}()
 }
+
+func (v *View) selectedTheme() application.ThemeMode {
+	if v.pendingTheme != nil {
+		return *v.pendingTheme
+	}
+	return v.Snapshot.Preferences.Theme
+}
+
+// Show the latest choice immediately. Serialize writes so a slower previous
+// choice can never overwrite the user's final one on disk.
+func (v *View) chooseTheme(mode application.ThemeMode) {
+	if v.API == nil || mode == v.selectedTheme() {
+		return
+	}
+	if v.pendingTheme != nil {
+		*v.pendingTheme = mode
+		return
+	}
+	v.pendingTheme = &mode
+	v.saveTheme(mode)
+}
+
+func (v *View) saveTheme(mode application.ThemeMode) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		err := v.API.SetTheme(ctx, mode)
+		v.dispatch(func() {
+			if err == nil {
+				v.Snapshot.Preferences.Theme = mode
+			}
+			if latest := *v.pendingTheme; latest != mode {
+				v.saveTheme(latest)
+				return
+			}
+			v.pendingTheme = nil
+			if err != nil {
+				v.Message = err.Error()
+			}
+		})
+	}()
+}

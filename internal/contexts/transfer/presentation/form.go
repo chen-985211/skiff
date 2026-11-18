@@ -2,7 +2,6 @@ package presentation
 
 import (
 	"strings"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -10,9 +9,7 @@ import (
 func (v *View) newDialog(c *ui.Context, p palette, reveal float32) {
 	open := v.DialogOpen
 	ui.DialogBase(c, &open, func(back, panel ui.Element) {
-		back.Column().Justify(ui.End).AlignItems(ui.Center).Padding(0, 0, 12, sidebarWidth).Background(ui.Hex("#303443").Alpha(.23)).Transition(ui.ElementTransition{
-			Duration: 150 * time.Millisecond, Enter: &ui.Motion{}, Exit: &ui.Motion{},
-		})
+		back.Column().Justify(ui.End).AlignItems(ui.Center).Padding(0, 0, 12, sidebarWidth).Background(p.scrim.Alpha(.23)).Transition(scrimMotion)
 		scale := .78 + .22*reveal
 		panel.TransformOrigin(.5, 1).Scale(scale, scale).Translate(0, 6*(1-reveal))
 		surface(c, panel.Column().Width(dockWidth).Padding(20, 24).Gap(11), p, p.tint, 25, true).Shadow(0, 8, 30, 0, p.accent.Alpha(.13)).Children(func() {
@@ -32,7 +29,7 @@ func (v *View) newDialog(c *ui.Context, p palette, reveal float32) {
 					}
 				}
 				if lines > 1 {
-					ui.Textf(c, "已输入 %d 行", lines).Transition(panelMotion).ContentTransition(ui.ContentTransition{Numeric: true}).FontSize(11).TextColor(p.muted)
+					ui.Textf(c, "已输入 %d 行", lines).Transition(panelMotion).ContentTransition(numberChange).FontSize(11).TextColor(p.muted)
 				}
 			})
 			if ui.TextArea(c, &v.URLs).Height(115).Padding(10).Background(p.canvas).Placeholder("粘贴 HTTP 或 HTTPS 链接，每行一个").Label("下载链接").AutoFocus().Disabled(v.Busy).Changed() {
@@ -43,7 +40,7 @@ func (v *View) newDialog(c *ui.Context, p palette, reveal float32) {
 				if ui.TextInput(c, &v.Directory).Grow(1).MinWidth(0).Label("保存目录").Disabled(v.Busy).Changed() {
 					v.FormError = ""
 				}
-				if ui.Button(c, "选择…").Disabled(v.Busy || v.Actions.PickDirectory == nil).Clicked() {
+				if secondaryAction(c, "选择…").Disabled(v.Busy || v.Actions.PickDirectory == nil).Clicked() {
 					v.Actions.PickDirectory(v.Directory, func(path string, err error) {
 						if err != nil {
 							v.FormError = err.Error()
@@ -55,11 +52,11 @@ func (v *View) newDialog(c *ui.Context, p palette, reveal float32) {
 				}
 			})
 			if v.FormError != "" {
-				ui.Text(c, v.FormError).Transition(panelMotion).ContentTransition(ui.ContentTransition{}).MaxHeight(68).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
+				ui.Text(c, v.FormError).Transition(panelMotion).ContentTransition(textChange).MaxHeight(68).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
 			}
 			ui.Box(c).Height(2)
 			ui.Row(c).Gap(8).Justify(ui.End).Margin(4, 0, 0).Children(func() {
-				if ui.Button(c, "取消").Disabled(v.Busy).Clicked() {
+				if secondaryAction(c, "取消").Disabled(v.Busy).Clicked() {
 					v.DialogOpen = false
 				}
 				if primaryAction(c, "开始下载", "download", v.Busy).Width(106).Clicked() {

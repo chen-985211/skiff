@@ -25,7 +25,7 @@ func TestRepositoryRoundTripAndCorruptFileIsPreserved(t *testing.T) {
 	if state, err := repo.Load(ctx); err != nil || len(state.Tasks) != 0 {
 		t.Fatalf("fresh repo: %+v %v", state, err)
 	}
-	want := application.State{Version: 1, Preferences: application.Preferences{DefaultDirectory: t.TempDir(), StaticBackground: true}, Directory: "/downloads", Tasks: []domain.Record{{ID: "id", URL: "https://example.com/a?secret=private", Status: domain.Paused, Completed: 7, Total: 100}}}
+	want := application.State{Version: 1, Preferences: application.Preferences{DefaultDirectory: t.TempDir(), StaticBackground: true, Theme: application.ThemeDark}, Directory: "/downloads", Tasks: []domain.Record{{ID: "id", URL: "https://example.com/a?secret=private", Status: domain.Paused, Completed: 7, Total: 100}}}
 	if err := repo.Save(ctx, want); err != nil {
 		t.Fatal(err)
 	}

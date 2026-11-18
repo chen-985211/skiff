@@ -1,0 +1,29 @@
+package main
+
+var Phase float
+var Dark float
+
+// The field lives in the card's own UV space, including during a resize.
+// A soft fold traverses the face; a narrower pearl reflection rides its lip.
+func Fragment(dst vec4, pos vec2) vec4 {
+    uv := pos / rectSize()
+    x, y := uv.x, uv.y
+    fold := y - .78 + .76*x + .22*sin(3.8*x + .94*cos(Phase)) + .30*sin(Phase)
+    echo := y - .16 - .29*x + .19*cos(4.1*x - .83*sin(Phase)) - .18*cos(Phase)
+    body := exp(-6.5*fold*fold)
+    shadow := exp(-24*(fold+.25)*(fold+.25))
+    lip := exp(-44*(fold-.12)*(fold-.12))
+    returnLight := exp(-10*echo*echo)
+    // Keep the title end quieter. All four pigments still cross the middle.
+    exposure := .52 + .48*smoothstep(.12,.88,x)
+    base := mix(vec3(.93,.95,.97), vec3(.20,.245,.335), Dark)
+    slate := mix(vec3(.62,.70,.83), vec3(.13,.17,.25), Dark)
+    ice := mix(vec3(.70,.88,.92), vec3(.22,.40,.46), Dark)
+    violet := mix(vec3(.81,.76,.90), vec3(.365,.285,.445), Dark)
+    pearl := mix(vec3(1,.99,1), vec3(.38,.44,.55), Dark)
+    base = mix(base, slate, .78*exposure*shadow)
+    base = mix(base, violet, .77*exposure*returnLight)
+    base = mix(base, ice, .81*exposure*body)
+    base = mix(base, pearl, .89*exposure*lip)
+    return vec4(base,1)
+}
