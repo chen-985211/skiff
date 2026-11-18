@@ -122,14 +122,13 @@ func (v *View) batchAction(c *ui.Context, items []application.TaskDTO, cmd appli
 
 func (v *View) empty(c *ui.Context, p palette, cat category) {
 	title, icon := cat.empty, cat.icon
-	emptySearch := v.Ready && strings.TrimSpace(v.Query) != ""
 	switch {
 	case !v.Ready:
 		title, icon = "正在准备下载引擎", "download"
 		if v.EngineError != nil {
 			title, icon = "下载引擎未就绪", "error"
 		}
-	case emptySearch:
+	case strings.TrimSpace(v.Query) != "":
 		title, icon = "没有匹配的任务", "search"
 	case cat.id == "all":
 		icon = "tray"
@@ -143,10 +142,6 @@ func (v *View) empty(c *ui.Context, p palette, cat category) {
 		ui.Text(c, title).FontSize(15).FontWeight(520).TextColor(p.muted)
 		if !v.Ready {
 			inlineError(c, v.EngineError)
-		}
-		if emptySearch && secondaryAction(c, "清除搜索").Clicked() {
-			v.Query = ""
-			v.taskRows = ui.ListState{}
 		}
 	})
 }

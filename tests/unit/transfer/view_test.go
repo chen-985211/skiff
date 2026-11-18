@@ -117,7 +117,7 @@ func TestWorkspaceSpeedOnlyAppearsOnVisibleActiveTasks(t *testing.T) {
 
 }
 
-func TestSearchEmptyStateClearsOnlyQuery(t *testing.T) {
+func TestWorkspaceEmptySearchClearsFromSearchField(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Filter, v.Query = "paused", "missing"
@@ -126,10 +126,13 @@ func TestSearchEmptyStateClearsOnlyQuery(t *testing.T) {
 	if !tt.HasText("没有匹配的任务") {
 		t.Fatalf("missing search empty state: %v", tt.Texts())
 	}
-	if err := tt.Click("清除搜索"); err != nil {
+	if _, ok := tt.Find("清除搜索"); ok {
+		t.Error("empty state duplicates the search field's clear button")
+	}
+	if err := tt.Click("清空搜索框"); err != nil {
 		t.Fatal(err)
 	}
-	if v.Filter != "paused" || !tt.HasText("archive.zip") {
+	if v.Query != "" || v.Filter != "paused" || !tt.HasText("archive.zip") {
 		t.Fatalf("clearing search did not restore this category: %v", tt.Texts())
 	}
 }
