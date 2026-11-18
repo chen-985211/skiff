@@ -106,7 +106,13 @@ func TestWorkspaceDetailAlignsWithNavigationAndCollapsesInPlace(t *testing.T) {
 	if _, found := tt.Find("返回任务"); found {
 		t.Error("duplicate back button")
 	}
-	if err := tt.Click("收起详情 one.zip"); err != nil {
+	if _, found := tt.Find("收起详情 one.zip"); found {
+		t.Error("duplicate close control")
+	}
+	if _, found := tt.Find("返回任务列表"); !found {
+		t.Error("missing return action for active task")
+	}
+	if err := tt.Click("返回任务列表"); err != nil {
 		t.Fatal(err)
 	}
 	if _, found := tt.Find("查看详情 one.zip"); !found {
@@ -155,7 +161,7 @@ func TestWorkspaceInterruptExpansionFromEmptySpace(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Advance(time.Second)
-	if _, ok := tt.Find("收起详情 one.zip"); !ok {
+	if _, ok := tt.Find("来源"); !ok {
 		t.Fatal("collapse could not be reversed")
 	}
 }

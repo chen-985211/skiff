@@ -164,14 +164,14 @@ func TestCardMaterialExpandsAndReversesFromCurrentSize(t *testing.T) {
 		!(start.W+5 < middle.W && middle.W+5 < detail.W && start.X > middle.X && middle.X > detail.X) {
 		t.Fatalf("expansion: grid %v, start %v, middle %v, detail %v", grid, start, middle, detail)
 	}
-	if err := tt.Click("收起详情 one.zip"); err != nil {
+	if err := tt.Click("返回任务列表"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Advance(time.Second)
 	open()
 	tt.Advance(95 * time.Millisecond)
 	before := bounds()
-	if err := tt.Click("收起详情 one.zip"); err != nil {
+	if err := tt.Click("返回任务列表"); err != nil {
 		t.Fatal(err)
 	}
 	after := bounds()

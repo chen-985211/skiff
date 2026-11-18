@@ -290,7 +290,7 @@ func TestTaskDetailsFollowFileIdentity(t *testing.T) {
 	if !tt.HasText(task.URL) || !tt.HasText(dir) {
 		t.Fatal("source and destination missing after insertion")
 	}
-	if err := tt.Click("收起详情 manual.zip"); err != nil {
+	if err := tt.Click("返回任务列表"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.HasText(task.URL) {

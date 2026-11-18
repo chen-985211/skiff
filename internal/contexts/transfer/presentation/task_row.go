@@ -225,7 +225,7 @@ func taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Colo
 func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 	ui.Column(c.Key("detail")).Grow(1).Padding(workspaceHeader, 0, 0).Children(func() {
 		backdrop := ui.Box(c.Key("detail-dismiss")).Absolute().Top(0).Left(0).Right(0).Bottom(0).AccessHidden(true)
-		if backdrop.Clicked() {
+		if backdrop.Clicked() || c.Shortcut(0, ui.KeyEscape) {
 			v.detailID = ""
 			c.Invalidate()
 		}
@@ -236,10 +236,11 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 				ui.Image(c, fileArt[fileIcon(t.Name)]).Size(65, 65).Fit(ui.Contain)
 				ui.Text(c, t.Name).FontSize(20).FontWeight(650).Grow(1).MinWidth(0).SingleLine().Tooltip(t.Name)
 				ui.Text(c, statusText(t.Status)).ContentTransition(textChange).FontSize(12).TextColor(color)
-				if iconButton(c, "close", "收起详情 "+t.Name, false) || c.Shortcut(0, ui.KeyEscape) {
+				if (t.CanPause || t.CanResume || t.CanRetry) && secondaryAction(c, "返回").Label("返回任务列表").Clicked() {
 					v.detailID = ""
 					c.Invalidate()
 				}
+
 			})
 			if size := taskSize(t); size != "" {
 				ui.Text(c, size).ContentTransition(numberChange).FontSize(12).TextColor(p.muted)
