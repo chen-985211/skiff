@@ -128,9 +128,9 @@ func taskColor(p palette, status string) ui.Color {
 	}
 }
 
-func fileHeading(c *ui.Context, p palette, t application.TaskDTO, titleSize float32) {
+func fileHeading(c *ui.Context, p palette, t application.TaskDTO, titleSize, lineGap float32) {
 	ui.Image(c, fileArt[fileIcon(t.Name)]).Size(fileIconSize, fileIconSize).Fit(ui.Contain)
-	ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+	ui.Column(c).Grow(1).MinWidth(0).Gap(lineGap).Children(func() {
 		ui.Text(c, t.Name).FontSize(titleSize).FontWeight(640).SingleLine().TruncateMiddle().Tooltip(t.Name)
 		if size := taskSize(t); size != "" {
 			ui.Text(c, size).ContentTransition(numberChange).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
@@ -145,7 +145,7 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(54).FillWidth().Radius(13).Transition(controlMotion)
 		head.Children(func() {
 			ui.Row(c).Fill().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
-				fileHeading(c, p, t, 16)
+				fileHeading(c, p, t, 16, 4)
 				ui.Box(c).Width(23).Shrink(0)
 			})
 		})
@@ -263,11 +263,11 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 			v.detailID = ""
 			c.Invalidate()
 		}
-		card := ui.Column(c.Key(t.ID)).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(12, cardInset).Gap(10).Transition(cardMotion(t.ID))
+		card := ui.Column(c.Key(t.ID)).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(16, cardInset).Gap(16).Transition(cardMotion(t.ID))
 		color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
 		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
-			ui.Row(c).Height(54).FillWidth().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
-				fileHeading(c, p, t, 18)
+			ui.Row(c).Height(44).FillWidth().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
+				fileHeading(c, p, t, 18, 2)
 				if (t.CanPause || t.CanResume || t.CanRetry) && secondaryAction(c, "返回").Label("返回任务列表").Clicked() {
 					v.detailID = ""
 					c.Invalidate()
@@ -276,13 +276,17 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO) {
 			})
 			taskProgress(c, p, t, color)
 
-			ui.Divider(c)
-			detailField(c, p, "来源", t.URL)
-			target := t.Path
-			if target == "" {
-				target = t.Directory
-			}
-			detailField(c, p, "位置", target)
+			ui.Column(c).Gap(10).Children(func() {
+				ui.Divider(c)
+				ui.Column(c).Gap(6).Children(func() {
+					detailField(c, p, "来源", t.URL)
+					target := t.Path
+					if target == "" {
+						target = t.Directory
+					}
+					detailField(c, p, "位置", target)
+				})
+			})
 			v.rowActions(c, t)
 		})
 	})

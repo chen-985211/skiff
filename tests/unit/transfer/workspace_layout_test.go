@@ -251,4 +251,11 @@ func TestWorkspaceCardContentAlignsAcrossPreviewAndDetail(t *testing.T) {
 	if size.X != detailSize.X || detailSize.X != source.X || path.X != source.X || action.X != back.X || back.W > 104 {
 		t.Fatalf("preview size %v action %v; detail size %v source %v path %v action %v", size, action, detailSize, source, path, back)
 	}
+	card, _ := tt.AccessByRole(ui.RoleGroup, "photo.jpg")
+	rowGap := path.Y - (source.Y + source.H)
+	actionGap := back.Y - (path.Y + path.H)
+	bottom := card.Bounds.Y + card.Bounds.H - (back.Y + back.H)
+	if rowGap != 6 || actionGap != 16 || bottom != 16 {
+		t.Errorf("detail gaps: between fields %.1f, before actions %.1f, below actions %.1f", rowGap, actionGap, bottom)
+	}
 }
