@@ -252,6 +252,10 @@ func TestWorkspaceCardContentAlignsAcrossPreviewAndDetail(t *testing.T) {
 		t.Fatalf("preview size %v action %v; detail size %v source %v path %v action %v", size, action, detailSize, source, path, back)
 	}
 	card, _ := tt.AccessByRole(ui.RoleGroup, "photo.jpg")
+	// The 44-point heading leads straight into the 16-point section gap.
+	if gap := source.Y - (card.Bounds.Y + 16 + 44); gap != 16 {
+		t.Errorf("space between heading and fields = %.1f, want 16", gap)
+	}
 	rowGap := path.Y - (source.Y + source.H)
 	actionGap := back.Y - (path.Y + path.H)
 	bottom := card.Bounds.Y + card.Bounds.H - (back.Y + back.H)
