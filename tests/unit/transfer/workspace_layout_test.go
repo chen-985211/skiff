@@ -11,6 +11,31 @@ import (
 	"skiff/internal/contexts/transfer/presentation"
 )
 
+func TestWorkspaceSearchCountSitsAboveFirstCard(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Snapshot.Tasks = []application.TaskDTO{
+		{ID: "b", Name: "archive-b.zip", Status: "paused", CanResume: true},
+		{ID: "a", Name: "archive-a.zip", Status: "paused", CanResume: true},
+	}
+	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	for _, tc := range []struct{ query, message, count string }{
+		{"archive-a", "", "1 个结果"},
+		{"archive", "", "2 个结果"},
+		{"archive", "保存目录不可用", "2 个结果"},
+	} {
+		v.Query, v.Message = tc.query, tc.message
+		tt.Frame()
+		card, okCard := tt.AccessByRole(ui.RoleGroup, "archive-a.zip")
+		count, okCount := tt.Find(tc.count)
+		if !okCard || !okCount {
+			t.Fatalf("missing card or count for %q", tc.query)
+		}
+		if gap := card.Bounds.Y - (count.Y + count.H); count.X != card.Bounds.X || gap != 12 {
+			t.Errorf("query=%q message=%q: count x=%.1f, card x=%.1f, gap=%.1f; want aligned and 12 pt", tc.query, tc.message, count.X, card.Bounds.X, gap)
+		}
+	}
+}
+
 func TestWorkspaceBatchActionAlignsWithBrandAndCardGrid(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true

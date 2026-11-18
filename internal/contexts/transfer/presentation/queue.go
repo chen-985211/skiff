@@ -27,16 +27,24 @@ func (v *View) queue(c *ui.Context, p palette) {
 	available := max(float32(0), width-sidebarWidth-2*workspaceInset)
 	columns := max(1, int((available+cardGap)/(cardWidth+cardGap)))
 	gridWidth := min(available, float32(columns*(cardWidth+cardGap)-cardGap))
-	toolbar := ui.Row(c.Key("queue-toolbar")).Transition(panelMotion).Shrink(0).AlignItems(ui.Center).Gap(9).Width(gridWidth).Height(workspaceHeader)
-	toolbar.Children(func() {
+	ui.Column(c.Key("queue-header")).Shrink(0).Children(func() {
+		ui.Row(c.Key("queue-toolbar")).Transition(panelMotion).AlignItems(ui.Center).Gap(9).Width(gridWidth).Height(workspaceHeader).Children(func() {
+			ui.Box(c).Grow(1).FillHeight().DragWindow()
+			v.batchAction(c, items, application.Pause)
+			v.batchAction(c, items, application.Resume)
+		})
+		hasMessage := v.Message != ""
+		v.messageBanner(c)
 		if strings.TrimSpace(v.Query) != "" {
-			ui.Textf(c, "%d 个结果", len(items)).Transition(panelMotion).ContentTransition(numberChange).FontSize(12).TextColor(p.muted)
+			const resultGap = 12
+			count := ui.Textf(c, "%d 个结果", len(items)).Transition(panelMotion).ContentTransition(numberChange).FontSize(12).TextColor(p.muted).IgnoreInput(true)
+			if hasMessage {
+				count.AlignSelf(ui.Start).Margin(0, 0, resultGap)
+			} else {
+				count.Absolute().Left(0).Bottom(resultGap)
+			}
 		}
-		ui.Box(c).Grow(1).FillHeight().DragWindow()
-		v.batchAction(c, items, application.Pause)
-		v.batchAction(c, items, application.Resume)
 	})
-	v.messageBanner(c)
 	if len(items) == 0 {
 		v.empty(c, p, v.category())
 		return
