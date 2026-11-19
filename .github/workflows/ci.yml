@@ -32,7 +32,16 @@ jobs:
         run: brew install aria2
       - name: Install Windows test engine
         if: runner.os == 'Windows'
-        run: choco install aria2 --yes --no-progress
+        run: |
+          choco install aria2 --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # The lifecycle tests must own aria2c itself, including its log handles.
+          $package = Join-Path $env:ChocolateyInstall 'lib/aria2'
+          $engines = @(Get-ChildItem -LiteralPath $package -Filter aria2c.exe -File -Recurse)
+          if ($engines.Count -ne 1) { throw "Expected one aria2c executable under $package" }
+          $engine = $engines[0].FullName
+          & $engine --version
+          "SKIFF_ARIA2_BINARY=$engine" >> $env:GITHUB_ENV
       - name: Check formatting
         if: runner.os == 'Linux'
         run: make format-check
