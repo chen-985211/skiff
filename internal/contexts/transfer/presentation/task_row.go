@@ -17,20 +17,20 @@ const (
 )
 
 // The footer keeps the same geometry when an action becomes a status.
-func cardPill(c *ui.Context, pill ui.Element, icon, text, status string) {
+func cardPill(c *ui.Context, pill ui.Element, icon, text, status string, change ui.ContentTransition) {
 	ink := c.Theme().Text
 	if status == "error" {
 		ink = c.Theme().Danger
 	}
 	pill.WidthPercent(25).MinWidth(80).MaxWidth(104).Height(32).Radius(cornerField).Center().Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
-			ui.Icon(c, icons[icon]).TextColor(ink).FontSize(14).ContentTransition(textChange)
-			ui.Text(c, text).FontSize(11).FontWeight(550).ContentTransition(textChange)
+			ui.Icon(c, icons[icon]).TextColor(ink).FontSize(14).ContentTransition(change)
+			ui.Text(c, text).FontSize(11).FontWeight(550).ContentTransition(change)
 		})
 	})
 }
 
-func cardAction(c *ui.Context, icon, text, label, status string) bool {
+func cardAction(c *ui.Context, icon, text, label, status string, change ui.ContentTransition) bool {
 	key := label
 	if status != "" {
 		key = "primary-action"
@@ -49,11 +49,11 @@ func cardAction(c *ui.Context, icon, text, label, status string) bool {
 			text, icon = statusText(status), stateSymbol(status)
 		}
 	}
-	cardPill(c, b, icon, text, status)
+	cardPill(c, b, icon, text, status, change)
 	return b.Clicked()
 }
 
-func (v *View) rowActions(c *ui.Context, t application.TaskDTO, displayStatus string) {
+func (v *View) rowActions(c *ui.Context, t application.TaskDTO, displayStatus string, change ui.ContentTransition) {
 	if v.Busy {
 		return
 	}
@@ -71,8 +71,8 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO, displayStatus st
 		if cmd == "" && v.detailID == t.ID {
 			state := statusText(displayStatus)
 			badge := ui.Box(c.Key("task-status")).Role(ui.RoleStatus).Label(state).Background(c.Theme().Surface.Alpha(.38))
-			cardPill(c, badge, stateSymbol(displayStatus), state, displayStatus)
-		} else if cardAction(c, icon, text, label, displayStatus) {
+			cardPill(c, badge, stateSymbol(displayStatus), state, displayStatus, change)
+		} else if cardAction(c, icon, text, label, displayStatus, change) {
 			if cmd != "" {
 				v.command(t.ID, cmd)
 			} else {
@@ -80,10 +80,10 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO, displayStatus st
 				c.Invalidate()
 			}
 		}
-		if t.CanRestart && cardAction(c, "restart", "从头下载", "从头下载", "") {
+		if t.CanRestart && cardAction(c, "restart", "从头下载", "从头下载", "", textChange) {
 			v.RestartID, v.RestartOpen = t.ID, true
 		}
-		if t.Path != "" && v.Actions.Reveal != nil && cardAction(c, "folder", "位置", "在文件夹中显示", "") {
+		if t.Path != "" && v.Actions.Reveal != nil && cardAction(c, "folder", "位置", "在文件夹中显示", "", textChange) {
 			v.setTaskError(t.ID, v.Actions.Reveal(t.Path))
 			c.Invalidate()
 		}
@@ -145,7 +145,8 @@ func fileHeading(c *ui.Context, p palette, t application.TaskDTO, titleSize, lin
 func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 	card := ui.Column(c.Key(t.ID)).Size(cardWidth, cardHeight).MaxWidthPercent(100).Shrink(0).Role(ui.RoleGroup).Label(t.Name).Padding(12, cardInset).Gap(4).Transition(cardMotion(t.ID))
 	progress := v.cardProgress(c, card, t)
-	color := card.AnimateColor("status", taskColor(p, progress.status), colorFade)
+	change := progress.statusChange()
+	color := card.AnimateColor("status", taskColor(p, progress.status), *change.Animation)
 	v.cardSurface(c, card, p, t.ID, color, cornerCard).Children(func() {
 		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(54).FillWidth().Radius(cornerRow).Transition(controlMotion)
 		head.Children(func() {
@@ -160,7 +161,7 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 		}
 		v.taskProgress(c, p, t, color, progress)
 		ui.Box(c).Grow(1)
-		v.rowActions(c, t, progress.status)
+		v.rowActions(c, t, progress.status, change)
 		v.removeTaskButton(c, t.ID)
 	})
 }
@@ -277,7 +278,8 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 		card := ui.Column(c.Key(t.ID)).Size(2*cardWidth+cardGap, detailHeight).Shrink(0).Margin(0, 0, 0, float32(column*(cardWidth+cardGap))).
 			MaxWidthPercent(100).MaxHeightPercent(100).AlignSelf(ui.Start).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(16, cardInset).Gap(16).Transition(cardMotion(t.ID))
 		progress := v.cardProgress(c, card, t)
-		color := card.AnimateColor("status", taskColor(p, progress.status), colorFade)
+		change := progress.statusChange()
+		color := card.AnimateColor("status", taskColor(p, progress.status), *change.Animation)
 		v.cardSurface(c, card, p, t.ID, color, cornerDetail).Children(func() {
 			ui.Row(c).Height(44).FillWidth().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
 				fileHeading(c, p, t, 18, 2)
@@ -297,7 +299,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 				})
 				v.taskProgress(c, p, t, color, progress)
 			})
-			v.rowActions(c, t, progress.status)
+			v.rowActions(c, t, progress.status, change)
 		})
 	})
 }

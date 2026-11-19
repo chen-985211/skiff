@@ -6,6 +6,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+const fullProgressHold = 1200 * time.Millisecond
+
 // Animated geometry uses springs: retargeting a live MyGo channel preserves
 // both position and velocity. Progress and color have bounded endpoints.
 var (
@@ -17,6 +19,8 @@ var (
 	panelSpring     = ui.Animation{Spring: ui.SpringOptions{Mass: 1, Stiffness: 324, Damping: 36}}
 	colorFade       = ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseInOut, Oklab: true}
 	progressEase    = ui.Animation{Duration: 200 * time.Millisecond, Ease: ui.EaseOut}
+	completionFill  = ui.Animation{Duration: 800 * time.Millisecond, Ease: ui.EaseInOut}
+	completionFade  = ui.Animation{Duration: 450 * time.Millisecond, Ease: ui.EaseInOut, Oklab: true}
 
 	controlMotion = ui.ElementTransition{Animation: &pressSpring, Colors: true}
 	pageFade      = ui.ElementTransition{Animation: &colorFade, Enter: &ui.Motion{}, Exit: &ui.Motion{}}
@@ -25,6 +29,14 @@ var (
 	textChange    = ui.ContentTransition{Animation: &colorFade}
 	numberChange  = ui.ContentTransition{Numeric: true, Animation: &colorFade}
 )
+
+// Keep the badge and card tint in step with the outgoing full progress bar.
+func (f progressFrame) statusChange() ui.ContentTransition {
+	if f.status == "complete" && f.opacity > 0 {
+		return ui.ContentTransition{Animation: &completionFade}
+	}
+	return textChange
+}
 
 type cardMatch string
 

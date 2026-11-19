@@ -38,12 +38,12 @@ func TestRenderDownloadReachesFullBeforeCompletion(t *testing.T) {
 			if _, ok := scene.AccessByRole(ui.RoleButton, "暂停下载"); ok {
 				t.Fatal("a finished download still offers pause")
 			}
-			scene.Advance(85 * time.Millisecond)
+			scene.Advance(400 * time.Millisecond)
 			track, ok := scene.AccessByRole(ui.RoleProgress, "下载进度")
-			if !ok || track.Now <= .60 || track.Now >= 1 || !scene.HasText(fmt.Sprintf("%.0f%%", 100*track.Now)) {
-				t.Fatalf("bar and counter must move together: %v, %v", track, scene.Texts())
+			if !ok || track.Now <= .70 || track.Now >= .90 || !scene.HasText(fmt.Sprintf("%.0f%%", 100*track.Now)) {
+				t.Fatalf("halfway through the fill, the bar and counter should both be near 80%%: %v, %v", track, scene.Texts())
 			}
-			scene.Advance(165 * time.Millisecond)
+			scene.Advance(450 * time.Millisecond)
 			if !scene.HasText("100%") || !scene.HasText("下载中") {
 				t.Fatalf("full progress must be readable before the status changes: %v", scene.Texts())
 			}
@@ -51,9 +51,13 @@ func TestRenderDownloadReachesFullBeforeCompletion(t *testing.T) {
 				return scene.Image().RGBAAt(int(track.Bounds.X+track.Bounds.W*.85), int(track.Bounds.Y+track.Bounds.H/2)).R
 			}
 			full := sample()
-			scene.Advance(200 * time.Millisecond)
+			scene.Advance(1050 * time.Millisecond)
+			if !scene.HasText("100%") || !scene.HasText("下载中") || sample() != full {
+				t.Fatal("the full bar should stay readable for at least a second before fading")
+			}
+			scene.Advance(325 * time.Millisecond)
 			fading := sample()
-			scene.Advance(time.Second)
+			scene.Advance(350 * time.Millisecond)
 			if _, ok := scene.AccessByRole(ui.RoleProgress, "下载进度"); ok {
 				t.Fatal("finished progress never left the card")
 			}

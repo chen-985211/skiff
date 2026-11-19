@@ -8,8 +8,6 @@ import (
 	"skiff/internal/contexts/transfer/application"
 )
 
-const fullProgressHold = 180 * time.Millisecond
-
 type progressFrame struct {
 	status            string
 	fraction, opacity float32
@@ -60,7 +58,7 @@ func (v *View) cardProgress(c *ui.Context, card ui.Element, t application.TaskDT
 	transfer.seen = true
 	v.visibleTransfers[t.ID] = transfer
 
-	fill := progressEase.Duration
+	fill := completionFill.Duration
 	if transfer.from >= 1 {
 		fill = 0
 	}
@@ -69,14 +67,14 @@ func (v *View) cardProgress(c *ui.Context, card ui.Element, t application.TaskDT
 		switch {
 		case elapsed < fill:
 			c.AnimationFrame()
-			tween := progressEase.Ease(float32(elapsed) / float32(fill))
+			tween := completionFill.Ease(float32(elapsed) / float32(fill))
 			return progressFrame{status: transfer.status, fraction: transfer.from + (1-transfer.from)*tween, opacity: 1}
 		case elapsed < fill+fullProgressHold:
 			c.After(fill + fullProgressHold - elapsed)
 			return progressFrame{status: transfer.status, fraction: 1, opacity: 1}
-		case elapsed < fill+fullProgressHold+colorFade.Duration:
+		case elapsed < fill+fullProgressHold+completionFade.Duration:
 			c.AnimationFrame()
-			fade := colorFade.Ease(float32(elapsed-fill-fullProgressHold) / float32(colorFade.Duration))
+			fade := completionFade.Ease(float32(elapsed-fill-fullProgressHold) / float32(completionFade.Duration))
 			return progressFrame{status: "complete", fraction: 1, opacity: 1 - fade}
 		}
 	}
