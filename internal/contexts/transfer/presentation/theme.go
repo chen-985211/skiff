@@ -65,17 +65,27 @@ func surface(c *ui.Context, e ui.Element, p palette, radius float32, finish glas
 	}
 
 	blur, opacity := float32(7), float32(.50)
+	top, middle, edge := p.tint.Mix(p.rim, .36), p.ice.Mix(p.panel, .86), p.rim
 	if finish == sheetFrost {
-		blur, opacity = 14, .64
+		blur, opacity = 14, .52
+		top, middle, edge = p.haze.Mix(p.tint, .35), p.tint.Mix(p.lilac, .10), p.rim.Mix(p.ice, .08)
 	}
 	// Diffuse the backdrop before painting the wash; text and controls stay sharp.
 	wash := ui.LinearGradient{Angle: 115, Stops: []ui.GradientStop{
-		{At: 0, Color: p.tint.Mix(p.rim, .36).Alpha(opacity)},
-		{At: .45, Color: p.ice.Mix(p.panel, .86).Alpha(opacity * .70)},
-		{At: 1, Color: p.rim.Alpha(opacity)},
+		{At: 0, Color: top.Alpha(opacity)},
+		{At: .45, Color: middle.Alpha(opacity * .70)},
+		{At: 1, Color: edge.Alpha(opacity)},
 	}}
 	return e.Material(glass.Blur{Radius: blur}).Draw(func(painter *ui.Painter, r ui.Rect) {
 		painter.FillGradient(r, wash, radius)
+		if finish == sheetFrost {
+			// Let one blue-grey shadow cross the heading and editor together.
+			smoke := p.haze.Mix(p.scrim, .25)
+			painter.FillRadialGradient(r, ui.RadialGradient{
+				Center: ui.Point{X: .42, Y: .32}, Radius: r.W * .57,
+				Stops: []ui.GradientStop{{At: 0, Color: smoke.Alpha(.47)}, {At: 1, Color: smoke.Alpha(0)}},
+			}, radius)
+		}
 	}).InsetShadow(0, -1, 2, 0, p.haze.Alpha(.32)).Border(1, ui.Transparent).BorderLinearGradient(ui.LinearGradient{
 		Angle: 150, From: p.rim.Alpha(.82), To: p.haze.Alpha(.38),
 	})

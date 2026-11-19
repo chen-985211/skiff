@@ -18,16 +18,20 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 	shown := true // Keep the modal and its draft mounted until the spring reaches the button.
 	ui.DialogBase(c, &shown, func(back, panel ui.Element) {
 		back.Background(p.scrim.Alpha(.14 * reveal))
-		panel.Absolute().Left(left + (anchor.X-left)*closed).Bottom(footerInset + (windowH-anchor.Y-anchor.H-footerInset)*closed).
-			Width(anchor.W + (width-anchor.W)*reveal).Column().AlignItems(ui.Start).Clip()
-		surface(c, panel, p, 22, sheetFrost).Shadow(0, 6*reveal, 20*reveal, 0, p.scrim.Alpha(.15*reveal))
+		panel.Absolute().Left(left+(anchor.X-left)*closed).Bottom(footerInset+(windowH-anchor.Y-anchor.H-footerInset)*closed).
+			Width(anchor.W+(width-anchor.W)*reveal).Column().AlignItems(ui.Start).Radius(22).Clip().
+			Shadow(0, 6*reveal, 20*reveal, 0, p.scrim.Alpha(.15*reveal))
 
-		// The form is measured at its reading width even while only a sliver is visible.
-		// Clipping its layout keeps text and inputs at their natural scale.
 		buttonInk := max(0, 1-reveal/.35)
+		// The glass rim belongs to the paint layer. Including it in layout would
+		// offset the button label and add its thickness again at the open endpoint.
+		glass := ui.Box(c.Key("sheet-glass")).Absolute().Left(0).Top(0).Right(0).Bottom(0).
+			ZIndex(-1).Opacity(1 - buttonInk).IgnoreInput(true).AccessHidden(true)
+		surface(c, glass, p, 22, sheetFrost)
 		ui.Box(c.Key("button-fill")).Absolute().Left(0).Top(0).Right(0).Bottom(0).Radius(22).
 			Background(p.accent.Alpha(buttonInk)).IgnoreInput(true)
 		fields := min(max((reveal-.48)/.42, 0), 1)
+		// Measure the clipped form at its reading width throughout the transition.
 		form := ui.Column(c.Key("form")).Width(width).Shrink(0).Padding(16, 20).Gap(12).
 			Opacity(fields).IgnoreInput(!v.DialogOpen).AccessHidden(!v.DialogOpen)
 		form.Children(func() {
@@ -79,19 +83,21 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 }
 
 func (v *View) composeFields(c *ui.Context, p palette) {
-	fill := p.panel
+	p.muted = p.muted.Mix(c.Theme().Text, .38)
+	fill := p.tint.Mix(p.panel, .50)
 	if !c.Preferences().ReduceTransparency && !c.Preferences().HighContrast {
-		fill = fill.Alpha(.52)
+		fill = p.haze.Mix(p.scrim, .15).Alpha(.17)
 	}
 	links := ui.TextAreaBase(c, &v.URLs).FillWidth().Lines(4, 7).Padding(12, 14).FontSize(13).FixedLineHeight(20).
-		Radius(12).Background(fill).Label("下载链接").Placeholder("粘贴下载链接，每行一个").
+		Radius(12).Background(fill).Label("下载链接").Placeholder("粘贴下载链接，每行一个").PlaceholderColor(p.muted).
 		Description("支持 HTTP 和 HTTPS 链接").AutoFocus().Disabled(v.Busy)
-	edge := p.border
-	if links.Focused() {
-		edge = p.active
-	}
+	edge, focusEdge := p.border, p.active
 	if !c.Preferences().HighContrast {
-		edge = edge.Alpha(.5)
+		edge = p.haze.Alpha(.42)
+		focusEdge = p.active.Mix(p.border, .25).Alpha(.62)
+	}
+	if links.Focused() {
+		edge = focusEdge
 	}
 	links.Border(1, edge)
 	if links.Changed() {

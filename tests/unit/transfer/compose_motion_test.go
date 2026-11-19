@@ -1,6 +1,7 @@
 package transfer_test
 
 import (
+	"image"
 	"math"
 	"testing"
 	"time"
@@ -9,6 +10,68 @@ import (
 
 	"skiff/internal/contexts/transfer/presentation"
 )
+
+func TestSheetExpandsWithoutShiftingButtonLabelOnClick(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready, v.Snapshot.Preferences.StaticBackground = true, true
+	tt := ui.NewTester(v.Render, 1020, 680)
+	tt.Advance(time.Second)
+	button, ok := tt.Find("新建下载")
+	if !ok {
+		t.Fatal("missing new download button")
+	}
+	// Measure just the light ink inside the pill, clear of its rounded rim.
+	inkBounds := func() image.Rectangle {
+		im := tt.Image()
+		var ink image.Rectangle
+		for y := int(button.Y + 6); y < int(button.Y+button.H-6); y++ {
+			for x := int(button.X + 11); x < int(button.X+button.W-11); x++ {
+				if im.RGBAAt(x, y).R > 175 {
+					ink = ink.Union(image.Rect(x, y, x+1, y+1))
+				}
+			}
+		}
+		return ink
+	}
+	idle := inkBounds()
+	if err := tt.Click("新建下载"); err != nil {
+		t.Fatal(err)
+	}
+	if first := inkBounds(); idle.Empty() || first != idle {
+		t.Fatalf("label shifted on the opening frame: %v -> %v", idle, first)
+	}
+}
+
+func TestSheetExpandsAndReversesWithOneHeightTarget(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready, v.Snapshot.Preferences.StaticBackground = true, true
+	v.URLs = "one\ntwo\nthree\nfour\nfive\nsix"
+	tt := ui.NewTester(v.Render, 800, 560)
+	tt.Advance(time.Second)
+	button, _ := tt.Find("新建下载")
+	tt.Key(ui.Cmd, ui.KeyN)
+	tt.Advance(time.Second)
+	open, ok := tt.AccessByRole(ui.RoleDialog, "")
+	if !ok || open.Bounds.W <= button.W {
+		t.Fatal("missing expanded sheet")
+	}
+	tt.Key(0, ui.KeyEscape)
+	for frame := 0; frame < 72; frame++ {
+		if frame == 5 {
+			tt.Key(ui.Cmd, ui.KeyN)
+		}
+		tt.Advance(12 * time.Millisecond)
+		r, ok := tt.AccessByRole(ui.RoleDialog, "")
+		if !ok {
+			t.Fatal("sheet disappeared during interruption")
+		}
+		progress := (r.Bounds.W - button.W) / (open.Bounds.W - button.W)
+		want := button.H + progress*(open.Bounds.H-button.H)
+		if math.Abs(float64(r.Bounds.H-want)) > .6 {
+			t.Fatalf("frame %d: width %.2f implies height %.2f, got %.2f", frame, r.Bounds.W, want, r.Bounds.H)
+		}
+	}
+}
 
 func TestSheetExpandsFromButtonAndReversesInPlace(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})

@@ -10,6 +10,35 @@ import (
 	"skiff/internal/contexts/transfer/presentation"
 )
 
+// Compare neighboring pixels on either side of the editor's top edge. Its
+// focused border can stand out; the fill should stay close to the glass.
+func TestWorkspaceFrostLinkFieldSharesSheetTone(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		v := presentation.New(nil, presentation.Actions{})
+		v.Ready = true
+		v.OpenNew()
+		scene := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{
+			Dark: dark, Preferences: ui.Preferences{ReduceMotion: true},
+		})
+		field, ok := scene.AccessByRole(ui.RoleTextField, "下载链接")
+		if !ok {
+			t.Fatal("missing link editor")
+		}
+		im := scene.Image()
+		luma := func(x, y int) int {
+			pixel := im.RGBAAt(x, y)
+			return (int(pixel.R)*21 + int(pixel.G)*72 + int(pixel.B)*7) / 100
+		}
+		for _, position := range []float32{.25, .50, .75} {
+			x, y := int(field.Bounds.X+field.Bounds.W*position), int(field.Bounds.Y)
+			diff := luma(x, y+4) - luma(x, y-4)
+			if diff > 4 || diff < -20 {
+				t.Errorf("dark=%v at %.0f%%: editor brightness relative to sheet = %+d", dark, 100*position, diff)
+			}
+		}
+	}
+}
+
 // Resize the static workspace to put different folds of the background behind
 // each surface. Compare a strip free of text with the same strip uncovered.
 func TestWorkspaceFrostedSurfacesTransmitBackground(t *testing.T) {
