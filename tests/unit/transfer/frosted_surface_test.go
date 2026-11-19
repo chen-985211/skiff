@@ -11,43 +11,46 @@ import (
 	"skiff/internal/contexts/transfer/presentation"
 )
 
-func TestWorkspaceFrostSheetHasOneToneOverMovingLight(t *testing.T) {
+func TestWorkspaceFrostSheetHasNoDecorativeMotion(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
-	scene := ui.NewTester(v.Render, 800, 560)
-	scene.Advance(time.Second)
+	var backdrop ui.Rect
+	scene := ui.NewTester(func(c *ui.Context) {
+		v.Render(c)
+		ui.Box(c).Absolute().Left(backdrop.X).Top(backdrop.Y).Width(backdrop.W).Height(backdrop.H).Background(ui.Hex("#aab2c0"))
+	}, 800, 560)
 	v.OpenNew()
 	scene.Frame()
 	scene.Advance(time.Second)
+	sheet, ok := scene.AccessByRole(ui.RoleDialog, "")
+	if !ok {
+		t.Fatal("missing expanded sheet")
+	}
+	// Give the glass a uniform backdrop while the rest of the workspace animates.
+	backdrop = sheet.Bounds
+	backdrop.X, backdrop.Y = backdrop.X-60, backdrop.Y-60
+	backdrop.W, backdrop.H = backdrop.W+120, backdrop.H+120
+	scene.Frame()
 	n, ok := scene.AccessByRole(ui.RoleTextField, "下载链接")
 	if !ok {
 		t.Fatal("missing expanded editor")
 	}
-	strip := func(x1, x2, y int) []byte {
+	x1, x2 := int(n.Bounds.X)+30, int(n.Bounds.X+n.Bounds.W)-30
+	strip := func(y int) []byte {
 		im := scene.Image()
 		return slices.Clone(im.Pix[im.PixOffset(x1, y):im.PixOffset(x2, y)])
 	}
-	x1, x2 := int(n.Bounds.X)+14, int(n.Bounds.X+n.Bounds.W)-14
 	y := int(n.Bounds.Y + n.Bounds.H/2)
-	initial, workspace := strip(x1, x2, y), strip(240, 650, 84)
-	// The lit face of the reference action sheet ranges from cool silver
-	// to near-neutral pearl. A blue-grey or paper-white fill misses it.
-	face := scene.Image().RGBAAt(x1, y)
-	if face.R < 230 || face.R > 239 || face.G < face.R || face.B < face.G || face.B-face.R > 8 {
-		t.Errorf("expected a light silver face, got %v", face)
-	}
-	titleGap := strip(x1, x2, int(n.Bounds.Y)-6)
-	footerGap := strip(x1, x2, int(n.Bounds.Y+n.Bounds.H)+6)
-	if !slices.Equal(initial, titleGap) || !slices.Equal(initial, footerGap) ||
-		!slices.Equal(initial[:len(initial)-4], initial[4:]) {
-		t.Error("the header, editor and footer should share one even frost")
+	initial, workspace := strip(y), strip(84)
+	if !slices.Equal(initial, strip(int(n.Bounds.Y)-5)) || !slices.Equal(initial, strip(int(n.Bounds.Y+n.Bounds.H)+5)) {
+		t.Error("the header, editor and footer should share one glass surface")
 	}
 	scene.Type("https://example.org/file")
 	scene.Advance(2 * time.Second)
-	if !slices.Equal(initial, strip(x1, x2, y)) {
-		t.Error("light moved across the open editor")
+	if !slices.Equal(initial, strip(y)) {
+		t.Error("the form added a moving light to a still backdrop")
 	}
-	if slices.Equal(workspace, strip(240, 650, 84)) {
+	if slices.Equal(workspace, strip(84)) {
 		t.Error("opening the sheet froze the workspace light")
 	}
 }
@@ -72,9 +75,7 @@ func TestWorkspaceOpeningSheetPreservesOutsideColor(t *testing.T) {
 	}
 }
 
-// Compare neighboring pixels on either side of the editor's top edge. Its
-// focused border can stand out; the fill should stay close to the glass.
-func TestWorkspaceFrostLinkFieldSharesSheetTone(t *testing.T) {
+func TestWorkspaceFrostLinkFieldHasAnOutlineAndNoFill(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
@@ -86,30 +87,37 @@ func TestWorkspaceFrostLinkFieldSharesSheetTone(t *testing.T) {
 		if !ok {
 			t.Fatal("missing link editor")
 		}
-		im := scene.Image()
-		luma := func(x, y int) int {
-			pixel := im.RGBAAt(x, y)
-			return (int(pixel.R)*21 + int(pixel.G)*72 + int(pixel.B)*7) / 100
-		}
-		for _, position := range []float32{.25, .50, .75} {
-			x, y := int(field.Bounds.X+field.Bounds.W*position), int(field.Bounds.Y)
-			diff := luma(x, y+4) - luma(x, y-4)
-			if diff > 4 || diff < -20 {
-				t.Errorf("dark=%v at %.0f%%: editor brightness relative to sheet = %+d", dark, 100*position, diff)
+		for _, focused := range []bool{true, false} {
+			if !focused {
+				if err := scene.Click("保存目录"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			im := scene.Image()
+			x, y := int(field.Bounds.X+field.Bounds.W/2), int(field.Bounds.Y)
+			outside, edge, inside := im.RGBAAt(x, y-2).G, im.RGBAAt(x, y).G, im.RGBAAt(x, y+3).G
+			if max(outside, edge)-min(outside, edge) < 8 || max(outside, inside)-min(outside, inside) > 5 {
+				t.Errorf("dark=%v focused=%v: surrounding %d, outline %d, interior %d", dark, focused, outside, edge, inside)
 			}
 		}
 	}
 }
 
-func TestWorkspaceFrostSubmitSharesSheetTone(t *testing.T) {
+func TestWorkspaceFrostSubmitKeepsPrimaryButtonColor(t *testing.T) {
 	for _, opts := range []ui.TesterOptions{
 		{}, {Dark: true}, {Preferences: ui.Preferences{ReduceTransparency: true}},
 		{Dark: true, Preferences: ui.Preferences{HighContrast: true}},
 	} {
 		v := presentation.New(nil, presentation.Actions{})
-		v.Ready, v.DialogOpen = true, true
+		v.Ready = true
 		opts.Preferences.ReduceMotion = true
 		scene := ui.NewTesterWith(v.Render, 1020, 680, opts)
+		dock, ok := scene.AccessByRole(ui.RoleButton, "新建下载")
+		if !ok {
+			t.Fatal("missing primary button in dock")
+		}
+		accent := scene.Image().RGBAAt(int(dock.Bounds.X+dock.Bounds.W/2), int(dock.Bounds.Y)+6)
+		v.OpenNew()
 		for _, busy := range []bool{false, true} {
 			v.Busy = busy
 			scene.Frame()
@@ -121,14 +129,14 @@ func TestWorkspaceFrostSubmitSharesSheetTone(t *testing.T) {
 			x, y := int(r.X+r.W/2), int(r.Y)
 			im := scene.Image()
 			inside, outside := im.RGBAAt(x, y+5), im.RGBAAt(x, y-4)
-			if inside != outside {
-				t.Errorf("options=%+v busy=%v: submit fill %v breaks away from sheet %v", opts, busy, inside, outside)
+			if !busy && inside != accent || busy && (inside == accent || inside == outside) {
+				t.Errorf("dark=%v busy=%v: submit %v, primary %v, background %v", opts.Dark, busy, inside, accent, outside)
 			}
 		}
 	}
 }
 
-func TestWorkspaceFrostRefractsBackdropAtSheetEdge(t *testing.T) {
+func TestWorkspaceFrostDiffusesBackdropThroughoutSheet(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready, v.DialogOpen = true, true
 	var band ui.Rect
@@ -142,18 +150,26 @@ func TestWorkspaceFrostRefractsBackdropAtSheetEdge(t *testing.T) {
 		t.Fatal("missing expanded sheet")
 	}
 	r := sheet.Bounds
-	// Place a band well inside the sheet. The curved top edge should pick up
-	// its reflection, with an unaffected gap between the edge and the band.
+	// The band should show through the face, soften beyond its lower edge,
+	// and reflect more strongly in the top rim than in the gap below the rim.
 	band = ui.Rect{X: r.X, Y: r.Y + 28, W: r.W, H: 52}
-	sample := func() (int, int) {
+	sample := func() (rim, gap, middle, below int) {
 		scene.Frame()
 		im := scene.Image()
 		x, y := int(r.X+r.W*.76), int(r.Y)
-		return int(im.RGBAAt(x, y+2).G), int(im.RGBAAt(x, y+14).G)
+		at := func(y int) int { return int(im.RGBAAt(x, y).G) }
+		return at(y + 2), at(y + 14), at(y + 60), at(int(band.Y+band.H) + 12)
 	}
-	darkRim, darkGap := sample()
+	darkRim, darkGap, darkCenter, darkOutside := sample()
 	ink = ui.Hex("#ffffff")
-	lightRim, lightGap := sample()
+	lightRim, lightGap, lightCenter, lightOutside := sample()
+	transmission := lightCenter - darkCenter
+	if transmission < 55 || transmission > 190 {
+		t.Errorf("expected the broad backdrop band to show through the interior; got %+d", transmission)
+	}
+	if lightOutside-darkOutside < transmission/7 {
+		t.Errorf("backdrop band did not diffuse 12 points beyond its edge: %+d of %d", lightOutside-darkOutside, transmission)
+	}
 	if lightRim-darkRim < lightGap-darkGap+12 {
 		t.Fatalf("backdrop change at the rim %+d, in the gap %+d", lightRim-darkRim, lightGap-darkGap)
 	}
@@ -183,7 +199,7 @@ func TestWorkspaceFrostedSurfacesTransmitBackground(t *testing.T) {
 					var pixels []color.RGBA
 					y := rect.Y + 12
 					if surface == "sheet" {
-						y = rect.Y + 2 // Only the polished rim transmits the backdrop.
+						y = rect.Y + rect.H/2 // Inside the editor, clear of its text and outline.
 					}
 					for x := int(rect.X + rect.W*.58); x < int(rect.X+rect.W*.90); x += 3 {
 						pixels = append(pixels, im.RGBAAt(x, int(y)))

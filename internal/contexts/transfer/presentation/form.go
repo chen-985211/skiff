@@ -88,8 +88,7 @@ func (v *View) composeFields(c *ui.Context, p palette) {
 		Description("支持 HTTP 和 HTTPS 链接").AutoFocus().Disabled(v.Busy)
 	edge, focusEdge := p.border, p.active
 	if !c.Preferences().HighContrast {
-		edge = p.rim.Alpha(.34)
-		focusEdge = p.active.Mix(p.haze, .25).Alpha(.60)
+		edge, focusEdge = p.muted.Alpha(.36), p.active.Alpha(.65)
 	}
 	if links.Focused() {
 		edge = focusEdge
@@ -104,26 +103,10 @@ func (v *View) composeFields(c *ui.Context, p palette) {
 	}
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
 		v.composeDestination(c, p)
-		if composeSubmit(c, p, v.Busy).Clicked() {
+		if primaryAction(c, "开始下载", "download", v.Busy).Width(106).Shrink(0).FocusRing(true).Clicked() {
 			v.submit()
 		}
 	})
-}
-
-func composeSubmit(c *ui.Context, p palette, busy bool) ui.Element {
-	const title = "开始下载"
-	b := ui.ButtonBase(c).Label(title).Disabled(busy).Width(106).Height(36).Shrink(0).
-		Radius(18).PaddingX(12).FocusRing(true).Transition(controlMotion)
-	if b.Pressed() {
-		b.Background(p.tint.Mix(p.haze, .36))
-	} else if b.Hovered() {
-		b.Background(p.tint.Mix(p.panel, .54))
-	}
-	b.Border(1, p.border)
-	if !c.Preferences().ReduceTransparency && !c.Preferences().HighContrast {
-		b.BorderLinearGradient(ui.LinearGradient{Angle: 145, From: p.rim.Alpha(.88), To: p.haze.Alpha(.64)})
-	}
-	return b.Children(func() { actionLabel(c, title, "download", c.Theme().Text) })
 }
 
 func (v *View) composeDestination(c *ui.Context, p palette) {

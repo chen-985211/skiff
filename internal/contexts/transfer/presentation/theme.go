@@ -67,16 +67,10 @@ func surface(c *ui.Context, e ui.Element, p palette, radius float32, finish glas
 	}
 
 	if finish == sheetFrost {
-		// Only the bevel samples the workspace. The frosted face keeps a single
-		// tone while the light behind it moves.
-		return e.Material(glass.Glass{Style: glass.Clear, Tint: p.sheetFace.Alpha(.16)}).Draw(func(painter *ui.Painter, r ui.Rect) {
-			// Feather the ground face into the narrow polished edge.
-			for i, opacity := range [...]float32{.18, .36, .62, 1} {
-				inset := float32(i + 1)
-				face := ui.Rect{X: r.X + inset, Y: r.Y + inset, W: r.W - 2*inset, H: r.H - 2*inset}
-				painter.Fill(face, p.sheetFace.Alpha(opacity), radius-inset)
-			}
-		}).InsetShadow(0, -1, 2, 0, p.haze.Alpha(.32))
+		// Diffuse the backdrop before refracting it, keeping the silver tint light.
+		return e.Material(glass.Blur{Radius: 20}).Draw(func(painter *ui.Painter, r ui.Rect) {
+			glass.Paint(painter, r, radius, glass.Glass{Style: glass.Clear, Tint: p.sheetFace.Alpha(.28)})
+		})
 	}
 
 	wash := ui.LinearGradient{Angle: 115, Stops: []ui.GradientStop{
@@ -110,13 +104,11 @@ func primaryAction(c *ui.Context, title, icon string, disabled bool) ui.Element 
 	} else if b.Hovered() {
 		fill = t.AccentHover
 	}
-	return b.Background(fill).Children(func() { actionLabel(c, title, icon, t.AccentText) })
-}
-
-func actionLabel(c *ui.Context, title, icon string, ink ui.Color) {
-	ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(7).Children(func() {
-		ui.Icon(c, icons[icon]).FontSize(15).TextColor(ink)
-		ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(ink)
+	return b.Background(fill).Children(func() {
+		ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(7).Children(func() {
+			ui.Icon(c, icons[icon]).FontSize(15).TextColor(t.AccentText)
+			ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(t.AccentText)
+		})
 	})
 }
 
