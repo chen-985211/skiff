@@ -14,7 +14,7 @@ import (
 
 // Sample the uninterrupted area between the filename and the progress
 // track. Both compact and expanded cards should have their own moving face.
-func TestCardMaterialIlluminatesInterior(t *testing.T) {
+func TestRenderCardMaterialIlluminatesInterior(t *testing.T) {
 	for _, tc := range []struct {
 		name, status        string
 		detail, dark, still bool
@@ -102,7 +102,7 @@ func changedFraction(before, after []color.RGBA, threshold int) float64 {
 
 // In the open area below the cards, most of the contrast comes from broad
 // folds. Fine reflections can come and go as the surface turns.
-func TestWindowLightKeepsBroadTonalFolds(t *testing.T) {
+func TestRenderWindowLightKeepsBroadTonalFolds(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
@@ -133,7 +133,7 @@ func TestWindowLightKeepsBroadTonalFolds(t *testing.T) {
 	}
 }
 
-func TestWindowLightLeftFoldReflectsIceAndLilac(t *testing.T) {
+func TestRenderWindowLightLeftFoldReflectsIceAndLilac(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
@@ -161,7 +161,7 @@ func TestWindowLightLeftFoldReflectsIceAndLilac(t *testing.T) {
 	}
 }
 
-func TestWindowLightLowerRightPalette(t *testing.T) {
+func TestRenderWindowLightLowerRightPalette(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
@@ -196,7 +196,7 @@ func TestWindowLightLowerRightPalette(t *testing.T) {
 	}
 }
 
-func TestWindowLightKeepsRelativePositionOnResize(t *testing.T) {
+func TestRenderWindowLightKeepsRelativePositionOnResize(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
@@ -275,7 +275,7 @@ func TestCardMaterialExpandsAndReversesFromCurrentSize(t *testing.T) {
 	}
 }
 
-func TestCardMaterialStaysVisibleOnHeaderHover(t *testing.T) {
+func TestRenderCardMaterialStaysVisibleOnHeaderHover(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "complete"}}

@@ -2,7 +2,6 @@ package transfer_test
 
 import (
 	"context"
-	"github.com/egoist/mygo/ui"
 	"path/filepath"
 	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/domain"
@@ -77,7 +76,7 @@ func TestUnsupportedResumeViewExplainsAndConfirmsRestart(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "file.zip", Status: "error", Error: "服务器不支持断点续传，请从头下载", CanRestart: true}}
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if !tt.HasText("服务器不支持断点续传，请从头下载") {
 		t.Fatal("resume failure is hidden")
 	}

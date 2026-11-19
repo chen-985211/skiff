@@ -18,7 +18,7 @@ func TestWorkspaceSearchCountSitsAboveFirstCard(t *testing.T) {
 		{ID: "b", Name: "archive-b.zip", Status: "paused", CanResume: true},
 		{ID: "a", Name: "archive-a.zip", Status: "paused", CanResume: true},
 	}
-	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 1020, 680)
 	for _, tc := range []struct {
 		query     string
 		engineErr error
@@ -45,7 +45,7 @@ func TestWorkspaceEngineFailureKeepsCardAndSearchCountInPlace(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready, v.Query = true, "archive"
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "archive.zip", Status: "complete"}}
-	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 1020, 680)
 	card, foundCard := tt.Find("archive.zip")
 	count, foundCount := tt.Find("1 个结果")
 	if !foundCard || !foundCount {
@@ -69,7 +69,7 @@ func TestWorkspaceBatchActionAlignsWithBrandAndCardGrid(t *testing.T) {
 	for _, name := range []string{"other.zip", "match-b.zip", "match-a.zip"} {
 		v.Snapshot.Tasks = append(v.Snapshot.Tasks, application.TaskDTO{ID: name, Name: name, Status: "paused", CanResume: true})
 	}
-	tt := ui.NewTesterWith(v.Render, 800, 800, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 800, 800)
 	tt.SetTitleBar(ui.TitleBar{Bottom: 33})
 	get := func(label string) ui.Rect {
 		t.Helper()
@@ -115,7 +115,7 @@ func TestWorkspaceCardsKeepTheirSizeAndAlignmentOnResize(t *testing.T) {
 		{ID: "a", Name: "first.zip", Status: "active", CanPause: true},
 	}
 	const height = 800
-	tt := ui.NewTesterWith(v.Render, 800, height, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 800, height)
 	tt.SetTitleBar(ui.TitleBar{Bottom: 33})
 	for _, size := range []struct{ width, columns int }{{800, 1}, {1000, 2}, {1200, 2}, {1440, 3}, {2016, 5}, {830, 1}} {
 		tt.SetSize(size.width, height)
@@ -159,7 +159,7 @@ func TestWorkspaceCardsKeepTheirSizeAndAlignmentOnResize(t *testing.T) {
 func TestWorkspaceDownloadSheetSharesTheSearchBarAnchor(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
-	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 1020, 680)
 	bar, found := tt.AccessByRole(ui.RoleToolbar, "下载工具栏")
 	if !found {
 		t.Fatal("missing download toolbar")
@@ -181,13 +181,13 @@ func TestWorkspaceFirstPaintAndPartialRowUseTheSameColumns(t *testing.T) {
 	}
 	// A new grid has no previous measurement. Also check the bottom row,
 	// where the empty third place must not shift the second card sideways.
-	tt := ui.NewTesterWith(v.Render, 1440, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 1440, 680)
 	top, _ := tt.Find("查看详情 b")
 	bottom, _ := tt.Find("查看详情 e")
 	if top.X != bottom.X || top.W != bottom.W || top.Y >= bottom.Y {
 		t.Errorf("partial row moved its second column: %v -> %v", top, bottom)
 	}
-	tt = ui.NewTesterWith(v.Render, 800, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt = interactionScene(v, 800, 680)
 	narrow, _ := tt.Find("查看详情 a")
 	if narrow.W != top.W {
 		t.Errorf("first paint: header width %.1f, want %.1f", narrow.W, top.W)
@@ -198,7 +198,7 @@ func TestWorkspaceDetailAlignsWithNavigationAndCollapsesInPlace(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "active", CanPause: true}}
-	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 1020, 680)
 	if err := tt.Click("查看详情 one.zip"); err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +224,7 @@ func TestWorkspaceDetailAlignsWithNavigationAndCollapsesInPlace(t *testing.T) {
 	}
 }
 
-func TestWorkspaceCategoryContentFadesAcrossFrames(t *testing.T) {
+func TestRenderWorkspaceCategoryContentFadesAcrossFrames(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "active", Total: 100, Progress: 1}}
@@ -252,7 +252,7 @@ func TestWorkspaceInterruptExpansionFromEmptySpace(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip"}}
-	tt := ui.NewTester(v.Render, 1020, 680)
+	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
 	if err := tt.Click("查看详情 one.zip"); err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +270,7 @@ func TestWorkspaceInterruptExpansionFromEmptySpace(t *testing.T) {
 	}
 }
 
-func TestWorkspaceTerminalTracksUseQuietSteelInBothThemes(t *testing.T) {
+func TestRenderWorkspaceTerminalTracksUseQuietSteelInBothThemes(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		for _, status := range []string{"error", "complete"} {
 			v := presentation.New(nil, presentation.Actions{})
@@ -303,7 +303,7 @@ func TestWorkspaceCardBodyOpensDetailAndKeepsActionsIndependent(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{Reveal: func(path string) error { revealed = path; return nil }})
 	v.Ready = true
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: "active", Path: "/downloads/one.zip", CanPause: true, Total: 100, Progress: .4}}
-	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 1020, 680)
 	if err := tt.Click("在文件夹中显示"); err != nil {
 		t.Fatal(err)
 	}
@@ -334,6 +334,7 @@ func TestWorkspaceCardContentAlignsAcrossPreviewAndDetail(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "photo.jpg", Status: "complete", Total: 8388608, URL: "https://example.org/photo.jpg", Path: "/downloads/photo.jpg"}}
+	// The translucent card has a different border inset from its opaque fallback.
 	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
 	get := func(label string) ui.Rect {
 		t.Helper()
@@ -395,7 +396,7 @@ func TestWorkspaceDetailFieldsStayInPlaceWhenDownloadCompletes(t *testing.T) {
 		ID: "a", Name: "photo.jpg", URL: "https://example.org/photo.jpg", Path: "/downloads/photo.jpg",
 		Status: "active", CanPause: true, Total: 100, Completed: 54, Progress: .54,
 	}}
-	tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 1020, 680)
 	if err := tt.Click("查看详情 photo.jpg"); err != nil {
 		t.Fatal(err)
 	}

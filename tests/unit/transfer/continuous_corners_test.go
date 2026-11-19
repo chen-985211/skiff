@@ -10,7 +10,7 @@ import (
 // Near the top edge of a 36-DIP corner, the continuous shoulder still curves
 // past x=31. A circular arc already covers this point. Sample at 4× to see
 // the difference independently of display scale and antialiasing.
-func TestWorkspaceContinuousCornerSilhouettes(t *testing.T) {
+func TestRenderWorkspaceContinuousCornerSilhouettes(t *testing.T) {
 	for _, clip := range []bool{false, true} {
 		scene := ui.NewTester(func(c *ui.Context) {
 			white := ui.Hex("#ffffff")

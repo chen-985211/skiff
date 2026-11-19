@@ -34,7 +34,7 @@ func TestWorkspaceDetailUsesAFourCellFootprint(t *testing.T) {
 			name := fmt.Sprintf("task-%d.zip", i)
 			v.Snapshot.Tasks = append(v.Snapshot.Tasks, application.TaskDTO{ID: name, Name: name, Status: "complete"})
 		}
-		tt := ui.NewTesterWith(v.Render, tc.width, tc.height, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+		tt := interactionScene(v, tc.width, tc.height)
 		name := fmt.Sprintf("task-%d.zip", tc.index)
 		peer, _ := tt.Find("查看详情 task-1.zip")
 		source, _ := tt.AccessByRole(ui.RoleGroup, name)
@@ -76,7 +76,7 @@ func TestWorkspaceDetailAnchorsToScrolledSearchResults(t *testing.T) {
 		v.Snapshot.Tasks = append(v.Snapshot.Tasks, application.TaskDTO{ID: name, Name: name, Status: "complete"})
 	}
 	v.Snapshot.Tasks = append(v.Snapshot.Tasks, application.TaskDTO{ID: "other", Name: "other.zip"})
-	tt := ui.NewTesterWith(v.Render, 1440, 760, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 1440, 760)
 	tt.Scroll(600, 400, 0, 175)
 	const name = "match-11.zip"
 	source, found := tt.AccessByRole(ui.RoleGroup, name)
@@ -101,7 +101,7 @@ func TestCardMaterialReopensDuringContraction(t *testing.T) {
 		name := fmt.Sprintf("task-%d.zip", i)
 		v.Snapshot.Tasks = append(v.Snapshot.Tasks, application.TaskDTO{ID: name, Name: name, Status: "complete"})
 	}
-	tt := ui.NewTester(v.Render, 1440, 800)
+	tt := ui.NewTesterWith(v.Render, 1440, 800, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
 	tt.Advance(time.Second)
 	bounds := func() ui.Rect {
 		t.Helper()

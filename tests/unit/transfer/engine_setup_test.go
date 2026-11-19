@@ -61,7 +61,7 @@ func TestWorkspaceOffersEngineDownloadInPlace(t *testing.T) {
 	clicks := 0
 	v := presentation.New(nil, presentation.Actions{DownloadEngine: func() { clicks++ }})
 	v.OfferEngineDownload(nil)
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if _, offered := tt.AccessByRole(ui.RoleButton, "下载引擎"); !offered || tt.HasText("新建下载") || clicks != 0 {
 		t.Fatal(tt.Texts())
 	}

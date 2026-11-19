@@ -1,4 +1,4 @@
-.PHONY: run dev test test-integration format-check check-ui check package
+.PHONY: run dev test test-integration test-race format-check check-ui check package
 
 run:
 	go run ./cmd/skiff
@@ -12,16 +12,20 @@ test:
 test-integration:
 	go test -tags integration ./tests/integration/... -v
 
+test-race:
+	go test -race -timeout=30m -tags integration ./...
+
 format-check:
 	@test -z "$$(gofmt -l cmd internal tests)" || (gofmt -l cmd internal tests; exit 1)
 
 check-ui:
 	go test -count=1 ./tests/contract -run '^TestInterfacePolicy'
-	go test -count=1 ./tests/unit/transfer -run '^Test(Settings|CategorySelection|WindowLight|CardMaterial|PrimaryTaskControls|SheetExpands|PauseInterpolates|Workspace|TransferFlow)'
+	go test ./tests/unit/transfer
 
 check: format-check
-	go vet ./...
-	go test -race -tags integration ./...
+	go vet -tags integration ./...
+	go test -run '^TestRender' -tags integration ./...
+	go test -race -skip '^TestRender' -tags integration ./...
 	go build -o build/skiff ./cmd/skiff
 
 package:

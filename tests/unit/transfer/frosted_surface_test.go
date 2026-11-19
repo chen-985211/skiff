@@ -11,7 +11,7 @@ import (
 	"skiff/internal/contexts/transfer/presentation"
 )
 
-func TestWorkspaceFrostSheetHasNoDecorativeMotion(t *testing.T) {
+func TestRenderWorkspaceFrostSheetHasNoDecorativeMotion(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	var backdrop ui.Rect
@@ -55,7 +55,7 @@ func TestWorkspaceFrostSheetHasNoDecorativeMotion(t *testing.T) {
 	}
 }
 
-func TestWorkspaceOpeningSheetPreservesOutsideColor(t *testing.T) {
+func TestRenderWorkspaceOpeningSheetPreservesOutsideColor(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
@@ -75,7 +75,7 @@ func TestWorkspaceOpeningSheetPreservesOutsideColor(t *testing.T) {
 	}
 }
 
-func TestWorkspaceFrostLinkFieldHasAnOutlineAndNoFill(t *testing.T) {
+func TestRenderWorkspaceFrostLinkFieldHasAnOutlineAndNoFill(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
@@ -103,7 +103,7 @@ func TestWorkspaceFrostLinkFieldHasAnOutlineAndNoFill(t *testing.T) {
 	}
 }
 
-func TestWorkspaceFrostSubmitKeepsPrimaryButtonColor(t *testing.T) {
+func TestRenderWorkspaceFrostSubmitKeepsPrimaryButtonColor(t *testing.T) {
 	for _, opts := range []ui.TesterOptions{
 		{}, {Dark: true}, {Preferences: ui.Preferences{ReduceTransparency: true}},
 		{Dark: true, Preferences: ui.Preferences{HighContrast: true}},
@@ -136,7 +136,7 @@ func TestWorkspaceFrostSubmitKeepsPrimaryButtonColor(t *testing.T) {
 	}
 }
 
-func TestWorkspaceFrostDiffusesBackdropThroughoutSheet(t *testing.T) {
+func TestRenderWorkspaceFrostDiffusesBackdropThroughoutSheet(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready, v.DialogOpen = true, true
 	var band ui.Rect
@@ -177,7 +177,7 @@ func TestWorkspaceFrostDiffusesBackdropThroughoutSheet(t *testing.T) {
 
 // Resize the static workspace to put different folds of the background behind
 // each surface. Compare a strip free of text with the same strip uncovered.
-func TestWorkspaceFrostedSurfacesTransmitBackground(t *testing.T) {
+func TestRenderWorkspaceFrostedSurfacesTransmitBackground(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		opts := ui.TesterOptions{Dark: dark, Preferences: ui.Preferences{ReduceMotion: true}}
 		for _, surface := range []string{"selection", "sheet"} {
@@ -231,7 +231,7 @@ func TestWorkspaceFrostedSurfacesTransmitBackground(t *testing.T) {
 
 // In either accessibility mode the selected row and the sheet should use the
 // same opaque surface, even though they cover different parts of the window.
-func TestWorkspaceFrostUsesSolidAccessibleSurfaces(t *testing.T) {
+func TestRenderWorkspaceFrostUsesSolidAccessibleSurfaces(t *testing.T) {
 	for _, prefs := range []ui.Preferences{{ReduceTransparency: true}, {HighContrast: true}} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true

@@ -11,7 +11,7 @@ import (
 	"skiff/internal/contexts/transfer/presentation"
 )
 
-func TestSheetExpandsWithoutShiftingButtonLabelOnClick(t *testing.T) {
+func TestRenderSheetExpandsWithoutShiftingButtonLabelOnClick(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready, v.Snapshot.Preferences.StaticBackground = true, true
 	tt := ui.NewTester(v.Render, 1020, 680)
@@ -46,7 +46,7 @@ func TestSheetExpandsAndReversesWithOneHeightTarget(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready, v.Snapshot.Preferences.StaticBackground = true, true
 	v.URLs = "one\ntwo\nthree\nfour\nfive\nsix"
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
 	tt.Advance(time.Second)
 	button, _ := tt.Find("新建下载")
 	tt.Key(ui.Cmd, ui.KeyN)
@@ -77,7 +77,7 @@ func TestSheetExpandsFromButtonAndReversesInPlace(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.URLs = "https://example.org/draft.zip"
-	tt := ui.NewTester(v.Render, 1000, 640)
+	tt := ui.NewTesterWith(v.Render, 1000, 640, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
 	tt.Advance(time.Second)
 	trigger, ok := tt.AccessByRole(ui.RoleButton, "新建下载")
 	if !ok {
@@ -142,7 +142,7 @@ func TestSheetExpandsFromButtonAndReversesInPlace(t *testing.T) {
 func TestSheetExpandsAgainWhenReturningButtonIsClicked(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
 	button, _ := tt.Find("新建下载")
 	clickButton := func() { tt.ClickAt(button.X+button.W/2, button.Y+button.H/2) }
 	clickButton()
@@ -162,7 +162,7 @@ func TestSheetExpandsAgainWhenReturningButtonIsClicked(t *testing.T) {
 	}
 }
 
-func TestSheetDismissalStartsWithTheVisibleForm(t *testing.T) {
+func TestRenderSheetDismissalStartsWithTheVisibleForm(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready, v.DialogOpen = true, true
 	tt := ui.NewTester(v.Render, 800, 560)

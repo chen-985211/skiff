@@ -36,7 +36,7 @@ func TestSettingsListAlignsRowsAndKeepsFullPathAccessible(t *testing.T) {
 
 // Measure the rendered track, so both a snapped thumb and a one-frame color
 // change can be detected without exposing animation state to tests.
-func TestSettingsSwitchReversesInFlight(t *testing.T) {
+func TestRenderSettingsSwitchReversesInFlight(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
@@ -88,7 +88,7 @@ func TestSettingsSwitchReversesInFlight(t *testing.T) {
 	}
 }
 
-func TestSettingsSelectionTravelsThroughSidebar(t *testing.T) {
+func TestRenderSettingsSelectionTravelsThroughSidebar(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
@@ -108,7 +108,7 @@ func TestSettingsSelectionTravelsThroughSidebar(t *testing.T) {
 	t.Fatal("selection disappeared from the categories and appeared directly at settings")
 }
 
-func TestSettingsThemeFollowsSystemAndRestoresOverride(t *testing.T) {
+func TestRenderSettingsThemeFollowsSystemAndRestoresOverride(t *testing.T) {
 	repo := &fakeRepo{}
 	s := service(t, &fakeEngine{}, repo)
 	done := make(chan func(), 1)
@@ -188,7 +188,7 @@ func TestSettingsThemeFollowsSystemAndRestoresOverride(t *testing.T) {
 	}
 }
 
-func TestSettingsSidebarKeepsSelectedLabelAboveHighlight(t *testing.T) {
+func TestRenderSettingsSidebarKeepsSelectedLabelAboveHighlight(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Dark: true, Preferences: ui.Preferences{ReduceMotion: true, ReduceTransparency: true}})
 	for _, name := range []string{"全部任务", "设置"} {
@@ -262,7 +262,7 @@ func TestSettingsThemeKeepsLatestChoiceDuringSaveAndRevertsOnFailure(t *testing.
 	}
 }
 
-func TestSettingsFlowSwitchFreezesImmediatelyWithoutDimmingThePage(t *testing.T) {
+func TestRenderSettingsFlowSwitchFreezesImmediatelyWithoutDimmingThePage(t *testing.T) {
 	s := service(t, &fakeEngine{}, &fakeRepo{})
 	done := make(chan func(), 1)
 	v := presentation.New(s, presentation.Actions{
@@ -311,7 +311,7 @@ func TestSettingsFlowSwitchFreezesImmediatelyWithoutDimmingThePage(t *testing.T)
 	}
 }
 
-func TestSettingsThemeHasNoAbruptBrightnessStep(t *testing.T) {
+func TestRenderSettingsThemeHasNoAbruptBrightnessStep(t *testing.T) {
 	s := service(t, &fakeEngine{}, &fakeRepo{})
 	done := make(chan func(), 1)
 	v := presentation.New(s, presentation.Actions{Dispatch: func(f func()) { done <- f }})

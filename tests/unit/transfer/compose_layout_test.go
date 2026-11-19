@@ -14,7 +14,7 @@ func TestComposeLinkFieldGrowsWithinTheAnchoredSheet(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.OpenNew()
-	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 800, 560)
 	links := func() ui.Rect {
 		t.Helper()
 		n, ok := tt.AccessByRole(ui.RoleTextField, "下载链接")
@@ -64,7 +64,7 @@ func TestComposeDirectoryPickerBelongsToThePath(t *testing.T) {
 	v.Ready = true
 	v.Snapshot.Directory = initial
 	v.OpenNew()
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	picker, ok := tt.AccessByRole(ui.RoleButton, "选择保存目录")
 	path, hasPath := tt.AccessByRole(ui.RoleTextField, "保存目录")
 	if !ok || !hasPath {
@@ -99,7 +99,7 @@ func TestComposeDirectoryPickerBelongsToThePath(t *testing.T) {
 	}
 }
 
-func TestComposeLongDirectoryShowsBothEnds(t *testing.T) {
+func TestRenderComposeLongDirectoryShowsBothEnds(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready, v.DialogOpen = true, true
 	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true, ReduceTransparency: true}})

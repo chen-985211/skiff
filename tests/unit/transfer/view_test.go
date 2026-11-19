@@ -18,7 +18,7 @@ func TestEmptyDownloadViewAndNewDownloadValidation(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Snapshot.Directory = "/downloads"
-	tt := ui.NewTester(v.Render, 1000, 650)
+	tt := interactionScene(v, 1000, 650)
 	if !tt.HasText("还没有下载任务") {
 		t.Fatalf("empty state missing: %v", tt.Texts())
 	}
@@ -28,7 +28,6 @@ func TestEmptyDownloadViewAndNewDownloadValidation(t *testing.T) {
 	if !v.DialogOpen {
 		t.Fatal("new download did not open")
 	}
-	tt.Advance(time.Second)
 	if err := tt.Click("开始下载"); err != nil {
 		t.Fatal(err)
 	}
@@ -44,13 +43,13 @@ func TestDownloadViewFiltersAndShowsActualTaskProgress(t *testing.T) {
 		{ID: "b", Name: "done.zip", URL: "https://example.com/done.zip", Status: "complete", Progress: 1},
 	}}
 	v.Filter = "complete"
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if !tt.HasText("done.zip") || tt.HasText("active.zip") {
 		t.Fatalf("filter incorrect: %v", tt.Texts())
 	}
 	v.Filter = "all"
 	v.Query = "active"
-	tt = ui.NewTester(v.Render, 800, 560)
+	tt = interactionScene(v, 800, 560)
 	if !tt.HasText("active.zip") || tt.HasText("done.zip") {
 		t.Fatalf("search incorrect: %v", tt.Texts())
 	}
@@ -58,7 +57,7 @@ func TestDownloadViewFiltersAndShowsActualTaskProgress(t *testing.T) {
 func TestEngineStartupErrorIsVisibleAndDisablesNewDownload(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.EngineError = errors.New("没有找到 aria2c")
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if !tt.HasText("没有找到 aria2c") {
 		t.Fatal("engine failure hidden")
 	}
@@ -79,7 +78,7 @@ func TestDownloadFormFitsMinimumWindowInBothThemes(t *testing.T) {
 		v.Ready = true
 		v.Directory = "/downloads"
 		v.DialogOpen = true
-		tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Dark: dark})
+		tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Dark: dark, Preferences: ui.Preferences{ReduceMotion: true, ReduceTransparency: true}})
 		for _, name := range []string{"下载链接", "保存目录", "开始下载"} {
 			rect, ok := tt.Find(name)
 			if !ok || rect.X < 0 || rect.Y < 0 || rect.X+rect.W > 800 || rect.Y+rect.H > 560 {
@@ -98,7 +97,7 @@ func TestWorkspaceSpeedOnlyAppearsOnVisibleActiveTasks(t *testing.T) {
 		{ID: "c", Name: "c.iso", Status: "complete"},
 	}}
 	v.Filter, v.Query = "complete", "ZIP"
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	for _, label := range []string{"1 个结果", "b.zip"} {
 		if !tt.HasText(label) {
 			t.Errorf("missing %q in filtered workspace: %v", label, tt.Texts())
@@ -122,7 +121,7 @@ func TestWorkspaceEmptySearchClearsFromSearchField(t *testing.T) {
 	v.Ready = true
 	v.Filter, v.Query = "paused", "missing"
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "archive.zip", Status: "paused"}}
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if !tt.HasText("没有匹配的任务") {
 		t.Fatalf("missing search empty state: %v", tt.Texts())
 	}
@@ -144,7 +143,7 @@ func TestNewDownloadKeepsCurrentFormAndCountsNonblankLines(t *testing.T) {
 	v.Directory = "/selected"
 	v.URLs = "https://example.org/a\n \nhttps://example.org/b\n"
 	v.OpenNew()
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if v.Directory != "/selected" || !tt.HasText("已输入 2 行") {
 		t.Fatalf("form lost its directory or batch count: %q, %v", v.Directory, tt.Texts())
 	}
@@ -161,7 +160,7 @@ func TestWorkspaceEmptyCategoriesUseSidebarForAllTasks(t *testing.T) {
 			v := presentation.New(nil, presentation.Actions{})
 			v.Ready = true
 			v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "archive.zip", Status: tc.otherStatus}}
-			tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+			tt := interactionScene(v, 800, 560)
 			if err := tt.Click(tc.category); err != nil {
 				t.Fatal(err)
 			}
@@ -184,7 +183,7 @@ func TestWorkspaceEmptyCategoriesUseSidebarForAllTasks(t *testing.T) {
 func TestWorkspaceHasNoDecorativeHeadingsOrSubtitles(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	for _, copy := range []string{"SKIFF", "任务库", "传输概览", "粘贴 HTTP 或 HTTPS 链接，开始第一次下载。"} {
 		if tt.HasText(copy) {
 			t.Errorf("unexpected decorative text %q", copy)
@@ -201,7 +200,7 @@ func TestWorkspaceHasNoDecorativeHeadingsOrSubtitles(t *testing.T) {
 func TestSearchShortcutTargetsSearchAndDoesNotStealModalFocus(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	tt.Key(ui.Cmd, ui.KeyF)
 	tt.Type("skiff")
 	if v.Query != "skiff" {
@@ -223,12 +222,11 @@ func TestReopenedDraftKeepsDirectoryWithItsLinks(t *testing.T) {
 	v.OpenNew()
 	dir := t.TempDir()
 	v.Directory, v.URLs = dir, "https://example.org/draft.zip"
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	tt.Key(0, ui.KeyEscape)
 	if v.DialogOpen {
 		t.Fatal("escape did not dismiss form")
 	}
-	tt.Advance(time.Second)
 	if err := tt.Click("新建下载"); err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +244,7 @@ func TestWorkspaceBatchActionsFollowEligibleSearchResults(t *testing.T) {
 	updates := make(chan func(), 1)
 	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { updates <- fn }})
 	v.Snapshot, v.Query = s.Snapshot(), "visible"
-	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 800, 560)
 	click := func(label string) {
 		t.Helper()
 		if !tt.HasText(label) {
@@ -291,7 +289,7 @@ func TestWorkspaceBatchActionsFollowEligibleSearchResults(t *testing.T) {
 func TestWorkspaceShowsDestinationFolderName(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Snapshot.Directory = "/some/long/path/to/电影素材"
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if !slices.Contains(tt.Texts(), "电影素材") {
 		t.Fatal("destination name is truncated behind its ancestor directories")
 	}
@@ -300,7 +298,7 @@ func TestWorkspaceShowsDestinationFolderName(t *testing.T) {
 func TestOpeningDownloadPreservesCurrentCategory(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if err := tt.Click("正在下载"); err != nil {
 		t.Fatal(err)
 	}
@@ -316,7 +314,7 @@ func TestEditingDownloadLinksClearsStaleValidation(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready, v.DialogOpen = true, true
 	v.Directory = t.TempDir()
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if err := tt.Click("开始下载"); err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +339,7 @@ func TestTaskDetailsFollowFileIdentity(t *testing.T) {
 	dir := t.TempDir()
 	task := application.TaskDTO{ID: "a", Name: "manual.zip", URL: "https://example.org/docs/manual.zip", Directory: dir, Status: "paused"}
 	v.Snapshot.Tasks = []application.TaskDTO{task}
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if err := tt.Click("查看详情 manual.zip"); err != nil {
 		t.Fatal(err)
 	}
@@ -361,7 +359,7 @@ func TestTaskDetailsFollowFileIdentity(t *testing.T) {
 func TestSubmittingDialogKeepsResultVisibleUntilSubmissionReturns(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready, v.DialogOpen, v.Busy = true, true, true
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	tt.Key(0, ui.KeyEscape)
 	if !v.DialogOpen {
 		t.Fatal("escape discarded the dialog while its result was pending")
@@ -384,7 +382,7 @@ func TestWorkspacePartialCreationExplainsFailureInForm(t *testing.T) {
 	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { done <- fn }})
 	v.OpenNew()
 	v.URLs, v.Directory = "https://example.org/archive.zip", t.TempDir()
-	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 800, 560)
 	if err := tt.Click("开始下载"); err != nil {
 		t.Fatal(err)
 	}
@@ -410,7 +408,7 @@ func TestCardFailureActionsFitMinimumWindow(t *testing.T) {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
 		v.Snapshot.Tasks = []application.TaskDTO{{ID: "f", Name: strings.Repeat("很长的文件名", 20) + ".zip", Status: "error", Error: "远端服务器暂时无法访问", CanRestart: true, CanRetry: true}}
-		tt := ui.NewTesterWith(v.Render, 800, 528, ui.TesterOptions{Dark: dark, Preferences: ui.Preferences{ReduceMotion: true}})
+		tt := ui.NewTesterWith(v.Render, 800, 528, ui.TesterOptions{Dark: dark, Preferences: ui.Preferences{ReduceMotion: true, ReduceTransparency: true}})
 		for _, label := range []string{"查看详情 " + v.Snapshot.Tasks[0].Name, "远端服务器暂时无法访问", "从头下载", "移除任务（保留文件）"} {
 			r, ok := tt.Find(label)
 			if !ok || r.W <= 0 || r.X < 0 || r.X+r.W > 800 || r.Y+r.H > 528 {
@@ -424,7 +422,7 @@ func TestCardsOpenDetailsAndComposeFromTheDock(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one"}, {ID: "b", Name: "two"}}
-	tt := ui.NewTesterWith(v.Render, 1000, 640, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 1000, 640)
 	a, _ := tt.Find("查看详情 one")
 	b, _ := tt.Find("查看详情 two")
 	if a.Y != b.Y || a.X == b.X {
@@ -458,7 +456,7 @@ func TestRetryFailureIsReportedOnceOnItsCard(t *testing.T) {
 	updates := make(chan func(), 1)
 	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { updates <- fn }})
 	v.Snapshot = s.Snapshot()
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if err := tt.Click("重试下载"); err != nil {
 		t.Fatal(err)
 	}
@@ -490,7 +488,7 @@ func TestWorkspaceRemoveSaveFailureStaysInTaskList(t *testing.T) {
 	done := make(chan func(), 1)
 	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { done <- fn }})
 	v.Snapshot = s.Snapshot()
-	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	tt := interactionScene(v, 800, 560)
 	if err := tt.Click("移除任务（保留文件）"); err != nil {
 		t.Fatal(err)
 	}
@@ -516,7 +514,7 @@ func TestFailedCardMakesRecoveryVisible(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "failed", Name: "__down", Status: "error", Error: "下载引擎 HTTP 状态 400", CanRetry: true, CanRestart: true}}
-	tt := ui.NewTester(v.Render, 800, 528)
+	tt := interactionScene(v, 800, 528)
 	action, ok := tt.Find("重试下载")
 	if !ok || action.W < 72 || !slices.Contains(tt.Texts(), "下载失败") {
 		t.Fatalf("recovery action area %v, present %v: %v", action, ok, tt.Texts())
@@ -527,7 +525,7 @@ func TestSheetExpandsFromTheDockWhenOpened(t *testing.T) {
 	for _, reduce := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
-		tt := ui.NewTesterWith(v.Render, 1000, 640, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: reduce}})
+		tt := ui.NewTesterWith(v.Render, 1000, 640, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: reduce, ReduceTransparency: true}})
 		if err := tt.Click("新建下载"); err != nil {
 			t.Fatal(err)
 		}
@@ -550,7 +548,7 @@ func TestWorkspaceNavigationAndDockPositions(t *testing.T) {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
 		v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "archive.zip", Status: "paused", CanResume: true}}
-		tt := ui.NewTesterWith(v.Render, width, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+		tt := interactionScene(v, width, 600)
 		all, _ := tt.AccessByRole(ui.RoleButton, "全部任务")
 		paused, _ := tt.AccessByRole(ui.RoleButton, "已暂停")
 		search, _ := tt.Find("搜索下载任务")
@@ -575,7 +573,7 @@ func TestWorkspaceNavigationAndDockPositions(t *testing.T) {
 func TestQuietQueueKeepsActionsAndSuppressesRedundantCopy(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
-	tt := ui.NewTester(v.Render, 900, 600)
+	tt := interactionScene(v, 900, 600)
 	for _, redundant := range []string{"添加第一个下载", "0 B/s", "0"} {
 		if slices.Contains(tt.Texts(), redundant) {
 			t.Errorf("idle queue repeats %q", redundant)
@@ -600,7 +598,7 @@ func TestQuietQueueKeepsActionsAndSuppressesRedundantCopy(t *testing.T) {
 	}
 }
 
-func TestTransferFlowTracksActivityAndMotionPreference(t *testing.T) {
+func TestRenderTransferFlowTracksActivityAndMotionPreference(t *testing.T) {
 	for _, tc := range []struct {
 		name, status   string
 		total          int64
@@ -638,7 +636,7 @@ func TestTransferFlowTracksActivityAndMotionPreference(t *testing.T) {
 	}
 }
 
-func TestCategorySelectionTravelsAcrossIntermediateRow(t *testing.T) {
+func TestRenderCategorySelectionTravelsAcrossIntermediateRow(t *testing.T) {
 	for _, reduce := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
@@ -662,7 +660,7 @@ func TestCategorySelectionTravelsAcrossIntermediateRow(t *testing.T) {
 	}
 }
 
-func TestWindowLightMovesAtRestWithoutSidebarSeam(t *testing.T) {
+func TestRenderWindowLightMovesAtRestWithoutSidebarSeam(t *testing.T) {
 	for _, reduce := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
@@ -698,7 +696,7 @@ func TestPrimaryTaskControlsKeepTheirGeometryAcrossStates(t *testing.T) {
 	for i, tc := range []struct{ status, label string }{{"active", "暂停下载"}, {"paused", "继续下载"}, {"error", "重试下载"}, {"complete", "查看文件详情"}, {"waiting", "暂停下载"}} {
 		task := application.TaskDTO{ID: "a", Name: "a.zip", Status: tc.status, Total: 1024, Completed: 512, Progress: .5, CanPause: i == 0 || tc.status == "waiting", CanResume: i == 1, CanRetry: i == 2, CanRestart: i == 2}
 		v.Snapshot.Tasks = []application.TaskDTO{task}
-		tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+		tt := interactionScene(v, 900, 600)
 		b, ok := tt.AccessByRole(ui.RoleButton, tc.label)
 		if !ok {
 			t.Fatal(tc.label)
@@ -735,7 +733,7 @@ func TestPrimaryTaskControlsKeepTheirGeometryAcrossStates(t *testing.T) {
 	}
 }
 
-func TestPauseInterpolatesTheExistingProgressTrack(t *testing.T) {
+func TestRenderPauseInterpolatesTheExistingProgressTrack(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "same", Name: "sample.zip", Status: "active", CanPause: true, Total: 1024, Completed: 512, Progress: .5}}
@@ -760,7 +758,7 @@ func TestPauseInterpolatesTheExistingProgressTrack(t *testing.T) {
 	}
 }
 
-func TestCardMaterialFollowsTransferStatus(t *testing.T) {
+func TestRenderCardMaterialFollowsTransferStatus(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.Snapshot.Tasks = []application.TaskDTO{{ID: "same", Name: "clip.wav", Status: "paused", CanResume: true}}
@@ -808,7 +806,7 @@ func TestSidebarOpensTheDirectoryItShows(t *testing.T) {
 	var opened string
 	v := presentation.New(nil, presentation.Actions{OpenDirectory: func(path string, done func(error)) { opened = path; done(nil) }})
 	v.Snapshot.Directory = dir
-	tt := ui.NewTester(v.Render, 800, 560)
+	tt := interactionScene(v, 800, 560)
 	if err := tt.Click("打开下载目录"); err != nil {
 		t.Fatal(err)
 	}
