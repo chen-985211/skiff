@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -169,5 +170,29 @@ func TestEngineInterruptedDownloadPreservesInstalledFile(t *testing.T) {
 	b, err := os.ReadFile(path)
 	if err != nil || string(b) != "previous" {
 		t.Fatal("interrupted download changed the engine", err)
+	}
+}
+
+// Some transports reach EOF after cancellation instead of returning a read error.
+type canceledEngineResponse struct{ cancel context.CancelFunc }
+
+func (r canceledEngineResponse) RoundTrip(*http.Request) (*http.Response, error) {
+	reader, writer := io.Pipe()
+	go func() {
+		defer writer.Close()
+		_, _ = io.WriteString(writer, "partial archive")
+		r.cancel()
+	}()
+	return &http.Response{StatusCode: http.StatusOK, Body: reader}, nil
+}
+
+func TestCanceledEngineResponseEndingAtEOFReportsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	setup := aria2.NewInstallation(t.TempDir())
+	setup.Release.URL = "https://engine.test/aria2c.tar.gz"
+	setup.Client = &http.Client{Transport: canceledEngineResponse{cancel}}
+	if _, err := setup.Install(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("partial response after cancellation: %v", err)
 	}
 }

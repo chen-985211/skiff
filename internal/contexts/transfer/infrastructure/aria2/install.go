@@ -103,6 +103,9 @@ func (s *Installation) Install(ctx context.Context) (string, error) {
 	// Verify the bounded archive before parsing it. Extract only the expected
 	// regular file; no archive-controlled path or mode is used on disk.
 	archive, err := io.ReadAll(io.LimitReader(resp.Body, maxEngineBytes+1))
+	if canceled := ctx.Err(); canceled != nil {
+		return "", canceled
+	}
 	if err != nil {
 		return "", fmt.Errorf("引擎下载中断：%w", err)
 	}
