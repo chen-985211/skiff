@@ -7,10 +7,10 @@
 <p align="center">基于 <strong>MyGo 原生 UI + aria2</strong> 的桌面下载工具，当前版本 <strong>0.1.0</strong>。</p>
 
 <p align="center">
-  <a href="https://github.com/chen-985211/skiff/actions/workflows/ci.yml"><img src="https://github.com/chen-985211/skiff/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI 状态"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-52647A" alt="平台：macOS、Windows、Linux">
-  <a href="https://github.com/aria2/aria2"><img src="https://img.shields.io/badge/engine-aria2-366C74" alt="下载引擎：aria2"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-626B82" alt="MIT 许可证"></a>
+  <a href="https://github.com/chen-985211/skiff/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/chen-985211/skiff/ci.yml?branch=main&amp;label=CI&amp;labelColor=374357" alt="CI 状态"></a>
+  <a href="https://github.com/chen-985211/skiff/releases"><img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-496C99?labelColor=374357" alt="平台：macOS、Windows、Linux"></a>
+  <a href="https://github.com/aria2/aria2"><img src="https://img.shields.io/badge/engine-aria2-32766F?labelColor=374357" alt="下载引擎：aria2"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-796194?labelColor=374357" alt="MIT 许可证"></a>
 </p>
 
 <div align="center">
@@ -62,6 +62,8 @@ make package              # 当前平台的原生应用包
 ```
 
 macOS 应用在 `build/darwin-arm64/Skiff.app`。MyGo 本地打包采用 ad hoc 签名，尚未进行 Developer ID 签名与 Apple 公证。
+
+推送与 `mygo.json` 版本一致的标签（例如 `v0.1.0`）即可触发发布。三个平台的测试与打包全部通过后，[GitHub Releases](https://github.com/chen-985211/skiff/releases) 会提供 macOS Apple Silicon 的 DMG、Windows x64 的 EXE，以及 Linux x64 的 DEB、RPM 和 tar.gz。
 
 ## 许可证
 
