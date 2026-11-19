@@ -1,5 +1,10 @@
 # Skiff
 
+[![CI 状态](https://github.com/chen-985211/skiff/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/chen-985211/skiff/actions/workflows/ci.yml)
+![平台：macOS、Windows、Linux](https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-52647A)
+[![下载引擎：aria2](https://img.shields.io/badge/engine-aria2-366C74)](https://github.com/aria2/aria2)
+[![MIT 许可证](https://img.shields.io/badge/license-MIT-626B82)](LICENSE)
+
 基于 **MyGo 原生 UI + aria2** 的桌面下载工具，当前版本 **0.1.0**。
 
 ## 基础版功能
