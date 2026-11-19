@@ -3,6 +3,7 @@ package transfer_test
 import (
 	"context"
 	"github.com/egoist/mygo/ui"
+	"path/filepath"
 	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/domain"
 	"skiff/internal/contexts/transfer/presentation"
@@ -44,9 +45,12 @@ func TestRestoredTerminalHistoryDoesNotBecomeAPausedDownload(t *testing.T) {
 func TestResumeFailureIsExplainedAndRestartGetsANewOutput(t *testing.T) {
 	f, r := &fakeEngine{}, &fakeRepo{}
 	s := service(t, f, r)
-	_, _ = s.Add(context.Background(), "https://example.com/archive.zip", "/downloads")
+	dir := s.Snapshot().Directory
+	if _, err := s.Add(context.Background(), "https://example.com/archive.zip", dir); err != nil {
+		t.Fatal(err)
+	}
 	id := s.Snapshot().Tasks[0].ID
-	f.observed = []application.Observation{{ID: id, Status: "error", Failure: "resume_unsupported", Error: "No URI available.", Total: 100, Completed: 45, Path: "/downloads/archive.zip"}}
+	f.observed = []application.Observation{{ID: id, Status: "error", Failure: "resume_unsupported", Error: "No URI available.", Total: 100, Completed: 45, Path: filepath.Join(dir, "archive.zip")}}
 	if err := s.Refresh(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +65,7 @@ func TestResumeFailureIsExplainedAndRestartGetsANewOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec := f.enqueued[len(f.enqueued)-1]
-	if spec.OutputName == "" || spec.OutputName == "archive.zip" || spec.Directory != "/downloads" {
+	if spec.OutputName == "" || spec.OutputName == "archive.zip" || spec.Directory != dir {
 		t.Fatalf("restart would reuse original partial file: %+v", spec)
 	}
 	task = s.Snapshot().Tasks[0]

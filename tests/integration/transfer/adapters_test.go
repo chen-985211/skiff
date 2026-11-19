@@ -33,10 +33,7 @@ func TestRepositoryRoundTripAndCorruptFileIsPreserved(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v %v", got, err)
 	}
-	info, _ := os.Stat(path)
-	if info.Mode().Perm()&0077 != 0 {
-		t.Fatal("task file exposes private URLs")
-	}
+	assertPrivateTaskFile(t, path)
 	_ = os.WriteFile(path, []byte("broken"), 0600)
 	if _, err := repo.Load(ctx); err == nil {
 		t.Fatal("corruption silently accepted")

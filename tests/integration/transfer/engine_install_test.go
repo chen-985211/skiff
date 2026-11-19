@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"skiff/internal/contexts/transfer/infrastructure/aria2"
@@ -39,14 +40,30 @@ func engineArchive(t *testing.T, name string, data []byte) []byte {
 	return b.Bytes()
 }
 
-func TestEngineInstallsVerifiedExecutableAndReusesIt(t *testing.T) {
+func TestEngineUsesSystemOrVerifiedInstallation(t *testing.T) {
 	t.Setenv("SKIFF_ARIA2_BINARY", "")
+	dir := t.TempDir()
+	setup := aria2.NewInstallation(dir)
+	if runtime.GOOS != "darwin" {
+		if setup.Release.URL != "" {
+			t.Fatal("unexpected engine release for this platform")
+		}
+		system, err := aria2.FindBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, err := setup.Find(); err != nil || got != system {
+			t.Fatalf("expected system engine %q, got %q: %v", system, got, err)
+		}
+		if _, err := setup.Install(t.Context()); err == nil {
+			t.Fatal("installed without a platform release")
+		}
+		return
+	}
 	payload := []byte("engine fixture")
 	archive := engineArchive(t, "aria2c", payload)
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(archive) }))
 	defer server.Close()
-	dir := t.TempDir()
-	setup := aria2.NewInstallation(dir)
 	setup.Client = server.Client()
 	setup.Release = aria2.EngineRelease{URL: server.URL, ArchiveSHA256: fmt.Sprintf("%x", sha256.Sum256(archive)), BinarySHA256: fmt.Sprintf("%x", sha256.Sum256(payload))}
 	path, err := setup.Install(t.Context())

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/domain"
 	"strings"
@@ -47,7 +48,7 @@ func (f *fakeRepo) Save(_ context.Context, s application.State) error {
 func service(t *testing.T, f *fakeEngine, r *fakeRepo) *application.Service {
 	t.Helper()
 	n := 0
-	s := application.New(f, r, "/downloads", func() string { n++; return fmt.Sprintf("%016x", n) })
+	s := application.New(f, r, t.TempDir(), func() string { n++; return fmt.Sprintf("%016x", n) })
 	if err := s.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +58,7 @@ func service(t *testing.T, f *fakeEngine, r *fakeRepo) *application.Service {
 func TestAddValidatesEntireBatchBeforeAnyExternalEffect(t *testing.T) {
 	f, r := &fakeEngine{}, &fakeRepo{}
 	s := service(t, f, r)
-	if _, err := s.Add(context.Background(), "https://example.com/a\nfile:///tmp/b", "/downloads"); err == nil {
+	if _, err := s.Add(context.Background(), "https://example.com/a\nfile:///tmp/b", s.Snapshot().Directory); err == nil {
 		t.Fatal("invalid batch accepted")
 	}
 	if len(f.enqueued) != 0 || len(s.Snapshot().Tasks) != 0 {
@@ -68,11 +69,12 @@ func TestAddValidatesEntireBatchBeforeAnyExternalEffect(t *testing.T) {
 func TestAddCommitsIntentBeforeStartingAndReturnsIndependentSnapshot(t *testing.T) {
 	f, r := &fakeEngine{}, &fakeRepo{}
 	s := service(t, f, r)
-	n, err := s.Add(context.Background(), "https://example.com/a.zip\nhttps://example.com/a.zip", "/chosen")
+	chosen := t.TempDir()
+	n, err := s.Add(context.Background(), "https://example.com/a.zip\nhttps://example.com/a.zip", chosen)
 	if err != nil || n != 1 {
 		t.Fatalf("add = %d, %v", n, err)
 	}
-	if len(f.enqueued) != 1 || f.enqueued[0].Paused || r.state.Directory != "/chosen" || len(r.state.Tasks) != 1 {
+	if len(f.enqueued) != 1 || f.enqueued[0].Paused || r.state.Directory != chosen || len(r.state.Tasks) != 1 {
 		t.Fatalf("intent not committed: %+v, %+v", f, r)
 	}
 	snap := s.Snapshot()
@@ -86,7 +88,7 @@ func TestPersistenceFailurePreventsStartingUntrackedDownload(t *testing.T) {
 	f, r := &fakeEngine{}, &fakeRepo{}
 	s := service(t, f, r)
 	r.saveErr = errors.New("disk full")
-	if n, err := s.Add(context.Background(), "https://example.com/a", "/downloads"); err == nil || n != 0 {
+	if n, err := s.Add(context.Background(), "https://example.com/a", s.Snapshot().Directory); err == nil || n != 0 {
 		t.Fatalf("add=%d, %v", n, err)
 	}
 	if len(f.enqueued) != 0 || len(s.Snapshot().Tasks) != 0 {
@@ -109,7 +111,7 @@ func TestFailedEnqueueRemainsVisibleAndCanBeRetried(t *testing.T) {
 	f, r := &fakeEngine{}, &fakeRepo{}
 	s := service(t, f, r)
 	f.addErr = errors.New("engine rejected transfer")
-	_, _ = s.Add(context.Background(), "https://example.com/a", "/downloads")
+	_, _ = s.Add(context.Background(), "https://example.com/a", s.Snapshot().Directory)
 	tasks := s.Snapshot().Tasks
 	if len(tasks) != 1 || !tasks[0].CanRetry || tasks[0].Error == "" {
 		t.Fatalf("failure lost: %+v", tasks)
@@ -126,7 +128,9 @@ func TestFailedEnqueueRemainsVisibleAndCanBeRetried(t *testing.T) {
 func TestPauseResumeAndRemoveUseCase(t *testing.T) {
 	f, r := &fakeEngine{}, &fakeRepo{}
 	s := service(t, f, r)
-	_, _ = s.Add(context.Background(), "https://example.com/a", "/downloads")
+	if _, err := s.Add(context.Background(), "https://example.com/a", s.Snapshot().Directory); err != nil {
+		t.Fatal(err)
+	}
 	id := s.Snapshot().Tasks[0].ID
 	for _, cmd := range []application.Command{application.Pause, application.Resume, application.Remove} {
 		if err := s.Execute(context.Background(), id, cmd); err != nil {
@@ -157,9 +161,12 @@ func TestRestorePausesMissingTransfersAndKeepsCompletedHistory(t *testing.T) {
 func TestRefreshAppliesEngineProgressWithoutChangingTaskIdentity(t *testing.T) {
 	f, r := &fakeEngine{}, &fakeRepo{}
 	s := service(t, f, r)
-	_, _ = s.Add(context.Background(), "https://example.com/a", "/downloads")
+	dir := s.Snapshot().Directory
+	if _, err := s.Add(context.Background(), "https://example.com/a", dir); err != nil {
+		t.Fatal(err)
+	}
 	id := s.Snapshot().Tasks[0].ID
-	f.observed = []application.Observation{{ID: id, Status: "active", Total: 100, Completed: 50, Speed: 10, Name: "server-name.zip", Path: "/downloads/server-name.zip"}}
+	f.observed = []application.Observation{{ID: id, Status: "active", Total: 100, Completed: 50, Speed: 10, Name: "server-name.zip", Path: filepath.Join(dir, "server-name.zip")}}
 	if err := s.Refresh(context.Background()); err != nil {
 		t.Fatal(err)
 	}

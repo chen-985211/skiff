@@ -364,12 +364,18 @@ func TestWorkspaceCardContentAlignsAcrossPreviewAndDetail(t *testing.T) {
 	if back.X+back.W != card.Bounds.X+card.Bounds.W-16 || back.Y+back.H > source.Y {
 		t.Errorf("back button should be in the upper right: %v in %v", back, card.Bounds)
 	}
-	// The 44-point heading leads straight into the 16-point section gap.
-	if gap := source.Y - (card.Bounds.Y + 16 + 44); gap != 16 {
+	// Each row centers a Chinese label beside a Latin value. The taller font
+	// determines the row bounds and can differ across operating systems.
+	sourceLabel, pathLabel := get("来源"), get("位置")
+	sourceTop := min(source.Y, sourceLabel.Y)
+	sourceBottom := max(source.Y+source.H, sourceLabel.Y+sourceLabel.H)
+	pathTop := min(path.Y, pathLabel.Y)
+	pathBottom := max(path.Y+path.H, pathLabel.Y+pathLabel.H)
+	if gap := sourceTop - (card.Bounds.Y + 16 + 44); gap != 16 {
 		t.Errorf("space between heading and fields = %.1f, want 16", gap)
 	}
-	rowGap := path.Y - (source.Y + source.H)
-	actionGap := badge.Y - (path.Y + path.H)
+	rowGap := pathTop - sourceBottom
+	actionGap := badge.Y - pathBottom
 	bottom := card.Bounds.Y + card.Bounds.H - (badge.Y + badge.H)
 	if rowGap != 6 || actionGap < 16 || bottom != 16 {
 		t.Errorf("detail gaps: between fields %.1f, before actions %.1f, below actions %.1f", rowGap, actionGap, bottom)
