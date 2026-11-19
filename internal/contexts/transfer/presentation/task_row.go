@@ -22,7 +22,7 @@ func cardPill(c *ui.Context, pill ui.Element, icon, text, status string) {
 	if status == "error" {
 		ink = c.Theme().Danger
 	}
-	pill.WidthPercent(25).MinWidth(80).MaxWidth(104).Height(32).Radius(12).Center().Children(func() {
+	pill.WidthPercent(25).MinWidth(80).MaxWidth(104).Height(32).Radius(cornerField).Center().Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
 			ui.Icon(c, icons[icon]).TextColor(ink).FontSize(14).ContentTransition(textChange)
 			ui.Text(c, text).FontSize(11).FontWeight(550).ContentTransition(textChange)
@@ -95,7 +95,7 @@ func (v *View) removeTaskButton(c *ui.Context, id string) {
 		return
 	}
 	const label = "移除任务（保留文件）"
-	b := ui.ButtonBase(c.Key("remove-task")).Absolute().Top(8).Right(8).ZIndex(2).Size(30, 30).Center().Radius(15).Label(label).Tooltip(label)
+	b := ui.ButtonBase(c.Key("remove-task")).Absolute().Top(8).Right(8).ZIndex(2).Size(30, 30).Center().Radius(cornerRow).Label(label).Tooltip(label)
 	b.Children(func() { ui.Icon(c, icons["close"]).FontSize(14).TextColor(c.Theme().TextMuted) })
 	if b.Clicked() {
 		v.command(id, application.Remove)
@@ -145,8 +145,8 @@ func fileHeading(c *ui.Context, p palette, t application.TaskDTO, titleSize, lin
 func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 	card := ui.Column(c.Key(t.ID)).Size(cardWidth, cardHeight).MaxWidthPercent(100).Shrink(0).Role(ui.RoleGroup).Label(t.Name).Padding(12, cardInset).Gap(4).Transition(cardMotion(t.ID))
 	color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
-	v.cardSurface(c, card, p, t.ID, color, 20).Children(func() {
-		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(54).FillWidth().Radius(13).Transition(controlMotion)
+	v.cardSurface(c, card, p, t.ID, color, cornerCard).Children(func() {
+		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(54).FillWidth().Radius(cornerRow).Transition(controlMotion)
 		head.Children(func() {
 			ui.Row(c).Fill().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
 				fileHeading(c, p, t, 16, 4)
@@ -217,7 +217,7 @@ func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, col
 				ui.Textf(c, "%.0f%%", 100*t.Progress).FontSize(12).FontWeight(600).FontFeatures("tnum").ContentTransition(numberChange)
 			}
 		})
-		track := ui.Box(c).Height(5).FillWidth().Radius(2.5).Background(p.border).Clip().Role(ui.RoleProgress).Label("下载进度")
+		track := ui.Box(c).Height(5).FillWidth().Radius(cornerProgress).Background(p.border).Clip().Role(ui.RoleProgress).Label("下载进度")
 		known := t.Total > 0
 		if known {
 			track.Range(0, 1, t.Progress)
@@ -235,14 +235,14 @@ func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, col
 			fill := r
 			if known {
 				fill.W *= max(0, min(1, fraction))
-				painter.Fill(fill, color, 2.5)
+				painter.Fill(fill, color, cornerProgress)
 			}
 			if strength <= 0 {
 				if active && !known {
 					// Three centered dots indicate an unknown length without
 					// suggesting a measured fraction of the file.
 					for i := range 3 {
-						painter.Fill(ui.Rect{X: r.X + r.W/2 + float32(i-1)*9 - 2.5, Y: r.Y, W: 5, H: r.H}, color, 2.5)
+						painter.Fill(ui.Rect{X: r.X + r.W/2 + float32(i-1)*9 - 2.5, Y: r.Y, W: 5, H: r.H}, color, cornerProgress)
 					}
 				}
 				return
@@ -255,10 +255,10 @@ func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, col
 			if !known {
 				shine = color
 			}
-			painter.Clip(fill, 2.5, func() {
+			painter.Clip(fill, cornerProgress, func() {
 				painter.FillGradient(ui.Rect{X: x, Y: r.Y, W: band, H: r.H}, ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
 					{Color: shine.Alpha(0), At: 0}, {Color: shine.Alpha(strength), At: .55}, {Color: shine.Alpha(0), At: 1},
-				}}, 2.5)
+				}}, 0)
 			})
 		})
 	})
@@ -276,7 +276,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 		card := ui.Column(c.Key(t.ID)).Size(2*cardWidth+cardGap, detailHeight).Shrink(0).Margin(0, 0, 0, float32(column*(cardWidth+cardGap))).
 			MaxWidthPercent(100).MaxHeightPercent(100).AlignSelf(ui.Start).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(16, cardInset).Gap(16).Transition(cardMotion(t.ID))
 		color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
-		v.cardSurface(c, card, p, t.ID, color, 22).Children(func() {
+		v.cardSurface(c, card, p, t.ID, color, cornerDetail).Children(func() {
 			ui.Row(c).Height(44).FillWidth().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
 				fileHeading(c, p, t, 18, 2)
 				if secondaryAction(c, "返回").Label("返回任务列表").Clicked() {

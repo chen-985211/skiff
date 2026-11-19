@@ -13,8 +13,18 @@
       <stop stop-color="#f4f6ff"/><stop offset=".36" stop-color="#b9e5e7"/><stop offset=".64" stop-color="#c5b8d7"/><stop offset="1" stop-color="#8392ad"/>
     </linearGradient>
   </defs>
-  <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#case)"/>
-  <rect x="10" y="10" width="108" height="108" rx="24.5" fill="url(#face)" stroke="#c5cbd8" stroke-width=".6"/>
+  <!-- Each shoulder starts with collinear controls (zero curvature at the
+       straight edge). Mirrored cubic halves meet on the diagonal. -->
+  <path fill="url(#case)" d="M45 6 H83
+    C97 6 106 6 114 14 S122 31 122 45 V83
+    C122 97 122 106 114 114 S97 122 83 122 H45
+    C31 122 22 122 14 114 S6 97 6 83 V45
+    C6 31 6 22 14 14 S31 6 45 6 Z"/>
+  <path fill="url(#face)" stroke="#c5cbd8" stroke-width=".6" d="M45 10 H83
+    C96 10 104 10 111 17 S118 32 118 45 V83
+    C118 96 118 104 111 111 S96 118 83 118 H45
+    C32 118 24 118 17 111 S10 96 10 83 V45
+    C10 32 10 24 17 17 S32 10 45 10 Z"/>
   <path d="M24 77 94 24 65 78 49 68Z" fill="url(#silver)"/>
   <path d="M49 68 94 24 63 64Z" fill="#fcfdff"/>
   <path d="M63 64 94 24 78 79 65 78Z" fill="url(#prism)"/>

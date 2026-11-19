@@ -22,3 +22,5 @@
 ## 界面与动效
 
 修改或审查 MyGo 界面时使用项目技能 [液态玻璃界面](.agents/skills/liquid-glass-interface/SKILL.md)，通过 `make check-ui` 验证配色与动效契约。
+
+所有平台的控件统一使用连续曲率圆角。圆角尺寸集中在 [corners.go](internal/contexts/transfer/presentation/corners.go)，同一表面的填充、边框与裁剪共用一个尺寸。Logo 的圆角用连续曲线路径绘制，修改后运行 `swift scripts/make-icon.swift` 同步应用图标。`make check-ui` 同时检查圆角开关、SVG 资源和实际渲染轮廓。

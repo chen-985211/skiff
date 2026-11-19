@@ -64,7 +64,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 		y := rail.AnimateTo("selection-y", selectedY, selectionSpring)
 		h := rail.AnimateTo("selection-height", selectedH, selectionSpring)
 		highlight := ui.Box(c.Key("selection")).Absolute().Left(12).Right(12).Top(0).Height(h).Translate(0, y).IgnoreInput(true).AccessHidden(true)
-		surface(c, highlight, p, 13, selectionFrost)
+		surface(c, highlight, p, cornerRow, selectionFrost)
 		ui.Box(c).FillWidth().Height(max(20, c.TitleBar().Bottom)).DragWindow()
 		ui.Row(c).Height(workspaceHeader).PaddingX(8).AlignItems(ui.Center).Gap(10).DragWindow().Children(func() {
 			ui.Image(c, icons["boat"]).Size(38, 38).Fit(ui.Contain)
@@ -73,7 +73,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 		ui.Column(c).ZIndex(1).Gap(rowGap).Children(func() {
 			for _, cat := range categories {
 				selected := !v.settingsOpen && v.Filter == cat.id
-				button := ui.ButtonBase(c.Key(cat.id)).FillWidth().Height(rowHeight).ZIndex(1).PaddingX(11).Label(cat.title).AccessSelected(selected).Radius(13).Transition(controlMotion)
+				button := ui.ButtonBase(c.Key(cat.id)).FillWidth().Height(rowHeight).ZIndex(1).PaddingX(11).Label(cat.title).AccessSelected(selected).Radius(cornerRow).Transition(controlMotion)
 				ink := p.muted
 				if selected {
 					ink = c.Theme().Text
@@ -100,7 +100,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 		ui.Box(c).Grow(1).DragWindow()
 		ui.Column(c).ZIndex(1).Gap(3).Children(func() {
 			if dir := v.Snapshot.Directory; dir != "" {
-				folder := ui.ButtonBase(c.Key("destination")).FillWidth().Height(34).Radius(10).PaddingX(10).Label("打开下载目录").Description(dir).Disabled(v.Actions.OpenDirectory == nil).Transition(controlMotion)
+				folder := ui.ButtonBase(c.Key("destination")).FillWidth().Height(34).Radius(cornerSmall).PaddingX(10).Label("打开下载目录").Description(dir).Disabled(v.Actions.OpenDirectory == nil).Transition(controlMotion)
 				if folder.Hovered() {
 					folder.Background(p.panel.Alpha(.38))
 				}
@@ -120,7 +120,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 				}
 				inlineError(c, v.openDirectoryError)
 			}
-			settings := ui.ButtonBase(c.Key("settings")).FillWidth().Height(settingsHeight).PaddingX(10).Radius(10).Transition(controlMotion).Label("设置").AccessSelected(v.settingsOpen)
+			settings := ui.ButtonBase(c.Key("settings")).FillWidth().Height(settingsHeight).PaddingX(10).Radius(cornerSmall).Transition(controlMotion).Label("设置").AccessSelected(v.settingsOpen)
 			if !v.settingsOpen && settings.Hovered() {
 				settings.Background(p.panel.Alpha(.48))
 			}
@@ -143,7 +143,7 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 	ui.Row(c.Key("task-dock")).Transition(dockMotion).Height(cardGap+dockHeight+footerInset).Shrink(0).Padding(0, 0, footerInset).AlignItems(ui.End).Justify(ui.Start).Children(func() {
 		ui.Row(c).Role(ui.RoleToolbar).Label("下载工具栏").Width(cardWidth).MaxWidthPercent(100).Height(dockHeight).Gap(cardGap).Children(func() {
 			search = ui.Row(c).Role(ui.RoleSearch).Label("任务搜索").Grow(1).MinWidth(0).FillHeight().AlignItems(ui.Center).Padding(0, 8, 0, 16).Gap(8)
-			surface(c, search, p, dockHeight/2, searchGlass).Shadow(0, 3, 10, 0, c.Theme().Text.Alpha(.10)).Children(func() {
+			surface(c, search, p, cornerDock, searchGlass).Shadow(0, 3, 10, 0, c.Theme().Text.Alpha(.10)).Children(func() {
 				ui.Icon(c, icons["search"]).FontSize(18).TextColor(p.muted).IgnoreInput(true)
 				field := ui.TextInputBase(c, &v.Query).Label("搜索下载任务").Placeholder("搜索文件名或链接").Grow(1).MinWidth(0).FillHeight().FontSize(13).KeyShortcuts(ui.Cmd, ui.KeyF)
 				if search.Clicked() || (!v.DialogOpen && !v.RestartOpen && c.Shortcut(ui.Cmd, ui.KeyF)) {
@@ -179,7 +179,7 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 					v.OpenNew()
 				}
 			}
-			trigger.Width(composeButtonWidth).Shrink(0).FillHeight().Radius(dockHeight / 2)
+			trigger.Width(composeButtonWidth).Shrink(0).FillHeight().Radius(cornerDock)
 		})
 	})
 	return search, trigger

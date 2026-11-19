@@ -3,7 +3,7 @@ module skiff
 go 1.27.3
 
 require (
-	github.com/egoist/mygo v0.9.2
+	github.com/egoist/mygo v0.9.1-0.20261114182207-bd6901daf0f3
 	golang.org/x/sys v0.48.0
 )
 

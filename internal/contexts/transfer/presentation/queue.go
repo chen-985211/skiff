@@ -98,7 +98,7 @@ func (v *View) batchAction(c *ui.Context, items []application.TaskDTO, cmd appli
 	}
 	label := fmt.Sprintf("%s %d 项", action, len(ids))
 	t := c.Theme()
-	b := ui.ButtonBase(c.Key(cmd)).Label(label).Disabled(v.Busy || !v.Ready).Height(32).PaddingX(12).Radius(16).Center().Transition(pageFade)
+	b := ui.ButtonBase(c.Key(cmd)).Label(label).Disabled(v.Busy || !v.Ready).Height(32).PaddingX(12).Radius(cornerAction).Center().Transition(pageFade)
 	fill := t.Surface.Alpha(.40)
 	if b.Pressed() {
 		fill = t.SurfacePressed

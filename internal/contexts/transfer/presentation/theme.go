@@ -44,7 +44,7 @@ func appearance(c *ui.Context, shade float32) palette {
 	t.Background, t.Surface, t.Border, t.TextMuted = p.canvas, p.panel, p.border, p.muted
 	t.SurfaceHover, t.SurfacePressed = p.tint, p.tint.Mix(p.accent, .12)
 	t.Success, t.Focus, t.Selection = p.complete, p.muted, p.haze.Alpha(.40)
-	t.Radius = 9
+	t.Radius = cornerSmall
 	c.SetTheme(&t)
 	return p
 }
@@ -87,7 +87,7 @@ func surface(c *ui.Context, e ui.Element, p palette, radius float32, finish glas
 
 func iconButton(c *ui.Context, name, label string, disabled bool) bool {
 	t := c.Theme()
-	b := ui.ButtonBase(c.Key(label)).Size(30, 30).Center().Radius(9).Transition(controlMotion).Label(label).Tooltip(label).Disabled(disabled)
+	b := ui.ButtonBase(c.Key(label)).Size(30, 30).Center().Radius(cornerSmall).Transition(controlMotion).Label(label).Tooltip(label).Disabled(disabled)
 	if b.Hovered() {
 		b.Background(t.SurfaceHover)
 	}
@@ -97,7 +97,7 @@ func iconButton(c *ui.Context, name, label string, disabled bool) bool {
 
 func primaryAction(c *ui.Context, title, icon string, disabled bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label(title).Disabled(disabled).Height(36).PaddingX(12).Radius(18).Transition(controlMotion)
+	b := ui.ButtonBase(c).Label(title).Disabled(disabled).Height(36).PaddingX(12).Radius(cornerPrimary).Transition(controlMotion)
 	fill := t.Accent
 	if b.Pressed() {
 		fill = t.AccentPressed
@@ -114,7 +114,7 @@ func primaryAction(c *ui.Context, title, icon string, disabled bool) ui.Element 
 
 func secondaryAction(c *ui.Context, title string) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c.Key(title)).Label(title).Height(32).PaddingX(14).Radius(16).Center().Transition(controlMotion)
+	b := ui.ButtonBase(c.Key(title)).Label(title).Height(32).PaddingX(14).Radius(cornerAction).Center().Transition(controlMotion)
 	fill := t.Surface
 	if b.Hovered() {
 		fill = t.SurfaceHover

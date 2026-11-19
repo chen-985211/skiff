@@ -15,10 +15,11 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 		anchor = ui.Rect{X: left + min(cardWidth, width) - composeButtonWidth, Y: windowH - footerInset - dockHeight, W: composeButtonWidth, H: dockHeight}
 	}
 	closed := 1 - reveal
+	radius := cornerDock + (cornerSheet-cornerDock)*reveal
 	shown := true // Keep the modal and its draft mounted until the spring reaches the button.
 	ui.DialogBase(c, &shown, func(back, panel ui.Element) {
 		panel.Absolute().Left(left+(anchor.X-left)*closed).Bottom(footerInset+(windowH-anchor.Y-anchor.H-footerInset)*closed).
-			Width(anchor.W+(width-anchor.W)*reveal).Column().AlignItems(ui.Start).Radius(22).Clip().
+			Width(anchor.W+(width-anchor.W)*reveal).Column().AlignItems(ui.Start).Radius(radius).Clip().
 			Shadow(0, 6*reveal, 20*reveal, 0, p.scrim.Alpha(.15*reveal))
 
 		buttonInk := max(0, 1-reveal/.35)
@@ -26,8 +27,8 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 		// offset the button label and add its thickness again at the open endpoint.
 		glass := ui.Box(c.Key("sheet-glass")).Absolute().Left(0).Top(0).Right(0).Bottom(0).
 			ZIndex(-1).Opacity(1 - buttonInk).IgnoreInput(true).AccessHidden(true)
-		surface(c, glass, p, 22, sheetFrost)
-		ui.Box(c.Key("button-fill")).Absolute().Left(0).Top(0).Right(0).Bottom(0).Radius(22).
+		surface(c, glass, p, radius, sheetFrost)
+		ui.Box(c.Key("button-fill")).Absolute().Left(0).Top(0).Right(0).Bottom(0).Radius(radius).
 			Background(p.accent.Alpha(buttonInk)).IgnoreInput(true)
 		fields := min(max((reveal-.48)/.42, 0), 1)
 		// Measure the clipped form at its reading width throughout the transition.
@@ -84,7 +85,7 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 func (v *View) composeFields(c *ui.Context, p palette) {
 	p.muted = p.muted.Mix(c.Theme().Text, .38)
 	links := ui.TextAreaBase(c, &v.URLs).FillWidth().Lines(4, 7).Padding(12, 14).FontSize(13).FixedLineHeight(20).
-		Radius(12).Label("下载链接").Placeholder("粘贴下载链接，每行一个").PlaceholderColor(p.muted).
+		Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接，每行一个").PlaceholderColor(p.muted).
 		Description("支持 HTTP 和 HTTPS 链接").AutoFocus().Disabled(v.Busy)
 	edge, focusEdge := p.border, p.active
 	if !c.Preferences().HighContrast {
@@ -114,7 +115,7 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 		var label ui.Element
 		if v.Actions.PickDirectory != nil {
 			label = ui.ButtonBase(c.Key("pick-directory")).Label("选择保存目录").Tooltip("选择保存目录").
-				Radius(6).FocusRing(true).Disabled(v.Busy)
+				Radius(cornerInline).FocusRing(true).Disabled(v.Busy)
 		} else {
 			label = ui.Row(c)
 		}
@@ -136,7 +137,7 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 		}
 		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Justify(ui.Center).Children(func() {
 			dir := ui.TextInputBase(c, &v.Directory).Absolute().Left(0).Right(0).Top(0).Bottom(0).PaddingX(6).
-				Radius(6).FontSize(12).Label("保存目录").Tooltip(v.Directory).Disabled(v.Busy)
+				Radius(cornerInline).FontSize(12).Label("保存目录").Tooltip(v.Directory).Disabled(v.Busy)
 			if dir.Focused() || c.Preferences().HighContrast {
 				dir.Border(1, p.border)
 			}
