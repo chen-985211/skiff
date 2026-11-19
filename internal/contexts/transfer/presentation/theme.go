@@ -47,16 +47,38 @@ func appearance(c *ui.Context, shade float32) palette {
 	return p
 }
 
-// The dock and sheet frost their backdrop; navigation uses a translucent fill.
-func surface(c *ui.Context, e ui.Element, p palette, tint ui.Color, radius float32, frosted bool) ui.Element {
+type glassFinish uint8
+
+const (
+	searchGlass glassFinish = iota
+	selectionFrost
+	sheetFrost
+)
+
+func surface(c *ui.Context, e ui.Element, p palette, radius float32, finish glassFinish) ui.Element {
 	e.Radius(radius)
 	if c.Preferences().ReduceTransparency || c.Preferences().HighContrast {
 		return e.Background(p.panel).Border(1, p.border)
 	}
-	if frosted {
+	if finish == searchGlass {
 		return e.Material(glass.Glass{Style: glass.Regular, Tint: p.panel.Alpha(.43)})
 	}
-	return e.Gradient(p.panel.Alpha(.97), tint.Mix(p.panel, .56).Alpha(.82), 136)
+
+	blur, opacity := float32(7), float32(.50)
+	if finish == sheetFrost {
+		blur, opacity = 14, .64
+	}
+	// Diffuse the backdrop before painting the wash; text and controls stay sharp.
+	wash := ui.LinearGradient{Angle: 115, Stops: []ui.GradientStop{
+		{At: 0, Color: p.tint.Mix(p.rim, .36).Alpha(opacity)},
+		{At: .45, Color: p.ice.Mix(p.panel, .86).Alpha(opacity * .70)},
+		{At: 1, Color: p.rim.Alpha(opacity)},
+	}}
+	return e.Material(glass.Blur{Radius: blur}).Draw(func(painter *ui.Painter, r ui.Rect) {
+		painter.FillGradient(r, wash, radius)
+	}).InsetShadow(0, -1, 2, 0, p.haze.Alpha(.32)).Border(1, ui.Transparent).BorderLinearGradient(ui.LinearGradient{
+		Angle: 150, From: p.rim.Alpha(.82), To: p.haze.Alpha(.38),
+	})
 }
 
 func iconButton(c *ui.Context, name, label string, disabled bool) bool {

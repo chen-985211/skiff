@@ -64,7 +64,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 		y := rail.AnimateTo("selection-y", selectedY, selectionSpring)
 		h := rail.AnimateTo("selection-height", selectedH, selectionSpring)
 		highlight := ui.Box(c.Key("selection")).Absolute().Left(12).Right(12).Top(0).Height(h).Translate(0, y).IgnoreInput(true).AccessHidden(true)
-		surface(c, highlight, p, p.tint, 13, false)
+		surface(c, highlight, p, 13, selectionFrost)
 		ui.Box(c).FillWidth().Height(max(20, c.TitleBar().Bottom)).DragWindow()
 		ui.Row(c).Height(workspaceHeader).PaddingX(8).AlignItems(ui.Center).Gap(10).DragWindow().Children(func() {
 			ui.Image(c, icons["boat"]).Size(38, 38).Fit(ui.Contain)
@@ -143,7 +143,7 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 	ui.Row(c.Key("task-dock")).Transition(dockMotion).Height(cardGap+dockHeight+footerInset).Shrink(0).Padding(0, 0, footerInset).AlignItems(ui.End).Justify(ui.Start).Children(func() {
 		ui.Row(c).Role(ui.RoleToolbar).Label("下载工具栏").Width(cardWidth).MaxWidthPercent(100).Height(dockHeight).Gap(cardGap).Children(func() {
 			search = ui.Row(c).Role(ui.RoleSearch).Label("任务搜索").Grow(1).MinWidth(0).FillHeight().AlignItems(ui.Center).Padding(0, 8, 0, 16).Gap(8)
-			surface(c, search, p, p.tint, dockHeight/2, true).Shadow(0, 3, 10, 0, c.Theme().Text.Alpha(.10)).Children(func() {
+			surface(c, search, p, dockHeight/2, searchGlass).Shadow(0, 3, 10, 0, c.Theme().Text.Alpha(.10)).Children(func() {
 				ui.Icon(c, icons["search"]).FontSize(18).TextColor(p.muted).IgnoreInput(true)
 				field := ui.TextInputBase(c, &v.Query).Label("搜索下载任务").Placeholder("搜索文件名或链接").Grow(1).MinWidth(0).FillHeight().FontSize(13).KeyShortcuts(ui.Cmd, ui.KeyF)
 				if search.Clicked() || (!v.DialogOpen && !v.RestartOpen && c.Shortcut(ui.Cmd, ui.KeyF)) {

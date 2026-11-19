@@ -20,7 +20,7 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 		back.Background(p.scrim.Alpha(.14 * reveal))
 		panel.Absolute().Left(left + (anchor.X-left)*closed).Bottom(footerInset + (windowH-anchor.Y-anchor.H-footerInset)*closed).
 			Width(anchor.W + (width-anchor.W)*reveal).Column().AlignItems(ui.Start).Clip()
-		surface(c, panel, p, p.tint, 22, true).Shadow(0, 6*reveal, 20*reveal, 0, p.scrim.Alpha(.15*reveal))
+		surface(c, panel, p, 22, sheetFrost).Shadow(0, 6*reveal, 20*reveal, 0, p.scrim.Alpha(.15*reveal))
 
 		// The form is measured at its reading width even while only a sliver is visible.
 		// Clipping its layout keeps text and inputs at their natural scale.
@@ -81,7 +81,7 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 func (v *View) composeFields(c *ui.Context, p palette) {
 	fill := p.panel
 	if !c.Preferences().ReduceTransparency && !c.Preferences().HighContrast {
-		fill = fill.Alpha(.66)
+		fill = fill.Alpha(.52)
 	}
 	links := ui.TextAreaBase(c, &v.URLs).FillWidth().Lines(4, 7).Padding(12, 14).FontSize(13).FixedLineHeight(20).
 		Radius(12).Background(fill).Label("下载链接").Placeholder("粘贴下载链接，每行一个").
