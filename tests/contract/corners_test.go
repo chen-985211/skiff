@@ -228,17 +228,25 @@ func checkLogoShoulders(t *testing.T, im image.Image) {
 	if im.Bounds() != image.Rect(0, 0, 1024, 1024) {
 		t.Fatal(im.Bounds())
 	}
-	// At the old radius's tangent point a circular corner is already flat.
-	// The continuous shoulder is still turning here; the top centre is solid.
-	for _, x := range []int{34 * 8, 1023 - 34*8} {
-		for _, y := range []int{48, 975} {
+	// The 50%-alpha contour of Calculator on macOS 26.5.2, scaled from
+	// its 824px body to Skiff's 928px body. Coordinates exclude the padding.
+	const inset = 48
+	profile := []image.Point{{X: 70, Y: 70}, {X: 96, Y: 48}, {X: 128, Y: 29}, {X: 160, Y: 16}, {X: 192, Y: 8}, {X: 224, Y: 4}, {X: 256, Y: 1}, {X: 464, Y: 0}}
+	check := func(x, y int, inside bool) {
+		t.Helper()
+		for range 4 {
 			_, _, _, a := im.At(x, y).RGBA()
-			if a > 0x5000 {
-				t.Errorf("logo shoulder (%d,%d) is already flat: alpha %d", x, y, a)
+			if (a >= 0x8000) != inside {
+				t.Fatalf("corner diverges from the native contour at (%d,%d): alpha %d", x, y, a)
 			}
+			x, y = 1023-y, x // Rotate the probe to the next corner.
 		}
 	}
-	if _, _, _, a := im.At(512, 50).RGBA(); a < 0xf000 {
-		t.Error("logo top edge has moved")
+	for _, p := range profile {
+		for _, x := range []int{inset + p.X, 1023 - inset - p.X} {
+			// Tolerate a pixel of variation between SVG rasterizers.
+			check(x, inset+p.Y-2, false)
+			check(x, inset+p.Y+1, true)
+		}
 	}
 }
