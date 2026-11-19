@@ -1,11 +1,19 @@
-# Skiff
+<p align="center">
+  <img src="resources/icon.png" width="112" height="112" alt="Skiff Logo">
+</p>
 
-[![CI 状态](https://github.com/chen-985211/skiff/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/chen-985211/skiff/actions/workflows/ci.yml)
-![平台：macOS、Windows、Linux](https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-52647A)
-[![下载引擎：aria2](https://img.shields.io/badge/engine-aria2-366C74)](https://github.com/aria2/aria2)
-[![MIT 许可证](https://img.shields.io/badge/license-MIT-626B82)](LICENSE)
+<h1 align="center">Skiff</h1>
 
-基于 **MyGo 原生 UI + aria2** 的桌面下载工具，当前版本 **0.1.0**。
+<p align="center">基于 <strong>MyGo 原生 UI + aria2</strong> 的桌面下载工具，当前版本 <strong>0.1.0</strong>。</p>
+
+<p align="center">
+  <a href="https://github.com/chen-985211/skiff/actions/workflows/ci.yml"><img src="https://github.com/chen-985211/skiff/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI 状态"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-52647A" alt="平台：macOS、Windows、Linux">
+  <a href="https://github.com/aria2/aria2"><img src="https://img.shields.io/badge/engine-aria2-366C74" alt="下载引擎：aria2"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-626B82" alt="MIT 许可证"></a>
+</p>
+
+<p align="center"><a href="https://github.com/chen-985211/skiff/issues/1">观看 Skiff 下载演示（15 秒）</a></p>
 
 ## 基础版功能
 
