@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-const fullProgressHold = 1200 * time.Millisecond
+const fullProgressHold = 600 * time.Millisecond
 
 // Animated geometry uses springs: retargeting a live MyGo channel preserves
 // both position and velocity. Progress and color have bounded endpoints.

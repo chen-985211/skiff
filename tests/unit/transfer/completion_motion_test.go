@@ -51,11 +51,15 @@ func TestRenderDownloadReachesFullBeforeCompletion(t *testing.T) {
 				return scene.Image().RGBAAt(int(track.Bounds.X+track.Bounds.W*.85), int(track.Bounds.Y+track.Bounds.H/2)).R
 			}
 			full := sample()
-			scene.Advance(1050 * time.Millisecond)
+			scene.Advance(530 * time.Millisecond)
 			if !scene.HasText("100%") || !scene.HasText("下载中") || sample() != full {
-				t.Fatal("the full bar should stay readable for at least a second before fading")
+				t.Fatal("the full bar should remain steady until the 600 ms hold ends")
 			}
-			scene.Advance(325 * time.Millisecond)
+			scene.Advance(60 * time.Millisecond)
+			if scene.HasText("下载中") || !scene.HasText("100%") {
+				t.Fatal("the full bar should be fading into the completed state after 600 ms")
+			}
+			scene.Advance(185 * time.Millisecond)
 			fading := sample()
 			scene.Advance(350 * time.Millisecond)
 			if _, ok := scene.AccessByRole(ui.RoleProgress, "下载进度"); ok {
