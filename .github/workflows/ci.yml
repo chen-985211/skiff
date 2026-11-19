@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Install Linux test dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y aria2 fonts-noto-cjk
+      - name: Install macOS test engine
+        if: runner.os == 'macOS'
+        run: brew install aria2
+      - name: Install Windows test engine
+        if: runner.os == 'Windows'
+        run: choco install aria2 --yes --no-progress
+      - name: Check formatting
+        if: runner.os == 'Linux'
+        run: make format-check
+      - name: Vet
+        run: go vet -tags integration ./...
+      - name: Run unit, contract and integration tests
+        run: go test -count=1 -timeout=20m -tags integration ./...
+
+  package:
+    name: Package / ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-amd64
+            os: ubuntu-24.04
+            packages: |
+              build/linux-amd64/skiff-*-linux-amd64.tar.gz
+              build/linux-amd64/skiff_*.deb
+              build/linux-amd64/skiff-*.rpm
+          - platform: darwin-arm64
+            os: macos-15
+            packages: build/darwin-arm64/skiff-*.dmg
+          - platform: windows-amd64
+            os: windows-2025
+            packages: build/windows-amd64/skiff-setup-*.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build native packages
+        run: go tool mygo build
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: skiff-${{ matrix.platform }}
+          path: ${{ matrix.packages }}
+          if-no-files-found: error
