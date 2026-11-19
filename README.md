@@ -13,7 +13,11 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-626B82" alt="MIT 许可证"></a>
 </p>
 
-<p align="center"><a href="https://github.com/chen-985211/skiff/issues/1">观看 Skiff 下载演示（15 秒）</a></p>
+<div align="center">
+
+https://github.com/user-attachments/assets/8fa22cc3-e91a-4537-87f4-756609c0314c
+
+</div>
 
 ## 基础版功能
 
