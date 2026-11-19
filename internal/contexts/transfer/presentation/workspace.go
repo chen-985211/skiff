@@ -100,7 +100,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 		ui.Box(c).Grow(1).DragWindow()
 		ui.Column(c).ZIndex(1).Gap(3).Children(func() {
 			if dir := v.Snapshot.Directory; dir != "" {
-				folder := ui.ButtonBase(c.Key("destination")).FillWidth().Height(34).Radius(cornerSmall).PaddingX(10).Label("打开下载目录").Description(dir).Disabled(v.Actions.OpenDirectory == nil).Transition(controlMotion)
+				folder := ui.ButtonBase(c.Key("destination")).FillWidth().Height(34).Radius(cornerCompact).PaddingX(10).Label("打开下载目录").Description(dir).Disabled(v.Actions.OpenDirectory == nil).Transition(controlMotion)
 				if folder.Hovered() {
 					folder.Background(p.panel.Alpha(.38))
 				}
@@ -120,7 +120,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 				}
 				inlineError(c, v.openDirectoryError)
 			}
-			settings := ui.ButtonBase(c.Key("settings")).FillWidth().Height(settingsHeight).PaddingX(10).Radius(cornerSmall).Transition(controlMotion).Label("设置").AccessSelected(v.settingsOpen)
+			settings := ui.ButtonBase(c.Key("settings")).FillWidth().Height(settingsHeight).PaddingX(10).Radius(cornerCompact).Transition(controlMotion).Label("设置").AccessSelected(v.settingsOpen)
 			if !v.settingsOpen && settings.Hovered() {
 				settings.Background(p.panel.Alpha(.48))
 			}

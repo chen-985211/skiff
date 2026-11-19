@@ -13,7 +13,7 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 		list := ui.Column(c).MaxWidth(820).FillWidth().AlignSelf(ui.Center)
 		list.Children(func() {
 			ui.Text(c, "设置").FontSize(28).FontWeight(650).Margin(0, 0, 20)
-			block := ui.Column(c).FillWidth().Radius(cornerDock)
+			block := ui.Column(c).FillWidth().Radius(cornerPrimary)
 			if c.Preferences().ReduceTransparency || c.Preferences().HighContrast {
 				block.Background(p.panel)
 			} else {
@@ -24,7 +24,7 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 				}})
 			}
 			block.Children(func() {
-				row := ui.ButtonBase(c.Key("directory-setting")).Label("更改默认保存目录").Description(v.Snapshot.Directory).Tooltip(v.Snapshot.Directory).Disabled(v.Busy || !v.Ready || v.Actions.PickDirectory == nil).Radius(cornerPrimary).Transition(controlMotion)
+				row := ui.ButtonBase(c.Key("directory-setting")).Label("更改默认保存目录").Description(v.Snapshot.Directory).Tooltip(v.Snapshot.Directory).Disabled(v.Busy || !v.Ready || v.Actions.PickDirectory == nil).Radius(cornerAction).Transition(controlMotion)
 				if row.Hovered() {
 					row.Background(p.panel.Alpha(.30))
 				}
@@ -46,7 +46,7 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 
 func settingsRow(c *ui.Context, row ui.Element, icon, name string, err error, p palette, control func(ui.Element)) {
 	row.Row().FillWidth().Height(70).AlignItems(ui.Center).Justify(ui.Start).PaddingX(18).Gap(12).Children(func() {
-		ui.Box(c).Size(32, 32).Center().Radius(cornerField).Gradient(p.panel.Alpha(.74), p.tint.Alpha(.48), 135).Children(func() {
+		ui.Box(c).Size(32, 32).Center().Radius(cornerSettingsIcon).Gradient(p.panel.Alpha(.74), p.tint.Alpha(.48), 135).Children(func() {
 			ui.Icon(c, icons[icon]).FontSize(18).TextColor(p.muted)
 		})
 		var label ui.Element
@@ -98,12 +98,12 @@ func (v *View) themeSelector(c *ui.Context, p palette) {
 	}
 	parts := ui.SegmentedBase(c, &index, len(themes))
 	const width = 64
-	track := parts.Track.Label("主题").Height(34).Padding(3).Radius(cornerAction).Background(p.haze.Alpha(.26)).Disabled(!v.Ready || v.API == nil)
+	track := parts.Track.Label("主题").Height(34).Padding(3).Radius(cornerSegmentTrack).Background(p.haze.Alpha(.26)).Disabled(!v.Ready || v.API == nil)
 	x := track.AnimateTo("selected-theme", float32(index*width), selectionSpring)
 	track.Children(func() {
-		ui.Box(c).Absolute().Top(3).Left(3).Size(width, 28).Radius(cornerField).Background(p.panel).Translate(x, 0).IgnoreInput(true).AccessHidden(true)
+		ui.Box(c).Absolute().Top(3).Left(3).Size(width, 28).Radius(cornerSegment).Background(p.panel).Translate(x, 0).IgnoreInput(true).AccessHidden(true)
 		for i, item := range themes {
-			segment := parts.Segment(i).Size(width, 28).Radius(cornerField).ZIndex(1).Label(item.label)
+			segment := parts.Segment(i).Size(width, 28).Radius(cornerSegment).ZIndex(1).Label(item.label)
 			segment.Children(func() { ui.Text(c, item.label).FontSize(12).FontWeight(570) })
 			if segment.Changed() {
 				v.themeSave.choose(v, &v.Snapshot.Preferences.Theme, item.mode, v.API.SetTheme)
@@ -123,8 +123,8 @@ func (v *View) lightSwitch(c *ui.Context, p palette, label ui.Element) {
 	position := toggle.AnimateTo("thumb", amount(enabled), switchSpring)
 	track := p.border.Mix(p.muted, .30).Mix(p.active, max(float32(0), min(1, position)))
 	toggle.Children(func() {
-		ui.Box(c).Size(48, 26).Radius(cornerField).Background(track).Children(func() {
-			ui.Box(c).Absolute().Left(3).Top(3).Size(20, 20).Radius(cornerSmall).Translate(22*position, 0).Background(p.panel).Shadow(0, 1, 2, 0, p.scrim.Alpha(.22))
+		ui.Box(c).Size(48, 26).Radius(cornerRow).Background(track).Children(func() {
+			ui.Box(c).Absolute().Left(3).Top(3).Size(20, 20).Radius(cornerCompact).Translate(22*position, 0).Background(p.panel).Shadow(0, 1, 2, 0, p.scrim.Alpha(.22))
 		})
 	})
 	if toggle.Changed() {

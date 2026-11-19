@@ -15,11 +15,10 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 		anchor = ui.Rect{X: left + min(cardWidth, width) - composeButtonWidth, Y: windowH - footerInset - dockHeight, W: composeButtonWidth, H: dockHeight}
 	}
 	closed := 1 - reveal
-	radius := cornerDock + (cornerSheet-cornerDock)*reveal
 	shown := true // Keep the modal and its draft mounted until the spring reaches the button.
 	ui.DialogBase(c, &shown, func(back, panel ui.Element) {
 		panel.Absolute().Left(left+(anchor.X-left)*closed).Bottom(footerInset+(windowH-anchor.Y-anchor.H-footerInset)*closed).
-			Width(anchor.W+(width-anchor.W)*reveal).Column().AlignItems(ui.Start).Radius(radius).Clip().
+			Width(anchor.W+(width-anchor.W)*reveal).Column().AlignItems(ui.Start).Radius(cornerSheet).Clip().
 			Shadow(0, 6*reveal, 20*reveal, 0, p.scrim.Alpha(.15*reveal))
 
 		buttonInk := max(0, 1-reveal/.35)
@@ -27,8 +26,8 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 		// offset the button label and add its thickness again at the open endpoint.
 		glass := ui.Box(c.Key("sheet-glass")).Absolute().Left(0).Top(0).Right(0).Bottom(0).
 			ZIndex(-1).Opacity(1 - buttonInk).IgnoreInput(true).AccessHidden(true)
-		surface(c, glass, p, radius, sheetFrost)
-		ui.Box(c.Key("button-fill")).Absolute().Left(0).Top(0).Right(0).Bottom(0).Radius(radius).
+		surface(c, glass, p, cornerSheet, sheetFrost)
+		ui.Box(c.Key("button-fill")).Absolute().Left(0).Top(0).Right(0).Bottom(0).Radius(cornerSheet).
 			Background(p.accent.Alpha(buttonInk)).IgnoreInput(true)
 		fields := min(max((reveal-.48)/.42, 0), 1)
 		// Measure the clipped form at its reading width throughout the transition.

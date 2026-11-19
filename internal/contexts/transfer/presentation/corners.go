@@ -6,18 +6,22 @@ import "github.com/egoist/mygo/ui"
 // policy before any window, tester or offscreen surface is created.
 func init() { ui.SetContinuousCorners(true) }
 
-// Continuous shoulders extend further along a straight edge than a circular
-// radius. Leave room for that transition, particularly on short controls.
+// Radii are in device-independent points and shared by all renderers.
 const (
-	cornerProgress = 1.75
-	cornerInline   = 5
-	cornerSmall    = 8
-	cornerField    = 10
-	cornerRow      = 11
-	cornerAction   = 13
-	cornerPrimary  = 14
-	cornerDock     = 17
-	cornerCard     = 18
-	cornerDetail   = 20
-	cornerSheet    = 21
+	cornerProgress     = 2.5
+	cornerInline       = 6
+	cornerSmall        = 9
+	cornerCompact      = 10
+	cornerSettingsIcon = 11
+	cornerField        = 12
+	cornerRow          = 13
+	cornerSegment      = 14
+	cornerRemove       = 15
+	cornerAction       = 16
+	cornerSegmentTrack = 17
+	cornerPrimary      = 18
+	cornerCard         = 20
+	cornerDetail       = 22
+	cornerDock         = dockHeight / 2
+	cornerSheet        = 22
 )

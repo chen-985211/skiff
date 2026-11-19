@@ -95,7 +95,7 @@ func (v *View) removeTaskButton(c *ui.Context, id string) {
 		return
 	}
 	const label = "移除任务（保留文件）"
-	b := ui.ButtonBase(c.Key("remove-task")).Absolute().Top(8).Right(8).ZIndex(2).Size(30, 30).Center().Radius(cornerRow).Label(label).Tooltip(label)
+	b := ui.ButtonBase(c.Key("remove-task")).Absolute().Top(8).Right(8).ZIndex(2).Size(30, 30).Center().Radius(cornerRemove).Label(label).Tooltip(label)
 	b.Children(func() { ui.Icon(c, icons["close"]).FontSize(14).TextColor(c.Theme().TextMuted) })
 	if b.Clicked() {
 		v.command(id, application.Remove)
@@ -258,7 +258,7 @@ func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, col
 			painter.Clip(fill, cornerProgress, func() {
 				painter.FillGradient(ui.Rect{X: x, Y: r.Y, W: band, H: r.H}, ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
 					{Color: shine.Alpha(0), At: 0}, {Color: shine.Alpha(strength), At: .55}, {Color: shine.Alpha(0), At: 1},
-				}}, 0)
+				}}, cornerProgress)
 			})
 		})
 	})
