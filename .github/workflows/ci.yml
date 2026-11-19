@@ -47,6 +47,9 @@ jobs:
       - name: Check formatting
         if: runner.os == 'Linux'
         run: make format-check
+      - name: Test release preparation
+        if: runner.os == 'Linux'
+        run: python3 -B -m unittest discover -s tests/contract -p test_release.py
       - name: Vet
         run: go vet -tags integration ./...
       - name: Run unit, contract and integration tests
@@ -95,13 +98,15 @@ jobs:
       contents: write
     concurrency: release-${{ github.ref }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
           pattern: skiff-*
           path: dist
           merge-multiple: true
       - name: Publish native packages
-        working-directory: dist
         shell: bash
         env:
           GH_REPO: ${{ github.repository }}
@@ -109,20 +114,10 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          version=${TAG#v}
-          assets=(
-            "skiff-${version}-arm64.dmg"
-            "skiff-setup-${version}-amd64.exe"
-            "skiff-${version}-linux-amd64.tar.gz"
-            "skiff_${version}_amd64.deb"
-            "skiff-${version}-1.x86_64.rpm"
-          )
-          for asset in "${assets[@]}"; do
-            if [[ ! -s "$asset" ]]; then
-              echo "::error::Missing $asset. Check the package version in mygo.json and the tag $TAG."
-              exit 1
-            fi
-          done
+          notes="$RUNNER_TEMP/skiff-release-notes.md"
+          python3 scripts/prepare-release.py "$TAG" dist release > "$notes"
+          cd release
+          assets=(skiff-*)
 
           if release=$(gh release view "$TAG" --json isDraft,assets); then
             if [[ $(jq -r '.isDraft' <<< "$release") == false ]]; then
@@ -131,9 +126,11 @@ jobs:
               done
               exit 0
             fi
-            # Resume a draft left by an interrupted upload.
+            # Refresh the notes as well when resuming an interrupted draft.
+            printf '\n' >> "$notes"
+            gh api -X POST "repos/$GH_REPO/releases/generate-notes" -f tag_name="$TAG" --jq .body >> "$notes"
             gh release upload "$TAG" "${assets[@]}" --clobber
-            gh release edit "$TAG" --draft=false
+            gh release edit "$TAG" --notes-file "$notes" --draft=false
           else
-            gh release create "$TAG" "${assets[@]}" --verify-tag --title "Skiff $TAG" --generate-notes
+            gh release create "$TAG" "${assets[@]}" --verify-tag --title "Skiff $TAG" --notes-file "$notes" --generate-notes
           fi

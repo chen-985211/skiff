@@ -37,8 +37,8 @@ https://github.com/user-attachments/assets/8fa22cc3-e91a-4537-87f4-756609c0314c
 
 ### macOS 首次打开
 
-1. 在配备 Apple 芯片（M 系列）的 Mac 上，下载 [Skiff v0.1.0 的 DMG](https://github.com/chen-985211/skiff/releases/download/v0.1.0/skiff-0.1.0-arm64.dmg)，打开后将 **Skiff.app** 拖到「应用程序」。
-2. 在「应用程序」中双击 **Skiff**。v0.1.0 使用临时签名（ad hoc），尚未经过 Apple 公证。如果 macOS 提示无法验证开发者，请先关闭提示。
+1. 在配备 Apple 芯片（M 系列）的 Mac 上，下载 [Skiff 的 macOS 安装包（DMG）][macos-dmg]，打开后将 **Skiff.app** 拖到「应用程序」。
+2. 在「应用程序」中双击 **Skiff**。此版本使用临时签名（ad hoc），尚未经过 Apple 公证。如果 macOS 提示无法验证开发者，请先关闭提示。
 3. 确认应用来自上面的官方 Release 后，进入 **系统设置 → 隐私与安全性**，找到 Skiff，点 **「仍要打开」** 并确认。以后就可以直接双击启动。[Apple 官方说明](https://support.apple.com/zh-cn/102445)
 
 **也可以用终端完成首次打开。** 将官方 DMG 中的应用拖到「应用程序」后，运行下面这行命令。它会移除这份 Skiff 的下载隔离标记，然后启动应用。
@@ -52,6 +52,8 @@ xattr -dr com.apple.quarantine /Applications/Skiff.app && open /Applications/Ski
 打开 Skiff 后，如果底部显示「下载引擎」，点击一次即可。Skiff 会按芯片架构从 GitHub 下载 aria2c，校验后安装到当前用户的应用数据目录。按钮恢复为「新建下载」后即可添加链接。已安装可用 aria2 的用户可以直接新建下载。
 
 下载使用 Motrix 项目维护的 [aria2c 1.37.0-motrix.24 发布包](https://github.com/motrixapp/aria2/releases/tag/v1.37.0-motrix.24)，支持 Apple Silicon 和 Intel。首次安装需要能访问 GitHub。
+
+[macos-dmg]: https://github.com/chen-985211/skiff/releases/download/v0.1.0/skiff-0.1.0-macos-arm64.dmg
 
 ## 开发运行
 
