@@ -17,7 +17,6 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 	closed := 1 - reveal
 	shown := true // Keep the modal and its draft mounted until the spring reaches the button.
 	ui.DialogBase(c, &shown, func(back, panel ui.Element) {
-		back.Background(p.scrim.Alpha(.14 * reveal))
 		panel.Absolute().Left(left+(anchor.X-left)*closed).Bottom(footerInset+(windowH-anchor.Y-anchor.H-footerInset)*closed).
 			Width(anchor.W+(width-anchor.W)*reveal).Column().AlignItems(ui.Start).Radius(22).Clip().
 			Shadow(0, 6*reveal, 20*reveal, 0, p.scrim.Alpha(.15*reveal))
@@ -84,17 +83,13 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 
 func (v *View) composeFields(c *ui.Context, p palette) {
 	p.muted = p.muted.Mix(c.Theme().Text, .38)
-	fill := p.tint.Mix(p.panel, .50)
-	if !c.Preferences().ReduceTransparency && !c.Preferences().HighContrast {
-		fill = p.haze.Mix(p.scrim, .15).Alpha(.17)
-	}
 	links := ui.TextAreaBase(c, &v.URLs).FillWidth().Lines(4, 7).Padding(12, 14).FontSize(13).FixedLineHeight(20).
-		Radius(12).Background(fill).Label("下载链接").Placeholder("粘贴下载链接，每行一个").PlaceholderColor(p.muted).
+		Radius(12).Label("下载链接").Placeholder("粘贴下载链接，每行一个").PlaceholderColor(p.muted).
 		Description("支持 HTTP 和 HTTPS 链接").AutoFocus().Disabled(v.Busy)
 	edge, focusEdge := p.border, p.active
 	if !c.Preferences().HighContrast {
-		edge = p.haze.Alpha(.42)
-		focusEdge = p.active.Mix(p.border, .25).Alpha(.62)
+		edge = p.rim.Alpha(.34)
+		focusEdge = p.active.Mix(p.haze, .25).Alpha(.60)
 	}
 	if links.Focused() {
 		edge = focusEdge
@@ -109,10 +104,26 @@ func (v *View) composeFields(c *ui.Context, p palette) {
 	}
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
 		v.composeDestination(c, p)
-		if primaryAction(c, "开始下载", "download", v.Busy).Width(106).Shrink(0).Clicked() {
+		if composeSubmit(c, p, v.Busy).Clicked() {
 			v.submit()
 		}
 	})
+}
+
+func composeSubmit(c *ui.Context, p palette, busy bool) ui.Element {
+	const title = "开始下载"
+	b := ui.ButtonBase(c).Label(title).Disabled(busy).Width(106).Height(36).Shrink(0).
+		Radius(18).PaddingX(12).FocusRing(true).Transition(controlMotion)
+	if b.Pressed() {
+		b.Background(p.tint.Mix(p.haze, .36))
+	} else if b.Hovered() {
+		b.Background(p.tint.Mix(p.panel, .54))
+	}
+	b.Border(1, p.border)
+	if !c.Preferences().ReduceTransparency && !c.Preferences().HighContrast {
+		b.BorderLinearGradient(ui.LinearGradient{Angle: 145, From: p.rim.Alpha(.88), To: p.haze.Alpha(.64)})
+	}
+	return b.Children(func() { actionLabel(c, title, "download", c.Theme().Text) })
 }
 
 func (v *View) composeDestination(c *ui.Context, p palette) {

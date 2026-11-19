@@ -6,6 +6,7 @@ import (
 )
 
 type palette struct {
+	sheetFace                                                                                                         ui.Color
 	shade                                                                                                             float32
 	canvas, panel, border, muted, accent, complete, paused, waiting, tint, haze, warm, rim, ice, lilac, active, scrim ui.Color
 }
@@ -23,8 +24,9 @@ func appearance(c *ui.Context, shade float32) palette {
 	}
 	pair := func(day, night string) ui.Color { return ui.Hex(day).Mix(ui.Hex(night), shade) }
 	p := palette{
-		shade:  shade,
-		canvas: pair("#d6dae4", "#292e39"), panel: pair("#f8f9fa", "#363c48"), rim: pair("#f8f9fa", "#8390a5"),
+		sheetFace: pair("#e8eaee", "#454a54"),
+		shade:     shade,
+		canvas:    pair("#d6dae4", "#292e39"), panel: pair("#f8f9fa", "#363c48"), rim: pair("#f8f9fa", "#8390a5"),
 		haze: pair("#8a98b4", "#495469"), warm: pair("#dcd5de", "#4b424e"), tint: pair("#c5cbd8", "#50596b"),
 		ice: pair("#b9e5e7", "#739ca9"), lilac: pair("#c5b8d7", "#9586a9"),
 		border: pair("#adb6c7", "#606a7a"), muted: pair("#475366", "#c6cdd9"), accent: pair("#202532", "#e6e7eb"),
@@ -64,28 +66,26 @@ func surface(c *ui.Context, e ui.Element, p palette, radius float32, finish glas
 		return e.Material(glass.Glass{Style: glass.Regular, Tint: p.panel.Alpha(.43)})
 	}
 
-	blur, opacity := float32(7), float32(.50)
-	top, middle, edge := p.tint.Mix(p.rim, .36), p.ice.Mix(p.panel, .86), p.rim
 	if finish == sheetFrost {
-		blur, opacity = 14, .52
-		top, middle, edge = p.haze.Mix(p.tint, .35), p.tint.Mix(p.lilac, .10), p.rim.Mix(p.ice, .08)
+		// Only the bevel samples the workspace. The frosted face keeps a single
+		// tone while the light behind it moves.
+		return e.Material(glass.Glass{Style: glass.Clear, Tint: p.sheetFace.Alpha(.16)}).Draw(func(painter *ui.Painter, r ui.Rect) {
+			// Feather the ground face into the narrow polished edge.
+			for i, opacity := range [...]float32{.18, .36, .62, 1} {
+				inset := float32(i + 1)
+				face := ui.Rect{X: r.X + inset, Y: r.Y + inset, W: r.W - 2*inset, H: r.H - 2*inset}
+				painter.Fill(face, p.sheetFace.Alpha(opacity), radius-inset)
+			}
+		}).InsetShadow(0, -1, 2, 0, p.haze.Alpha(.32))
 	}
-	// Diffuse the backdrop before painting the wash; text and controls stay sharp.
+
 	wash := ui.LinearGradient{Angle: 115, Stops: []ui.GradientStop{
-		{At: 0, Color: top.Alpha(opacity)},
-		{At: .45, Color: middle.Alpha(opacity * .70)},
-		{At: 1, Color: edge.Alpha(opacity)},
+		{At: 0, Color: p.tint.Mix(p.rim, .36).Alpha(.50)},
+		{At: .45, Color: p.ice.Mix(p.panel, .86).Alpha(.35)},
+		{At: 1, Color: p.rim.Alpha(.50)},
 	}}
-	return e.Material(glass.Blur{Radius: blur}).Draw(func(painter *ui.Painter, r ui.Rect) {
+	return e.Material(glass.Blur{Radius: 7}).Draw(func(painter *ui.Painter, r ui.Rect) {
 		painter.FillGradient(r, wash, radius)
-		if finish == sheetFrost {
-			// Let one blue-grey shadow cross the heading and editor together.
-			smoke := p.haze.Mix(p.scrim, .25)
-			painter.FillRadialGradient(r, ui.RadialGradient{
-				Center: ui.Point{X: .42, Y: .32}, Radius: r.W * .57,
-				Stops: []ui.GradientStop{{At: 0, Color: smoke.Alpha(.47)}, {At: 1, Color: smoke.Alpha(0)}},
-			}, radius)
-		}
 	}).InsetShadow(0, -1, 2, 0, p.haze.Alpha(.32)).Border(1, ui.Transparent).BorderLinearGradient(ui.LinearGradient{
 		Angle: 150, From: p.rim.Alpha(.82), To: p.haze.Alpha(.38),
 	})
@@ -110,13 +110,14 @@ func primaryAction(c *ui.Context, title, icon string, disabled bool) ui.Element 
 	} else if b.Hovered() {
 		fill = t.AccentHover
 	}
-	b.Background(fill).Children(func() {
-		ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(7).Children(func() {
-			ui.Icon(c, icons[icon]).FontSize(15).TextColor(t.AccentText)
-			ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(t.AccentText)
-		})
+	return b.Background(fill).Children(func() { actionLabel(c, title, icon, t.AccentText) })
+}
+
+func actionLabel(c *ui.Context, title, icon string, ink ui.Color) {
+	ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(7).Children(func() {
+		ui.Icon(c, icons[icon]).FontSize(15).TextColor(ink)
+		ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(ink)
 	})
-	return b
 }
 
 func secondaryAction(c *ui.Context, title string) ui.Element {
