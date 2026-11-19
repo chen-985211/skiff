@@ -12,7 +12,9 @@ func (v *View) filtered() []application.TaskDTO {
 	q := strings.ToLower(strings.TrimSpace(v.Query))
 	for i := len(v.Snapshot.Tasks) - 1; i >= 0; i-- {
 		t := v.Snapshot.Tasks[i]
-		if matches(t, v.Filter) && (q == "" || strings.Contains(strings.ToLower(t.Name+" "+t.URL), q)) {
+		_, wasVisible := v.visibleTransfers[t.ID]
+		leavingActive := v.Filter == "active" && t.Status == "complete" && wasVisible
+		if (matches(t, v.Filter) || leavingActive) && (q == "" || strings.Contains(strings.ToLower(t.Name+" "+t.URL), q)) {
 			tasks = append(tasks, t)
 		}
 	}

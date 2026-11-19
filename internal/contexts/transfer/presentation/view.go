@@ -40,6 +40,7 @@ type View struct {
 	EngineError                                    error
 	engineOffered, installingEngine                bool
 	taskErrors                                     map[string]error
+	visibleTransfers                               map[string]visibleTransfer
 	queueError, directoryError, openDirectoryError error
 	detailID                                       string
 	taskRows                                       ui.ListState
@@ -48,7 +49,10 @@ type View struct {
 }
 
 func New(api API, actions Actions) *View {
-	return &View{API: api, Actions: actions, Filter: "all", Ready: api != nil, taskErrors: make(map[string]error)}
+	return &View{
+		API: api, Actions: actions, Filter: "all", Ready: api != nil,
+		taskErrors: make(map[string]error), visibleTransfers: make(map[string]visibleTransfer),
+	}
 }
 func (v *View) OfferEngineDownload(err error) {
 	v.engineOffered = true
@@ -73,6 +77,7 @@ func (v *View) OpenNew() {
 	}
 }
 func (v *View) Render(c *ui.Context) {
+	defer v.forgetHiddenTransfers()
 	stage := ui.Row(c).Fill().AlignItems(ui.Stretch)
 	mode := v.selectedTheme()
 	dark := mode == application.ThemeDark || mode == application.ThemeSystem && c.Theme().Dark

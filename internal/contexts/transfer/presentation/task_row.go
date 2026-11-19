@@ -53,7 +53,7 @@ func cardAction(c *ui.Context, icon, text, label, status string) bool {
 	return b.Clicked()
 }
 
-func (v *View) rowActions(c *ui.Context, t application.TaskDTO) {
+func (v *View) rowActions(c *ui.Context, t application.TaskDTO, displayStatus string) {
 	if v.Busy {
 		return
 	}
@@ -69,10 +69,10 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO) {
 			label, text, icon, cmd = "重试下载", "重试下载", "retry", application.Retry
 		}
 		if cmd == "" && v.detailID == t.ID {
-			state := statusText(t.Status)
+			state := statusText(displayStatus)
 			badge := ui.Box(c.Key("task-status")).Role(ui.RoleStatus).Label(state).Background(c.Theme().Surface.Alpha(.38))
-			cardPill(c, badge, stateSymbol(t.Status), state, t.Status)
-		} else if cardAction(c, icon, text, label, t.Status) {
+			cardPill(c, badge, stateSymbol(displayStatus), state, displayStatus)
+		} else if cardAction(c, icon, text, label, displayStatus) {
 			if cmd != "" {
 				v.command(t.ID, cmd)
 			} else {
@@ -144,7 +144,8 @@ func fileHeading(c *ui.Context, p palette, t application.TaskDTO, titleSize, lin
 
 func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 	card := ui.Column(c.Key(t.ID)).Size(cardWidth, cardHeight).MaxWidthPercent(100).Shrink(0).Role(ui.RoleGroup).Label(t.Name).Padding(12, cardInset).Gap(4).Transition(cardMotion(t.ID))
-	color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
+	progress := v.cardProgress(c, card, t)
+	color := card.AnimateColor("status", taskColor(p, progress.status), colorFade)
 	v.cardSurface(c, card, p, t.ID, color, cornerCard).Children(func() {
 		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(54).FillWidth().Radius(cornerRow).Transition(controlMotion)
 		head.Children(func() {
@@ -157,9 +158,9 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 			v.detailID = t.ID
 			c.Invalidate()
 		}
-		v.taskProgress(c, p, t, color)
+		v.taskProgress(c, p, t, color, progress)
 		ui.Box(c).Grow(1)
-		v.rowActions(c, t)
+		v.rowActions(c, t, progress.status)
 		v.removeTaskButton(c, t.ID)
 	})
 }
@@ -192,16 +193,17 @@ func taskSize(t application.TaskDTO) string {
 	return ""
 }
 
-func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Color) {
+func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, color ui.Color, progress progressFrame) {
 	actionError := v.taskErrors[t.ID]
-	if t.Status == "complete" {
+	if progress.opacity == 0 {
 		inlineError(c, actionError)
 		return
 	}
 	active := t.Status == "active"
 
-	section := ui.Column(c.Key("progress")).Gap(6).Transition(pageFade)
-	fraction := section.AnimateTo("completion", float32(t.Progress), progressEase)
+	section := ui.Column(c.Key("progress")).Gap(6).Transition(pageFade).Opacity(progress.opacity)
+	fraction := progress.fraction
+	known := t.Total > 0 || t.Status == "complete"
 	section.Children(func() {
 		ui.Row(c).Height(18).AlignItems(ui.Center).Children(func() {
 			metric, ink := "", p.muted
@@ -213,14 +215,13 @@ func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, col
 				metric = bytesText(t.Speed) + "/s"
 			}
 			ui.Text(c, metric).MinWidth(0).Grow(1).SingleLine().Tooltip(metric).FontSize(12).FontFeatures("tnum").TextColor(ink).ContentTransition(textChange)
-			if t.Total > 0 {
-				ui.Textf(c, "%.0f%%", 100*t.Progress).FontSize(12).FontWeight(600).FontFeatures("tnum").ContentTransition(numberChange)
+			if known {
+				ui.Textf(c, "%.0f%%", 100*fraction).FontSize(12).FontWeight(600).FontFeatures("tnum")
 			}
 		})
 		track := ui.Box(c).Height(5).FillWidth().Radius(cornerProgress).Background(p.border).Clip().Role(ui.RoleProgress).Label("下载进度")
-		known := t.Total > 0
 		if known {
-			track.Range(0, 1, t.Progress)
+			track.Range(0, 1, float64(fraction))
 		} else {
 			track.Description("文件大小未知")
 		}
@@ -275,7 +276,8 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 		ui.Box(c).Height(v.detailTop).MinHeight(0).Shrink(1).IgnoreInput(true)
 		card := ui.Column(c.Key(t.ID)).Size(2*cardWidth+cardGap, detailHeight).Shrink(0).Margin(0, 0, 0, float32(column*(cardWidth+cardGap))).
 			MaxWidthPercent(100).MaxHeightPercent(100).AlignSelf(ui.Start).ZIndex(1).Role(ui.RoleGroup).Label(t.Name).Padding(16, cardInset).Gap(16).Transition(cardMotion(t.ID))
-		color := card.AnimateColor("status", taskColor(p, t.Status), colorFade)
+		progress := v.cardProgress(c, card, t)
+		color := card.AnimateColor("status", taskColor(p, progress.status), colorFade)
 		v.cardSurface(c, card, p, t.ID, color, cornerDetail).Children(func() {
 			ui.Row(c).Height(44).FillWidth().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
 				fileHeading(c, p, t, 18, 2)
@@ -293,9 +295,9 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 					}
 					detailField(c, p, "位置", target)
 				})
-				v.taskProgress(c, p, t, color)
+				v.taskProgress(c, p, t, color, progress)
 			})
-			v.rowActions(c, t)
+			v.rowActions(c, t, progress.status)
 		})
 	})
 }
