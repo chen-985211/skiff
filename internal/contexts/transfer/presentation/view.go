@@ -12,7 +12,7 @@ type API interface {
 	SetTheme(context.Context, application.ThemeMode) error
 	SetDefaultDirectory(context.Context, string) error
 	SetStaticBackground(context.Context, bool) error
-	AddBatch(context.Context, string, string) (application.BatchResult, error)
+	AddBatchWithConnections(context.Context, string, string, int) (application.BatchResult, error)
 	Execute(context.Context, string, application.Command) error
 	SetPaused(context.Context, []string, bool) error
 	Snapshot() application.Snapshot
@@ -25,6 +25,8 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
+	advanced                                       bool
+	connectionLimit                                string
 	themeSave                                      preferenceSave[application.ThemeMode]
 	flowSave                                       preferenceSave[bool]
 	lastDefault, batchNotice                       string

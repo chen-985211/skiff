@@ -23,20 +23,29 @@ const (
 	Remove            = domain.Remove
 )
 
+const MaxConnectionLimit = domain.MaxConnectionLimit
+
+type SourceInfo struct {
+	domain.SourceVersion
+	RangeBytes int64
+}
+
 type TransferSpec struct {
+	ConnectionLimit    int
 	Version            domain.SourceVersion
 	ID, URL, Directory string
 	OutputName         string
 	Paused             bool
 }
 type Observation struct {
+	Connections                   int
 	ID, Status, Name, Path, Error string
 	Failure                       string
 	Total, Completed, Speed       int64
 }
 type Engine interface {
 	HasPartial(context.Context, domain.Record) (bool, error)
-	InspectSource(context.Context, string) (domain.SourceVersion, error)
+	InspectSource(context.Context, string, bool) (SourceInfo, error)
 	Enqueue(context.Context, TransferSpec) error
 	Execute(context.Context, string, Command) error
 	Observe(context.Context) ([]Observation, error)
@@ -70,6 +79,7 @@ type Repository interface {
 	Save(context.Context, State) error
 }
 type TaskDTO struct {
+	Connections, ConnectionLimit                  int
 	ID, URL, Name, Directory, Path, Status, Error string
 	Total, Completed, Speed                       int64
 	Progress                                      float64
@@ -100,6 +110,9 @@ type Service struct {
 
 func New(engine Engine, repo Repository, directory string, nextID func() string) *Service {
 	return &Service{engine: engine, repo: repo, directory: directory, nextID: nextID}
+}
+func transferSpec(r domain.Record, paused bool) TransferSpec {
+	return TransferSpec{ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: r.OutputName, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
@@ -149,7 +162,7 @@ func (s *Service) Open(ctx context.Context) error {
 				task.Mark(domain.Paused, "")
 			}
 		} else {
-			err := s.engine.Enqueue(ctx, TransferSpec{Version: r.Version, ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: r.OutputName, Paused: true})
+			err := s.engine.Enqueue(ctx, transferSpec(r, true))
 			if err != nil {
 				task.Mark(domain.Failed, "恢复失败："+err.Error())
 			} else {
@@ -173,6 +186,13 @@ type BatchResult struct {
 }
 
 func (s *Service) AddBatch(ctx context.Context, text, directory string) (BatchResult, error) {
+	return s.AddBatchWithConnections(ctx, text, directory, 0)
+}
+
+func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory string, limit int) (BatchResult, error) {
+	if limit < 0 || limit > MaxConnectionLimit {
+		return BatchResult{}, fmt.Errorf("连接上限应为 1 到 %d，留空使用自动设置", MaxConnectionLimit)
+	}
 	batch, err := domain.ParseBatch(text)
 	if err != nil {
 		return BatchResult{}, err
@@ -185,7 +205,7 @@ func (s *Service) AddBatch(ctx context.Context, text, directory string) (BatchRe
 	if len(batch.Sources) == 0 {
 		return result, nil
 	}
-	versions := s.inspectBatch(ctx, batch.Sources)
+	sources := s.inspectBatch(ctx, batch.Sources, limit != 1)
 	if err := ctx.Err(); err != nil {
 		return BatchResult{}, err
 	}
@@ -205,7 +225,8 @@ func (s *Service) AddBatch(ctx context.Context, text, directory string) (BatchRe
 			continue
 		}
 		task := domain.NewTask(s.nextID(), source, directory)
-		task.SetVersion(versions[i])
+		task.SetVersion(sources[i].SourceVersion)
+		task.PlanConnections(limit, sources[i].RangeBytes)
 		s.tasks = append(s.tasks, task)
 	}
 	result.Added = len(s.tasks) - len(oldTasks)
@@ -221,8 +242,7 @@ func (s *Service) AddBatch(ctx context.Context, text, directory string) (BatchRe
 	var failures []error
 	for i := len(oldTasks); i < len(s.tasks); i++ {
 		task := &s.tasks[i]
-		r := task.Record()
-		if err := s.engine.Enqueue(ctx, TransferSpec{Version: r.Version, ID: r.ID, URL: r.URL, Directory: r.Directory}); err != nil {
+		if err := s.engine.Enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
 			task.Mark(domain.Failed, err.Error())
 			failures = append(failures, err)
 		}
@@ -235,10 +255,10 @@ func (s *Service) AddBatch(ctx context.Context, text, directory string) (BatchRe
 
 // Bound metadata latency for an entire paste. Sources that do not answer HEAD
 // can still download; their partial files require an explicit fresh start.
-func (s *Service) inspectBatch(ctx context.Context, sources []string) []domain.SourceVersion {
+func (s *Service) inspectBatch(ctx context.Context, sources []string, ranges bool) []SourceInfo {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	versions := make([]domain.SourceVersion, len(sources))
+	versions := make([]SourceInfo, len(sources))
 	jobs := make(chan int, len(sources))
 	for i := range sources {
 		jobs <- i
@@ -251,7 +271,7 @@ func (s *Service) inspectBatch(ctx context.Context, sources []string) []domain.S
 				if ctx.Err() != nil {
 					return
 				}
-				versions[i], _ = s.engine.InspectSource(ctx, sources[i])
+				versions[i], _ = s.engine.InspectSource(ctx, sources[i], ranges)
 			}
 		})
 	}
@@ -318,23 +338,25 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 			}
 		}
 		if partial {
-			var current domain.SourceVersion
+			var current SourceInfo
 			if r.Version.Verified() {
 				var err error
-				current, err = s.engine.InspectSource(ctx, r.URL)
+				current, err = s.engine.InspectSource(ctx, r.URL, false)
 				if err != nil {
 					return fmt.Errorf("暂时无法检查下载源，请稍后重试：%w", err)
 				}
 			}
-			if !r.Version.Verified() || current != r.Version {
+			if !r.Version.Verified() || current.SourceVersion != r.Version {
 				task.RefuseResume()
 				return s.persist(ctx)
 			}
 		} else if command == Retry {
-			version, _ := s.engine.InspectSource(ctx, r.URL)
-			task.SetVersion(version)
+			info, _ := s.engine.InspectSource(ctx, r.URL, r.RequestedConnections != 1)
+			previous := *task
+			task.SetVersion(info.SourceVersion)
+			task.PlanConnections(r.RequestedConnections, info.RangeBytes)
 			if err := s.persist(ctx); err != nil {
-				task.SetVersion(r.Version)
+				*task = previous
 				return err
 			}
 			r = task.Record()
@@ -345,9 +367,9 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 		name := filepath.Base(r.Name)
 		ext := filepath.Ext(name)
 		outputName := strings.TrimSuffix(name, ext) + ".restart-" + s.nextID() + ext
-		version, _ := s.engine.InspectSource(ctx, r.URL)
+		version, _ := s.engine.InspectSource(ctx, r.URL, false)
 		task.RestartAs(outputName)
-		task.SetVersion(version)
+		task.SetVersion(version.SourceVersion)
 		// Commit the new target before any external effect. The previous partial
 		// file and its control file are never removed or overwritten.
 		if err := s.persist(ctx); err != nil {
@@ -359,7 +381,7 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 			_ = s.persist(ctx)
 			return err
 		}
-		if err := s.engine.Enqueue(ctx, TransferSpec{Version: version, ID: id, URL: r.URL, Directory: r.Directory, OutputName: outputName}); err != nil {
+		if err := s.engine.Enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
 			task.Mark(domain.Failed, err.Error())
 			_ = s.persist(ctx)
 			return err
@@ -368,7 +390,7 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 		if err := s.engine.Execute(ctx, id, Retry); err != nil {
 			return err
 		}
-		if err := s.engine.Enqueue(ctx, TransferSpec{Version: r.Version, ID: id, URL: r.URL, Directory: r.Directory, OutputName: r.OutputName}); err != nil {
+		if err := s.engine.Enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
 			task.Mark(domain.Failed, err.Error())
 			_ = s.persist(ctx)
 			return err
@@ -390,7 +412,7 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 	return s.persist(ctx)
 }
 func apply(task *domain.Task, o Observation) {
-	task.Observe(domain.Observation{Status: domain.Status(o.Status), Name: o.Name, Path: o.Path, Error: o.Error, Failure: o.Failure, Total: o.Total, Completed: o.Completed, Speed: o.Speed})
+	task.Observe(domain.Observation{Connections: o.Connections, Status: domain.Status(o.Status), Name: o.Name, Path: o.Path, Error: o.Error, Failure: o.Failure, Total: o.Total, Completed: o.Completed, Speed: o.Speed})
 }
 func (s *Service) Refresh(ctx context.Context) error {
 	s.mu.Lock()
@@ -431,7 +453,7 @@ func (s *Service) Snapshot() Snapshot {
 	snap := Snapshot{Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
-		dto := TaskDTO{ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
+		dto := TaskDTO{Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
 		snap.Tasks = append(snap.Tasks, dto)
 		if r.Status == domain.Active {
 			snap.Active++

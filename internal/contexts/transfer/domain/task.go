@@ -38,24 +38,36 @@ const (
 	Remove  Command = "remove"
 )
 
+const (
+	DefaultConnectionLimit = 4
+	MaxConnectionLimit     = 16
+	MinSplitBytes          = 4 << 20
+)
+
 type Record struct {
-	Version    SourceVersion
-	ID         string
-	URL        string
-	Name       string
-	Directory  string
-	Path       string
-	Status     Status
-	Total      int64
-	Completed  int64
-	Speed      int64
-	Error      string
-	Failure    string
-	OutputName string
+	RequestedConnections int `json:",omitempty"`
+	ConnectionLimit      int `json:",omitempty"`
+	Version              SourceVersion
+	ID                   string
+	URL                  string
+	Name                 string
+	Directory            string
+	Path                 string
+	Status               Status
+	Total                int64
+	Completed            int64
+	Speed                int64
+	Error                string
+	Failure              string
+	OutputName           string
 }
-type Task struct{ record Record }
+type Task struct {
+	record      Record
+	connections int
+}
 
 type Observation struct {
+	Connections             int
 	Status                  Status
 	Name, Path, Error       string
 	Failure                 string
@@ -75,7 +87,9 @@ func (t *Task) Observe(o Observation) {
 	}
 	t.record.Status, t.record.Error, t.record.Failure = o.Status, o.Error, o.Failure
 	t.record.Total, t.record.Completed, t.record.Speed = max(0, o.Total), max(0, o.Completed), max(0, o.Speed)
+	t.connections = max(0, o.Connections)
 	if o.Status != Active {
+		t.connections = 0
 		t.record.Speed = 0
 	}
 	if o.Name != "" && t.record.OutputName == "" {
@@ -91,6 +105,17 @@ func (t *Task) Mark(status Status, detail string) {
 	t.Observe(Observation{Status: status, Total: o.Total, Completed: o.Completed, Name: o.Name, Path: o.Path, Error: detail})
 }
 
+func (t Task) Connections() int { return t.connections }
+
+func (t *Task) PlanConnections(requested int, rangeBytes int64) {
+	limit := requested
+	if limit == 0 {
+		limit = DefaultConnectionLimit
+	}
+	t.record.RequestedConnections = requested
+	t.record.ConnectionLimit = int(max(1, min(int64(limit), rangeBytes/MinSplitBytes)))
+}
+
 func (t *Task) SetVersion(v SourceVersion) { t.record.Version = v }
 
 func (t *Task) RefuseResume() {
@@ -99,6 +124,7 @@ func (t *Task) RefuseResume() {
 }
 
 func (t *Task) RestartAs(outputName string) {
+	t.PlanConnections(1, 0)
 	t.record.OutputName = outputName
 	t.record.Path, t.record.Error, t.record.Failure = "", "", ""
 	t.record.Total, t.record.Completed, t.record.Speed = 0, 0, 0
@@ -128,6 +154,13 @@ func NewTask(id, source, directory string) Task {
 var restartSuffix = regexp.MustCompile(`(\.restart-[0-9a-f]{16})+(\.[^.]+)?$`)
 
 func Restore(record Record) Task {
+	if record.ConnectionLimit <= 0 {
+		record.ConnectionLimit = DefaultConnectionLimit
+		if record.OutputName != "" {
+			record.ConnectionLimit = 1
+			record.RequestedConnections = 1
+		}
+	}
 	if record.OutputName != "" && record.Name == record.OutputName {
 		record.Name = restartSuffix.ReplaceAllString(record.Name, "${2}")
 	}

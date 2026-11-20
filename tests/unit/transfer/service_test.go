@@ -19,8 +19,8 @@ type fakeEngine struct {
 }
 
 func (f *fakeEngine) HasPartial(context.Context, domain.Record) (bool, error) { return false, nil }
-func (f *fakeEngine) InspectSource(context.Context, string) (domain.SourceVersion, error) {
-	return domain.SourceVersion{ETag: `"fixture"`}, nil
+func (f *fakeEngine) InspectSource(context.Context, string, bool) (application.SourceInfo, error) {
+	return application.SourceInfo{SourceVersion: domain.SourceVersion{ETag: `"fixture"`}, RangeBytes: 128 << 20}, nil
 }
 func (f *fakeEngine) Enqueue(_ context.Context, spec application.TransferSpec) error {
 	f.enqueued = append(f.enqueued, spec)

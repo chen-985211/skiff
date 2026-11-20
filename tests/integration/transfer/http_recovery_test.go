@@ -110,7 +110,7 @@ func TestRecentLastModifiedCannotAuthenticateSameSecondReplacement(t *testing.T)
 		w.Header().Set("ETag", `W/"weak"`)
 	}))
 	defer server.Close()
-	version, err := aria2.NewClient("", "").InspectSource(t.Context(), server.URL)
+	version, err := aria2.NewClient("", "").InspectSource(t.Context(), server.URL, false)
 	if err != nil || version.Verified() {
 		t.Fatalf("ambiguous timestamp accepted: %+v, %v", version, err)
 	}

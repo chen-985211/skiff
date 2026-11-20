@@ -877,3 +877,60 @@ func TestBatchFormRetainsOnlyRowsThatNeedAttention(t *testing.T) {
 		t.Fatalf("draft %q; %v", v.URLs, tt.Texts())
 	}
 }
+
+func TestAdvancedConnectionLimitAndLiveCount(t *testing.T) {
+	f := &fakeEngine{}
+	s := service(t, f, &fakeRepo{})
+	dispatch := make(chan func(), 1)
+	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { dispatch <- fn }})
+	v.Snapshot = s.Snapshot()
+	v.OpenNew()
+	v.URLs = "https://example.org/file.bin"
+	tt := interactionScene(v, 800, 560)
+	if _, ok := tt.AccessByRole(ui.RoleTextField, "单文件连接上限"); ok {
+		t.Fatal("advanced field opened by default")
+	}
+	if err := tt.Click("高级选项"); err != nil {
+		t.Fatal(err)
+	}
+	focusLimit := func() {
+		field, ok := tt.AccessByRole(ui.RoleTextField, "单文件连接上限")
+		if !ok {
+			t.Fatal("missing limit field")
+		}
+		r := field.Bounds
+		tt.ClickAt(r.X+r.W/2, r.Y+r.H/2)
+	}
+	focusLimit()
+	tt.Type("17")
+	_ = tt.Click("开始下载")
+	if !v.DialogOpen || v.FormError == "" {
+		t.Fatal("invalid cap accepted")
+	}
+	focusLimit()
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("2")
+	_ = tt.Click("开始下载")
+	select {
+	case apply := <-dispatch:
+		apply()
+	case <-time.After(4 * time.Second):
+		t.Fatal("submit failed")
+	}
+	if v.DialogOpen || len(f.enqueued) != 1 || f.enqueued[0].ConnectionLimit != 2 {
+		t.Fatalf("bad spec %+v", f.enqueued)
+	}
+	id := v.Snapshot.Tasks[0].ID
+	f.observed = []application.Observation{{ID: id, Status: "active", Connections: 2, Total: 24 << 20}}
+	if err := s.Refresh(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	v.Snapshot = s.Snapshot()
+	tt.Frame()
+	if err := tt.Click("查看详情 file.bin"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("2 / 2") {
+		t.Fatalf("missing live count: %v", tt.Texts())
+	}
+}

@@ -11,15 +11,16 @@ import (
 	"strings"
 	"time"
 
+	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/domain"
 )
 
-func (c *Client) InspectSource(ctx context.Context, source string) (domain.SourceVersion, error) {
+func (c *Client) InspectSource(ctx context.Context, source string, ranges bool) (application.SourceInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, source, nil)
 	if err != nil {
-		return domain.SourceVersion{}, err
+		return application.SourceInfo{}, err
 	}
 	req.Header.Set("Accept-Encoding", "identity")
 	resp, err := http.DefaultClient.Do(req)
@@ -28,14 +29,14 @@ func (c *Client) InspectSource(ctx context.Context, source string) (domain.Sourc
 		if errors.As(err, &requestErr) {
 			err = requestErr.Err
 		}
-		return domain.SourceVersion{}, err
+		return application.SourceInfo{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented {
-		return domain.SourceVersion{}, nil
+		return application.SourceInfo{}, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return domain.SourceVersion{}, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return application.SourceInfo{}, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	v := domain.SourceVersion{Resource: resp.Request.URL.String()}
 	tag := resp.Header.Get("ETag")
@@ -48,7 +49,20 @@ func (c *Client) InspectSource(ctx context.Context, source string) (domain.Sourc
 			v.LastModified = modified.UTC().Format(http.TimeFormat)
 		}
 	}
-	return v, nil
+	info := application.SourceInfo{SourceVersion: v}
+	if ranges && resp.ContentLength >= 2*domain.MinSplitBytes && resp.Header.Get("Accept-Ranges") != "none" {
+		probe := req.Clone(ctx)
+		probe.Method = http.MethodGet
+		probe.Header.Set("Range", "bytes=0-0")
+		ranged, err := http.DefaultClient.Do(probe)
+		if err == nil {
+			defer ranged.Body.Close()
+			if ranged.StatusCode == http.StatusPartialContent && ranged.Header.Get("Content-Range") == fmt.Sprintf("bytes 0-0/%d", resp.ContentLength) {
+				info.RangeBytes = resp.ContentLength
+			}
+		}
+	}
+	return info, nil
 }
 
 // A crash or a quick pause can leave a checkpoint before the first progress poll.

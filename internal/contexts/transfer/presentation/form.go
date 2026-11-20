@@ -35,7 +35,7 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 			Opacity(fields).IgnoreInput(!v.DialogOpen).AccessHidden(!v.DialogOpen)
 		form.Children(func() {
 			// The moving title occupies the leading side of this header.
-			ui.Row(c).Height(26).AlignItems(ui.Center).Justify(ui.End).Children(func() {
+			ui.Row(c).FillWidth().Height(26).Gap(8).AlignItems(ui.Center).Justify(ui.End).Children(func() {
 				count := 0
 				for line := range strings.Lines(v.URLs) {
 					if strings.TrimSpace(line) != "" {
@@ -43,10 +43,14 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 					}
 				}
 				if count > 1 {
-					ui.Textf(c, "已输入 %d 行", count).FontSize(11).TextColor(p.muted).ContentTransition(numberChange)
+					ui.Textf(c, "已输入 %d 行", count).Margin(0, 82, 0, 0).FontSize(11).TextColor(p.muted).ContentTransition(numberChange)
 				}
 			})
 			v.composeFields(c, p)
+			if secondaryAction(c, "高级选项").Absolute().Top(16).Right(20).Height(26).Disabled(v.Busy || fields < .5).Clicked() {
+				v.advanced = !v.advanced
+				c.Invalidate()
+			}
 		})
 		if reveal < 1 {
 			height := max(anchor.H, form.LayoutBounds().H)
@@ -98,6 +102,15 @@ func (v *View) composeFields(c *ui.Context, p palette) {
 		v.FormError = ""
 	}
 
+	if v.advanced {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
+			ui.Text(c, "单文件连接上限").Grow(1).FontSize(13).TextColor(p.muted)
+			field := ui.TextInputBase(c, &v.connectionLimit).Width(80).Height(30).PaddingX(8).Label("单文件连接上限").Placeholder("自动").Description("1 到 16，留空为自动").Border(1, p.border).Radius(cornerInline).Disabled(v.Busy)
+			if field.Changed() {
+				v.FormError = ""
+			}
+		})
+	}
 	if v.FormError != "" {
 		ui.Text(c, v.FormError).MaxHeight(68).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
 	}

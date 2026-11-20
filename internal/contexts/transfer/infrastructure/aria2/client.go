@@ -15,6 +15,10 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 		return err
 	}
 	options := map[string]string{"gid": s.ID, "dir": s.Directory, "pause": strconv.FormatBool(s.Paused)}
+	if s.ConnectionLimit > 0 {
+		options["split"] = strconv.Itoa(s.ConnectionLimit)
+		options["max-connection-per-server"] = strconv.Itoa(s.ConnectionLimit)
+	}
 	if s.Version.ETag != "" {
 		options["header"] = "If-Match: " + s.Version.ETag
 	} else if s.Version.LastModified != "" {
@@ -61,19 +65,20 @@ func (c *Client) Execute(ctx context.Context, id string, cmd application.Command
 }
 
 type ariaTask struct {
-	GID       string `json:"gid"`
-	Status    string `json:"status"`
-	Total     string `json:"totalLength"`
-	Completed string `json:"completedLength"`
-	Speed     string `json:"downloadSpeed"`
-	Error     string `json:"errorMessage"`
-	ErrorCode string `json:"errorCode"`
-	Files     []struct {
+	Connections string `json:"connections"`
+	GID         string `json:"gid"`
+	Status      string `json:"status"`
+	Total       string `json:"totalLength"`
+	Completed   string `json:"completedLength"`
+	Speed       string `json:"downloadSpeed"`
+	Error       string `json:"errorMessage"`
+	ErrorCode   string `json:"errorCode"`
+	Files       []struct {
 		Path string `json:"path"`
 	} `json:"files"`
 }
 
-var keys = []string{"gid", "status", "totalLength", "completedLength", "downloadSpeed", "errorMessage", "errorCode", "files"}
+var keys = []string{"gid", "status", "connections", "totalLength", "completedLength", "downloadSpeed", "errorMessage", "errorCode", "files"}
 
 func (c *Client) Observe(ctx context.Context) ([]application.Observation, error) {
 	var result []application.Observation
@@ -94,6 +99,7 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 			if t.ErrorCode == "8" {
 				o.Failure = application.ResumeUnsupported
 			}
+			o.Connections, _ = strconv.Atoi(t.Connections)
 			o.Total, _ = strconv.ParseInt(t.Total, 10, 64)
 			o.Completed, _ = strconv.ParseInt(t.Completed, 10, 64)
 			o.Speed, _ = strconv.ParseInt(t.Speed, 10, 64)

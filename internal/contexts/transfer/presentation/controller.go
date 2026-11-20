@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"skiff/internal/contexts/transfer/application"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -27,13 +28,23 @@ func (v *View) submit() {
 	if v.API == nil {
 		return
 	}
+	limit := 0
+	if value := strings.TrimSpace(v.connectionLimit); value != "" {
+		var err error
+		limit, err = strconv.Atoi(value)
+		if err != nil || limit < 1 || limit > application.MaxConnectionLimit {
+			v.FormError = fmt.Sprintf("连接上限应为 1 到 %d，留空使用自动设置", application.MaxConnectionLimit)
+			v.advanced = true
+			return
+		}
+	}
 	v.Busy = true
 	v.FormError = ""
 	text, dir := v.URLs, v.Directory
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		result, err := v.API.AddBatch(ctx, text, dir)
+		result, err := v.API.AddBatchWithConnections(ctx, text, dir, limit)
 		snap := v.API.Snapshot()
 		v.dispatch(func() {
 			v.Busy = false
@@ -63,6 +74,8 @@ func (v *View) submit() {
 			default:
 				v.DialogOpen = false
 				v.Directory = ""
+				v.advanced = false
+				v.connectionLimit = ""
 				if result.Added+result.Duplicates > 1 || result.Duplicates > 0 {
 					v.batchNotice = summary
 				}
