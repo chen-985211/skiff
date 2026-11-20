@@ -136,6 +136,6 @@ func (v *View) Render(c *ui.Context) {
 
 func inlineError(c *ui.Context, err error) {
 	if err != nil {
-		ui.Text(c, err.Error()).MinWidth(0).MaxWidthPercent(100).SingleLine().FontSize(12).TextColor(c.Theme().Danger).Tooltip(err.Error())
+		ui.Text(c.Key("inline-error"), err.Error()).Transition(pageFade).ContentTransition(textChange).MinWidth(0).MaxWidthPercent(100).SingleLine().FontSize(12).TextColor(c.Theme().Danger).Tooltip(err.Error())
 	}
 }

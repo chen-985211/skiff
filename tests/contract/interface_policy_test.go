@@ -46,9 +46,17 @@ func interfaceFindings(path string, src any) ([]string, error) {
 	if uiName == "" {
 		return findings, nil
 	}
-	ast.Inspect(file, func(n ast.Node) bool {
+	ast.PreorderStack(file, nil, func(n ast.Node, parents []ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			checkControlMotion(call, parents, uiName, report)
+		}
 		var expr ast.Expr
 		switch node := n.(type) {
+		case *ast.ValueSpec:
+			if len(node.Values) > 0 {
+				return true
+			}
+			expr = node.Type
 		case *ast.CallExpr:
 			expr = node.Fun
 		case *ast.CompositeLit:
@@ -70,6 +78,10 @@ func interfaceFindings(path string, src any) ([]string, error) {
 			case "SpringOptions", "Animation", "ElementTransition", "ContentTransition":
 				if path != motionOwner {
 					report(sel.Pos(), "select a component curve from motion.go")
+				} else if lit, ok := n.(*ast.CompositeLit); ok {
+					checkMotionDefinition(sel.Sel.Name, lit, report)
+				} else if _, ok := n.(*ast.ValueSpec); ok {
+					report(sel.Pos(), "initialize the animation with an explicit curve")
 				}
 			case "Switch", "Button":
 				report(sel.Pos(), "use the themed control built on SwitchBase or ButtonBase")
@@ -116,7 +128,7 @@ func TestInterfacePolicy(t *testing.T) {
 }
 
 func TestInterfacePolicyRecognizesAliasesAndExceptions(t *testing.T) {
-	source := "package sample\nimport kit \"github.com/egoist/mygo/ui\"\nfunc draw(){\n_ = kit.Hex(\"#fff\"); _ = kit.SpringOptions{}; _ = kit.Switch(c,on); node.Animate(1,2,3); node.AnimateTo(1,2,sheetSpring); _ = kit.ButtonBase(c)\n}"
+	source := "package sample\nimport kit \"github.com/egoist/mygo/ui\"\nfunc draw(){\n_ = kit.Hex(\"#fff\"); _ = kit.SpringOptions{Stiffness: 484, Damping: 44}; _ = kit.Switch(c,on); node.Animate(1,2,3); node.AnimateTo(1,2,sheetSpring); _ = kit.ButtonBase(c).Transition(controlMotion)\n}"
 	for path, want := range map[string]int{"view.go": 4, paletteOwner: 3, motionOwner: 2} {
 		found, err := interfaceFindings(path, source)
 		if err != nil || len(found) != want {

@@ -23,4 +23,6 @@
 
 修改或审查 MyGo 界面时使用项目技能 [液态玻璃界面](.agents/skills/liquid-glass-interface/SKILL.md)，通过 `make check-ui` 验证配色与动效契约。
 
+控件创建时绑定 [motion.go](internal/contexts/transfer/presentation/motion.go) 的动效。条件显示的面板和状态文字要有进入与退出过渡。可打断的展开或选择使用稳定元素上的 `AnimateTo` 驱动高度、位置或透明度。为新交互覆盖中间帧和减少动态效果模式。UI 门禁检查控件自身的创建链，报错带文件与行号；CI 在推送和 PR 时运行同一组契约及渲染测试。
+
 所有平台的控件统一使用连续曲率圆角。圆角尺寸集中在 [corners.go](internal/contexts/transfer/presentation/corners.go)，同一表面的填充、边框与裁剪共用一个尺寸。Logo 的圆角用连续曲线路径绘制，修改后运行 `swift scripts/make-icon.swift` 同步应用图标。`make check-ui` 同时检查圆角开关、SVG 资源和实际渲染轮廓。

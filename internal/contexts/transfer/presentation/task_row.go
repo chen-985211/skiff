@@ -85,7 +85,7 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO, displayStatus st
 			v.command(t.ID, application.Prioritize)
 		}
 		if t.NextInQueue {
-			ui.Text(c, "下一项").FontSize(12).TextColor(c.Theme().TextMuted)
+			ui.Text(c.Key("next-in-queue"), "下一项").Transition(pageFade).FontSize(12).TextColor(c.Theme().TextMuted)
 		}
 		if t.CanRestart && cardAction(c, "restart", "从头下载", "从头下载", "", textChange) {
 			v.RestartID, v.RestartOpen = t.ID, true
@@ -102,7 +102,10 @@ func (v *View) removeTaskButton(c *ui.Context, id string) {
 		return
 	}
 	const label = "移除任务（保留文件）"
-	b := ui.ButtonBase(c.Key("remove-task")).Absolute().Top(8).Right(8).ZIndex(2).Size(30, 30).Center().Radius(cornerRemove).Label(label).Tooltip(label)
+	b := ui.ButtonBase(c.Key("remove-task")).Transition(controlMotion).Absolute().Top(8).Right(8).ZIndex(2).Size(30, 30).Center().Radius(cornerRemove).Label(label).Tooltip(label)
+	if b.Hovered() {
+		b.Background(c.Theme().SurfaceHover)
+	}
 	b.Children(func() { ui.Icon(c, icons["close"]).FontSize(14).TextColor(c.Theme().TextMuted) })
 	if b.Clicked() {
 		v.command(id, application.Remove)
@@ -144,7 +147,7 @@ func fileHeading(c *ui.Context, p palette, t application.TaskDTO, titleSize, lin
 	ui.Column(c).Grow(1).MinWidth(0).Gap(lineGap).Children(func() {
 		ui.Text(c, t.Name).FontSize(titleSize).FontWeight(640).SingleLine().TruncateMiddle().Tooltip(t.Name)
 		if size := taskSize(t); size != "" {
-			ui.Text(c, size).ContentTransition(numberChange).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
+			ui.Text(c, size).Transition(pageFade).ContentTransition(numberChange).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
 		}
 	})
 }
@@ -224,7 +227,7 @@ func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, col
 			}
 			ui.Text(c, metric).MinWidth(0).Grow(1).SingleLine().Tooltip(metric).FontSize(12).FontFeatures("tnum").TextColor(ink).ContentTransition(textChange)
 			if known {
-				ui.Textf(c, "%.0f%%", 100*fraction).FontSize(12).FontWeight(600).FontFeatures("tnum")
+				ui.Textf(c, "%.0f%%", 100*fraction).Transition(pageFade).FontSize(12).FontWeight(600).FontFeatures("tnum")
 			}
 		})
 		track := ui.Box(c).Height(5).FillWidth().Radius(cornerProgress).Background(p.border).Clip().Role(ui.RoleProgress).Label("下载进度")
@@ -315,8 +318,8 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 }
 
 func detailField(c *ui.Context, p palette, label, value string) {
-	ui.Row(c).AlignItems(ui.Center).Gap(fileColumnGap).Children(func() {
+	ui.Row(c.Key(label)).Transition(pageFade).AlignItems(ui.Center).Gap(fileColumnGap).Children(func() {
 		ui.Text(c, label).Width(fileIconSize).FontSize(12).TextColor(p.muted)
-		ui.Text(c, value).FontSize(12).Grow(1).MinWidth(0).SingleLine().Selectable().Tooltip(value)
+		ui.Text(c, value).ContentTransition(textChange).FontSize(12).Grow(1).MinWidth(0).SingleLine().Selectable().Tooltip(value)
 	})
 }

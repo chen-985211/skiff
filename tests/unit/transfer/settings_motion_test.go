@@ -464,3 +464,30 @@ func TestRenderConcurrencySaveOnlyChangesItsOwnControl(t *testing.T) {
 		t.Fatal("custom limit was not saved")
 	}
 }
+
+func TestRenderConcurrencySelectionTravelsBetweenPresets(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	v.Snapshot.Preferences.Concurrency = 1
+	tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
+	if err := tt.Click("设置"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(time.Second)
+	n, _ := tt.AccessByRole(ui.RoleButton, "同时下载 5 项")
+	x, y := int(n.Bounds.X+n.Bounds.W/2), int(n.Bounds.Y+5)
+	unchanged := tt.Image().RGBAAt(x, y)
+	v.Snapshot.Preferences.Concurrency = 30
+	tt.Frame()
+	passed := false
+	for range 35 {
+		tt.Advance(8 * time.Millisecond)
+		if tt.Image().RGBAAt(x, y) != unchanged {
+			passed = true
+		}
+	}
+	tt.Advance(time.Second)
+	if !passed || tt.Image().RGBAAt(x, y) != unchanged {
+		t.Fatal("selection did not travel across the intermediate preset and settle")
+	}
+}

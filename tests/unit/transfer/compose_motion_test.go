@@ -178,3 +178,75 @@ func TestRenderSheetDismissalStartsWithTheVisibleForm(t *testing.T) {
 		t.Fatalf("action flashed on dismissal before the sheet moved: %v -> %v", before, after)
 	}
 }
+
+func TestRenderAdvancedOptionsRetargetSheetHeight(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	v.OpenNew()
+	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
+	height := func() float32 {
+		n, ok := tt.AccessByRole(ui.RoleDialog, "")
+		if !ok {
+			t.Fatal("missing sheet")
+		}
+		return n.Bounds.H
+	}
+	toggle := func() {
+		t.Helper()
+		if err := tt.Click("高级选项"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt.Advance(time.Second)
+	closed := height()
+	toggle()
+	tt.Advance(70 * time.Millisecond)
+	tt.Frame()
+	mid := height()
+	toggle()
+	tt.Frame()
+	reverse := height()
+	if math.Abs(float64(reverse-mid)) > 1 {
+		t.Fatal("collapse jumped before the next tick", mid, reverse)
+	}
+	tt.Advance(time.Second)
+	if height() != closed {
+		t.Fatal("hidden options still occupy space")
+	}
+	toggle()
+	tt.Advance(time.Second)
+	open := height()
+	if mid <= closed+1 || mid >= open-1 {
+		t.Fatalf("advanced options skipped intermediate heights: %.1f, %.1f, %.1f", closed, mid, open)
+	}
+}
+
+func TestAdvancedOptionsRespectReducedMotion(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	v.OpenNew()
+	tt := interactionScene(v, 800, 560)
+	rect := func() ui.Rect {
+		n, ok := tt.AccessByRole(ui.RoleDialog, "")
+		if !ok {
+			t.Fatal("missing dialog")
+		}
+		return n.Bounds
+	}
+	before := rect()
+	for _, open := range []bool{true, false} {
+		if err := tt.Click("高级选项"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		first := rect()
+		_, visible := tt.AccessByRole(ui.RoleTextField, "单文件连接上限")
+		if visible != open || (first.H > before.H) != open {
+			t.Fatalf("reduced motion delayed the change: open=%v, visible=%v, bounds=%v", open, visible, first)
+		}
+		tt.Advance(time.Second)
+		if rect() != first {
+			t.Fatal("reduced motion left a layout animation running")
+		}
+	}
+}

@@ -149,7 +149,7 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 			search = ui.Row(c).Role(ui.RoleSearch).Label("任务搜索").Grow(1).MinWidth(0).FillHeight().AlignItems(ui.Center).Padding(0, 8, 0, 16).Gap(8)
 			surface(c, search, p, cornerDock, searchGlass).Shadow(0, 3, 10, 0, c.Theme().Text.Alpha(.10)).Children(func() {
 				ui.Icon(c, icons["search"]).FontSize(18).TextColor(p.muted).IgnoreInput(true)
-				field := ui.TextInputBase(c, &v.Query).Label("搜索下载任务").Placeholder("搜索文件名或链接").Grow(1).MinWidth(0).FillHeight().FontSize(13).KeyShortcuts(ui.Cmd, ui.KeyF)
+				field := ui.TextInputBase(c, &v.Query).Transition(controlMotion).Label("搜索下载任务").Placeholder("搜索文件名或链接").Grow(1).MinWidth(0).FillHeight().FontSize(13).KeyShortcuts(ui.Cmd, ui.KeyF)
 				if search.Clicked() || (!v.DialogOpen && !v.RestartOpen && c.Shortcut(ui.Cmd, ui.KeyF)) {
 					field.Focus()
 				}

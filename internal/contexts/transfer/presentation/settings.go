@@ -58,7 +58,7 @@ func settingsRow(c *ui.Context, row ui.Element, icon, name, hint string, err err
 		ui.Column(c).MinWidth(0).Gap(3).Children(func() {
 			label = ui.Text(c, name).FontSize(14).FontWeight(600).Shrink(0)
 			if err == nil && hint != "" {
-				ui.Text(c, hint).FontSize(12).TextColor(p.muted)
+				ui.Text(c.Key("setting-hint"), hint).Transition(pageFade).FontSize(12).TextColor(p.muted)
 			} else {
 				inlineError(c, err)
 			}
@@ -125,7 +125,7 @@ func (v *View) themeSelector(c *ui.Context, p palette) {
 func (v *View) lightSwitch(c *ui.Context, p palette, label ui.Element) {
 	reduced := c.Preferences().ReduceMotion
 	enabled := !v.staticBackground() && !reduced
-	toggle := ui.SwitchBase(c.Key("flow-switch"), &enabled).Size(48, 32).AlignItems(ui.Center).LabelledBy(label).Disabled(!v.Ready || v.API == nil || reduced)
+	toggle := ui.SwitchBase(c.Key("flow-switch"), &enabled).Transition(controlMotion).Size(48, 32).AlignItems(ui.Center).LabelledBy(label).Disabled(!v.Ready || v.API == nil || reduced)
 	if reduced {
 		toggle.Description("系统已启用减少动态效果")
 	}
@@ -153,12 +153,27 @@ func (v *View) concurrencyLimit() int {
 func (v *View) concurrencySetting(c *ui.Context, p palette) {
 	limit := v.concurrencyLimit()
 	disabled := !v.Ready || v.API == nil
-	ui.Row(c.Key("concurrency-presets")).Label("常用同时下载数").Padding(2).Radius(cornerCompact).Background(p.haze.Alpha(.21)).Children(func() {
-		for _, n := range [...]int{1, 3, 5, 10, 20, 30} {
-			selected := limit == n
-			preset := ui.ButtonBase(c.Key(strconv.Itoa(n))).Size(30, 28).Center().Radius(cornerSmall).Label(fmt.Sprintf("同时下载 %d 项", n)).AccessSelected(selected).Disabled(disabled)
-			if selected {
-				preset.Background(p.panel)
+	presets := [...]int{1, 3, 5, 10, 20, 30}
+	const width = 30
+	track := ui.Row(c.Key("concurrency-presets")).Label("常用同时下载数").Padding(2).Radius(cornerCompact).Background(p.haze.Alpha(.21))
+	// Keep the last position when a custom value fades the selection out.
+	last := ui.Local(track, "last-preset", func() int { return 0 })
+	selected := false
+	for i, n := range presets {
+		if n == limit {
+			*last = i
+			selected = true
+			break
+		}
+	}
+	x := track.AnimateTo("selection-x", float32(*last*width), selectionSpring)
+	alpha := track.AnimateTo("selection-opacity", amount(selected), colorFade)
+	track.Children(func() {
+		ui.Box(c.Key("selection")).Absolute().Left(2).Top(2).Size(width, 28).Radius(cornerSmall).Background(p.panel).Translate(x, 0).Opacity(alpha).IgnoreInput(true).AccessHidden(true)
+		for _, n := range presets {
+			preset := ui.ButtonBase(c.Key(strconv.Itoa(n))).Size(width, 28).ZIndex(1).Transition(controlMotion).Center().Radius(cornerSmall).Label(fmt.Sprintf("同时下载 %d 项", n)).AccessSelected(limit == n).Disabled(disabled)
+			if preset.Pressed() {
+				preset.Background(p.panel.Alpha(.66))
 			} else if preset.Hovered() {
 				preset.Background(p.panel.Alpha(.48))
 			}
@@ -170,7 +185,10 @@ func (v *View) concurrencySetting(c *ui.Context, p palette) {
 			}
 		}
 	})
-	field := ui.TextInputBase(c.Key("concurrency-number"), &v.concurrencyText).Size(62, 32).PaddingX(8).FontSize(13).FontFeatures("tnum").TextAlign(ui.Center).Radius(cornerSmall).Border(1, p.border).Background(p.panel.Alpha(.50)).Label("自定义同时下载数").Description("1–200，回车或离开输入框时保存").Tooltip("自定义同时下载数（1–200）").Disabled(disabled).FocusRing(true)
+	field := ui.TextInputBase(c.Key("concurrency-number"), &v.concurrencyText).Transition(controlMotion).Size(62, 32).PaddingX(8).FontSize(13).FontFeatures("tnum").TextAlign(ui.Center).Radius(cornerSmall).Border(1, p.border).Background(p.panel.Alpha(.50)).Label("自定义同时下载数").Description("1–200，回车或离开输入框时保存").Tooltip("自定义同时下载数（1–200）").Disabled(disabled).FocusRing(true)
+	if field.Focused() {
+		field.Border(1, p.active)
+	}
 	if field.Changed() {
 		v.concurrencyEdited = true
 		v.concurrencySave.err = nil
