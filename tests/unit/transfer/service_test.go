@@ -20,6 +20,10 @@ type fakeEngine struct {
 	addErr      error
 }
 
+func (f *fakeEngine) ProtectCheckpoints(context.Context, string, []application.OutputCandidate) (map[string]string, error) {
+	return nil, nil
+}
+
 func (f *fakeEngine) SetConcurrency(_ context.Context, limit int) error {
 	if f.limitErr != nil {
 		return f.limitErr

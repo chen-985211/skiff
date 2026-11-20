@@ -121,6 +121,8 @@ func (t *Task) PlanConnections(requested int, rangeBytes int64) {
 	t.record.ConnectionLimit = int(max(1, min(int64(limit), rangeBytes/MinSplitBytes)))
 }
 
+func (t *Task) SetOutputName(name string) { t.record.OutputName = name; t.record.Name = name }
+
 func (t *Task) SetVersion(v SourceVersion) { t.record.Version = v }
 
 func (t *Task) RefuseResume() {

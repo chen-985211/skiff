@@ -115,3 +115,72 @@ func TestRecentLastModifiedCannotAuthenticateSameSecondReplacement(t *testing.T)
 		t.Fatalf("ambiguous timestamp accepted: %+v, %v", version, err)
 	}
 }
+
+func TestNewTaskNeverAdoptsRemovedTasksCheckpoint(t *testing.T) {
+	old := bytes.Repeat([]byte("A"), 6<<20)
+	fresh := bytes.Repeat([]byte("B"), len(old))
+	var changed atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, etag := old, `"original"`
+		if changed.Load() {
+			data, etag = fresh, `"replaced"`
+		}
+		w.Header().Set("ETag", etag)
+		w.Header().Set("Content-Disposition", `attachment; filename="named.bin"`)
+		http.ServeContent(slowWriter{w, r.Context()}, r, "link", time.Time{}, bytes.NewReader(data))
+	}))
+	defer server.Close()
+	svc := downloadService(t)
+	dir := svc.Snapshot().Directory
+	add := func() string {
+		t.Helper()
+		if _, err := svc.Add(t.Context(), server.URL+"/link", dir); err != nil {
+			t.Fatal(err)
+		}
+		return svc.Snapshot().Tasks[0].ID
+	}
+	id := add()
+	partial := awaitTask(t, svc, id, func(task application.TaskDTO) bool { return task.Completed >= 1<<20 })
+	if err := svc.Execute(t.Context(), id, application.Pause); err != nil {
+		t.Fatal(err)
+	}
+	awaitTask(t, svc, id, func(task application.TaskDTO) bool { return task.Status == "paused" })
+	if err := svc.Execute(t.Context(), id, application.Remove); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(partial.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpoint, err := os.ReadFile(partial.Path + ".aria2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed.Store(true)
+	done := awaitTask(t, svc, add(), func(task application.TaskDTO) bool { return task.Status == "complete" })
+	after, err := os.ReadFile(partial.Path)
+	if err != nil || !bytes.Equal(after, before) || done.Path == partial.Path {
+		t.Fatal("a new task adopted the previous partial file")
+	}
+	control, err := os.ReadFile(partial.Path + ".aria2")
+	if err != nil || !bytes.Equal(control, checkpoint) {
+		t.Fatal("old checkpoint changed")
+	}
+	got, err := os.ReadFile(done.Path)
+	if err != nil || !bytes.Equal(got, fresh) {
+		t.Fatal("mixed file versions")
+	}
+}
+
+func TestUnavailableHTTPMetadataAllowsSafeFreshStart(t *testing.T) {
+	for _, status := range []int{http.StatusForbidden, http.StatusGone, http.StatusServiceUnavailable} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(status) }))
+			defer server.Close()
+			info, err := aria2.NewClient("", "").InspectSource(t.Context(), server.URL, false)
+			if info.Verified() || (err != nil) != (status == http.StatusServiceUnavailable) {
+				t.Fatalf("HTTP %d recovery: %+v, %v", status, info, err)
+			}
+		})
+	}
+}

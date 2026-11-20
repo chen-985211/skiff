@@ -30,6 +30,7 @@ const MaxConnectionLimit = domain.MaxConnectionLimit
 
 type SourceInfo struct {
 	domain.SourceVersion
+	Filename   string
 	RangeBytes int64
 }
 
@@ -47,7 +48,10 @@ type Observation struct {
 	Failure                       string
 	Total, Completed, Speed       int64
 }
+type OutputCandidate struct{ ID, Name string }
+
 type Engine interface {
+	ProtectCheckpoints(context.Context, string, []OutputCandidate) (map[string]string, error)
 	SetConcurrency(context.Context, int) error
 	HasPartial(context.Context, domain.Record) (bool, error)
 	InspectSource(context.Context, string, bool) (SourceInfo, error)
@@ -234,12 +238,18 @@ func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory s
 		}
 	}
 	oldTasks, oldDir := slices.Clone(s.tasks), s.directory
+	var candidates []OutputCandidate
 	for i, source := range batch.Sources {
 		if pending[source] {
 			result.Duplicates++
 			continue
 		}
 		task := domain.NewTask(s.nextID(), source, directory)
+		name := sources[i].Filename
+		if name == "" {
+			name = task.Record().Name
+		}
+		candidates = append(candidates, OutputCandidate{ID: task.Record().ID, Name: name})
 		task.SetVersion(sources[i].SourceVersion)
 		task.PlanConnections(limit, sources[i].RangeBytes)
 		s.tasks = append(s.tasks, task)
@@ -247,6 +257,16 @@ func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory s
 	result.Added = len(s.tasks) - len(oldTasks)
 	if result.Added == 0 {
 		return result, nil
+	}
+	protected, err := s.engine.ProtectCheckpoints(ctx, directory, candidates)
+	if err != nil {
+		s.tasks = oldTasks
+		return BatchResult{}, err
+	}
+	for i := len(oldTasks); i < len(s.tasks); i++ {
+		if name, ok := protected[s.tasks[i].Record().ID]; ok {
+			s.tasks[i].SetOutputName(name)
+		}
 	}
 	s.directory = directory
 	// The persistent intent precedes the external effect, so a crash can be reconciled.

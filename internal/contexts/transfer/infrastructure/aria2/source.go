@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -32,7 +34,8 @@ func (c *Client) InspectSource(ctx context.Context, source string, ranges bool) 
 		return application.SourceInfo{}, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented {
+	switch resp.StatusCode {
+	case http.StatusNotImplemented, http.StatusMethodNotAllowed, http.StatusNotFound, http.StatusGone, http.StatusForbidden, http.StatusUnauthorized:
 		return application.SourceInfo{}, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -49,7 +52,13 @@ func (c *Client) InspectSource(ctx context.Context, source string, ranges bool) 
 			v.LastModified = modified.UTC().Format(http.TimeFormat)
 		}
 	}
-	info := application.SourceInfo{SourceVersion: v}
+	info := application.SourceInfo{SourceVersion: v, Filename: path.Base(resp.Request.URL.Path)}
+	if _, params, err := mime.ParseMediaType(resp.Header.Get("Content-Disposition")); err == nil && params["filename"] != "" {
+		info.Filename = params["filename"]
+	}
+	if info.Filename == "." || info.Filename == "/" {
+		info.Filename = ""
+	}
 	if ranges && resp.ContentLength >= 2*domain.MinSplitBytes && resp.Header.Get("Accept-Ranges") != "none" {
 		probe := req.Clone(ctx)
 		probe.Method = http.MethodGet
@@ -101,4 +110,49 @@ func (c *Client) HasPartial(ctx context.Context, r domain.Record) (bool, error) 
 		}
 	}
 	return false, nil
+}
+
+// aria2 will open a same-name control file even with continue=false. When the
+// destination contains checkpoints, pin an unused output before enqueue so a
+// newly submitted task never claims the bytes of a removed or foreign task.
+func (c *Client) ProtectCheckpoints(ctx context.Context, dir string, candidates []application.OutputCandidate) (map[string]string, error) {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	hasCheckpoint := false
+	for _, entry := range entries {
+		if strings.HasSuffix(strings.ToLower(entry.Name()), ".aria2") {
+			hasCheckpoint = true
+			break
+		}
+	}
+	if !hasCheckpoint {
+		return nil, nil
+	}
+	occupied := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		occupied[strings.ToLower(entry.Name())] = true
+	}
+	chosen := make(map[string]string, len(candidates))
+	for _, item := range candidates {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		name := item.Name
+		if !filepath.IsLocal(name) || filepath.Base(name) != name || name == "." || strings.ContainsAny(name, "<>:\"/\\|?*\x00\r\n") {
+			name = "download-" + item.ID
+		}
+		ext := filepath.Ext(name)
+		stem := strings.TrimSuffix(name, ext)
+		for i := 1; occupied[strings.ToLower(name)] || occupied[strings.ToLower(name)+".aria2"]; i++ {
+			name = fmt.Sprintf("%s.%d%s", stem, i, ext)
+		}
+		chosen[item.ID] = name
+		occupied[strings.ToLower(name)] = true
+	}
+	return chosen, nil
 }

@@ -27,8 +27,10 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 	if s.OutputName != "" {
 		options["out"] = s.OutputName
 		options["continue"] = "false"
-		options["split"] = "1"
-		options["max-connection-per-server"] = "1"
+		if s.ConnectionLimit == 0 {
+			options["split"] = "1"
+			options["max-connection-per-server"] = "1"
+		}
 		options["allow-overwrite"] = "false"
 		options["auto-file-renaming"] = "true"
 	}
