@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,12 +36,57 @@ func (c *Client) InspectSource(ctx context.Context, source string, ranges bool) 
 	}
 	defer resp.Body.Close()
 	switch resp.StatusCode {
-	case http.StatusNotImplemented, http.StatusMethodNotAllowed, http.StatusNotFound, http.StatusGone, http.StatusForbidden, http.StatusUnauthorized:
+	case http.StatusNotImplemented, http.StatusMethodNotAllowed, http.StatusForbidden:
+		return inspectRange(req, ranges, application.SourceInfo{})
+	case http.StatusNotFound, http.StatusGone, http.StatusUnauthorized:
 		return application.SourceInfo{}, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return application.SourceInfo{}, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
+	info := responseInfo(resp)
+	if ranges && resp.ContentLength >= 2*domain.MinSplitBytes && resp.Header.Get("Accept-Ranges") != "none" {
+		return inspectRange(req, true, info)
+	}
+	return info, nil
+}
+
+func responseInfo(resp *http.Response) application.SourceInfo {
+	info := application.SourceInfo{SourceVersion: responseVersion(resp), Filename: path.Base(resp.Request.URL.Path)}
+	if _, params, err := mime.ParseMediaType(resp.Header.Get("Content-Disposition")); err == nil && params["filename"] != "" {
+		info.Filename = params["filename"]
+	}
+	if info.Filename == "." || info.Filename == "/" {
+		info.Filename = ""
+	}
+	return info
+}
+
+func inspectRange(head *http.Request, ranges bool, info application.SourceInfo) (application.SourceInfo, error) {
+	probe := head.Clone(head.Context())
+	probe.Method = http.MethodGet
+	probe.Header.Set("Range", "bytes=0-0")
+	resp, err := http.DefaultClient.Do(probe)
+	if err != nil {
+		return info, nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		return info, nil
+	}
+	actual := responseInfo(resp)
+	if actual.Verified() || !info.Verified() {
+		info = actual
+	}
+	if value, ok := strings.CutPrefix(resp.Header.Get("Content-Range"), "bytes 0-0/"); ok && resp.StatusCode == http.StatusPartialContent && ranges {
+		if total, err := strconv.ParseInt(value, 10, 64); err == nil && total > 0 {
+			info.RangeBytes = total
+		}
+	}
+	return info, nil
+}
+
+func responseVersion(resp *http.Response) domain.SourceVersion {
 	v := domain.SourceVersion{Resource: resp.Request.URL.String()}
 	tag := resp.Header.Get("ETag")
 	if len(tag) >= 2 && strings.HasPrefix(tag, `"`) && strings.HasSuffix(tag, `"`) && !strings.ContainsAny(tag[1:len(tag)-1], "\r\n\"") {
@@ -52,26 +98,7 @@ func (c *Client) InspectSource(ctx context.Context, source string, ranges bool) 
 			v.LastModified = modified.UTC().Format(http.TimeFormat)
 		}
 	}
-	info := application.SourceInfo{SourceVersion: v, Filename: path.Base(resp.Request.URL.Path)}
-	if _, params, err := mime.ParseMediaType(resp.Header.Get("Content-Disposition")); err == nil && params["filename"] != "" {
-		info.Filename = params["filename"]
-	}
-	if info.Filename == "." || info.Filename == "/" {
-		info.Filename = ""
-	}
-	if ranges && resp.ContentLength >= 2*domain.MinSplitBytes && resp.Header.Get("Accept-Ranges") != "none" {
-		probe := req.Clone(ctx)
-		probe.Method = http.MethodGet
-		probe.Header.Set("Range", "bytes=0-0")
-		ranged, err := http.DefaultClient.Do(probe)
-		if err == nil {
-			defer ranged.Body.Close()
-			if ranged.StatusCode == http.StatusPartialContent && ranged.Header.Get("Content-Range") == fmt.Sprintf("bytes 0-0/%d", resp.ContentLength) {
-				info.RangeBytes = resp.ContentLength
-			}
-		}
-	}
-	return info, nil
+	return v
 }
 
 // A crash or a quick pause can leave a checkpoint before the first progress poll.

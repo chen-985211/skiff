@@ -56,6 +56,9 @@ func cardAction(c *ui.Context, icon, text, label, status string, change ui.Conte
 
 func (v *View) rowActions(c *ui.Context, t application.TaskDTO, displayStatus string, change ui.ContentTransition) {
 	if v.Busy {
+		if t.Checking && v.cancelRun != nil && secondaryAction(c, "取消校验").Clicked() {
+			v.cancelRun()
+		}
 		return
 	}
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
@@ -215,7 +218,9 @@ func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, col
 	section.Children(func() {
 		ui.Row(c).Height(18).AlignItems(ui.Center).Children(func() {
 			metric, ink := "", p.muted
-			if actionError != nil {
+			if t.Checking {
+				metric = "正在校验已下载内容"
+			} else if actionError != nil {
 				metric, ink = actionError.Error(), c.Theme().Danger
 			} else if t.Error != "" {
 				metric, ink = t.Error, c.Theme().Danger

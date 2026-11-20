@@ -20,6 +20,10 @@ type fakeEngine struct {
 	addErr      error
 }
 
+func (f *fakeEngine) CheckPartial(context.Context, domain.Record) (application.PartialCheck, error) {
+	return application.PartialCheck{Failure: domain.CheckpointUnverified}, nil
+}
+func (f *fakeEngine) ApplyVersion(context.Context, string, domain.SourceVersion) error { return nil }
 func (f *fakeEngine) ProtectCheckpoints(context.Context, string, []application.OutputCandidate) (map[string]string, error) {
 	return nil, nil
 }

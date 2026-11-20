@@ -50,7 +50,13 @@ type Observation struct {
 }
 type OutputCandidate struct{ ID, Name string }
 
+type PartialCheck struct {
+	Version domain.SourceVersion
+	Failure string
+}
 type Engine interface {
+	CheckPartial(context.Context, domain.Record) (PartialCheck, error)
+	ApplyVersion(context.Context, string, domain.SourceVersion) error
 	ProtectCheckpoints(context.Context, string, []OutputCandidate) (map[string]string, error)
 	SetConcurrency(context.Context, int) error
 	HasPartial(context.Context, domain.Record) (bool, error)
@@ -89,6 +95,7 @@ type Repository interface {
 	Save(context.Context, State) error
 }
 type TaskDTO struct {
+	Checking                                      bool
 	CanPrioritize, NextInQueue                    bool
 	Connections, ConnectionLimit                  int
 	ID, URL, Name, Directory, Path, Status, Error string
@@ -108,6 +115,10 @@ type Snapshot struct {
 // Service is the single serialized entry point for download intent and progress.
 // Call it from workers, never from the UI thread.
 type Service struct {
+	// Queue mutations take intentMu before mu. Content checks can release mu
+	// while retaining exclusive intent for the paused task and its checkpoint.
+	intentMu           sync.Mutex
+	checkingID         string
 	concurrencyPending bool
 	preferences        Preferences
 	mu                 sync.Mutex
@@ -124,9 +135,15 @@ func New(engine Engine, repo Repository, directory string, nextID func() string)
 	return &Service{engine: engine, repo: repo, directory: directory, nextID: nextID}
 }
 func transferSpec(r domain.Record, paused bool) TransferSpec {
-	return TransferSpec{ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: r.OutputName, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
+	name := r.OutputName
+	if r.Path != "" && filepath.Clean(filepath.Dir(r.Path)) == filepath.Clean(r.Directory) {
+		name = filepath.Base(r.Path)
+	}
+	return TransferSpec{ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
+	s.intentMu.Lock()
+	defer s.intentMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state, err := s.repo.Load(ctx)
@@ -228,6 +245,8 @@ func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory s
 	if err := ctx.Err(); err != nil {
 		return BatchResult{}, err
 	}
+	s.intentMu.Lock()
+	defer s.intentMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	pending := make(map[string]bool)
@@ -315,6 +334,8 @@ func (s *Service) inspectBatch(ctx context.Context, sources []string, ranges boo
 }
 
 func (s *Service) Execute(ctx context.Context, id string, command Command) error {
+	s.intentMu.Lock()
+	defer s.intentMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	index := slices.IndexFunc(s.tasks, func(t domain.Task) bool { return t.Record().ID == id })
@@ -337,6 +358,8 @@ func (s *Service) SetPaused(ctx context.Context, ids []string, paused bool) erro
 		selected[id] = struct{}{}
 	}
 
+	s.intentMu.Lock()
+	defer s.intentMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var failures []error
@@ -376,17 +399,25 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 			}
 		}
 		if partial {
-			var current SourceInfo
-			if r.Version.Verified() {
-				var err error
-				current, err = s.engine.InspectSource(ctx, r.URL, false)
-				if err != nil {
-					return fmt.Errorf("暂时无法检查下载源，请稍后重试：%w", err)
-				}
+			checked, err := s.checkResume(ctx, r)
+			if err != nil {
+				return err
 			}
-			if !r.Version.Verified() || current.SourceVersion != r.Version {
-				task.RefuseResume()
+			if checked.Failure != "" {
+				task.RefuseResume(checked.Failure)
 				return s.persist(ctx)
+			}
+			if checked.Version.Verified() && checked.Version != r.Version {
+				if command == Resume {
+					if err := s.engine.ApplyVersion(ctx, id, checked.Version); err != nil {
+						return err
+					}
+				}
+				task.SetVersion(checked.Version)
+				if err := s.persist(ctx); err != nil {
+					task.SetVersion(r.Version)
+					return err
+				}
 			}
 		} else if command == Retry {
 			info, _ := s.engine.InspectSource(ctx, r.URL, r.RequestedConnections != 1)
@@ -449,6 +480,28 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 	}
 	return s.persist(ctx)
 }
+
+// Called with both locks held. Polling and rendering of other tasks stay live
+// while reading potentially large HTTP ranges.
+func (s *Service) checkResume(ctx context.Context, r domain.Record) (PartialCheck, error) {
+	if r.Version.Verified() {
+		current, err := s.engine.InspectSource(ctx, r.URL, false)
+		if err != nil {
+			return PartialCheck{}, fmt.Errorf("暂时无法检查下载源，请稍后重试：%w", err)
+		}
+		if current.SourceVersion == r.Version {
+			return PartialCheck{}, nil
+		}
+		if current.ETag != "" && r.Version.ETag != "" && current.ETag != r.Version.ETag ||
+			current.LastModified != "" && r.Version.LastModified != "" && current.LastModified != r.Version.LastModified {
+			return PartialCheck{Failure: domain.SourceChanged}, nil
+		}
+	}
+	s.checkingID = r.ID
+	s.mu.Unlock()
+	defer func() { s.mu.Lock(); s.checkingID = "" }()
+	return s.engine.CheckPartial(ctx, r)
+}
 func apply(task *domain.Task, o Observation) {
 	task.Observe(domain.Observation{NextInQueue: o.NextInQueue, Connections: o.Connections, Status: domain.Status(o.Status), Name: o.Name, Path: o.Path, Error: o.Error, Failure: o.Failure, Total: o.Total, Completed: o.Completed, Speed: o.Speed})
 }
@@ -470,7 +523,7 @@ func (s *Service) Refresh(ctx context.Context) error {
 	for i := range s.tasks {
 		if o, ok := byID[s.tasks[i].Record().ID]; ok {
 			before := s.tasks[i].Record()
-			if before.Failure == domain.SourceUnverified {
+			if before.ID == s.checkingID || before.Status == domain.Failed && s.tasks[i].ResumeBlocked() {
 				continue
 			}
 			apply(&s.tasks[i], o)
@@ -494,7 +547,7 @@ func (s *Service) Snapshot() Snapshot {
 	snap := Snapshot{Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
-		dto := TaskDTO{CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
+		dto := TaskDTO{Checking: s.checkingID == r.ID, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
 		snap.Tasks = append(snap.Tasks, dto)
 		if r.Status == domain.Active {
 			snap.Active++

@@ -21,7 +21,9 @@ const (
 type Command string
 
 const ResumeUnsupported = "resume_unsupported"
-const SourceUnverified = "source_unverified"
+const SourceUnverified = "source_unverified" // Legacy resume refusal.
+const SourceChanged = "source_changed"
+const CheckpointUnverified = "checkpoint_unverified"
 
 // SourceVersion identifies the representation selected by the original HTTP request.
 type SourceVersion struct {
@@ -125,9 +127,9 @@ func (t *Task) SetOutputName(name string) { t.record.OutputName = name; t.record
 
 func (t *Task) SetVersion(v SourceVersion) { t.record.Version = v }
 
-func (t *Task) RefuseResume() {
+func (t *Task) RefuseResume(reason string) {
 	t.Mark(Failed, "")
-	t.record.Failure = SourceUnverified
+	t.record.Failure = reason
 }
 
 func (t *Task) RestartAs(outputName string) {
@@ -139,8 +141,13 @@ func (t *Task) RestartAs(outputName string) {
 }
 
 func (t Task) FailureDescription() string {
-	if t.record.Failure == SourceUnverified {
-		return "无法确认远端文件版本，当前文件不支持断点续传；可保留原文件并从头下载"
+	switch t.record.Failure {
+	case SourceUnverified:
+		return "无法确认远端文件版本。已保留部分文件，可从头下载"
+	case CheckpointUnverified:
+		return "无法校验本地下载记录。已保留部分文件，可从头下载"
+	case SourceChanged:
+		return "远端文件已变化。已保留原文件，可从头下载"
 	}
 	if t.record.Failure == ResumeUnsupported {
 		return "服务器不支持断点续传，请选择从头下载"
@@ -161,6 +168,10 @@ func NewTask(id, source, directory string) Task {
 var restartSuffix = regexp.MustCompile(`(\.restart-[0-9a-f]{16})+(\.[^.]+)?$`)
 
 func Restore(record Record) Task {
+	// Older builds marked a missing validator as terminal before asking for a range.
+	if record.Status == Failed && record.Failure == SourceUnverified && !record.Version.Verified() {
+		record.Status, record.Failure, record.Error = Paused, "", ""
+	}
 	if record.ConnectionLimit <= 0 {
 		record.ConnectionLimit = DefaultConnectionLimit
 		if record.OutputName != "" {
@@ -185,7 +196,7 @@ func (t Task) Allows(command Command) bool {
 	case Resume:
 		return t.record.Status == Paused
 	case Retry:
-		return t.record.Status == Failed && t.record.Failure != ResumeUnsupported && t.record.Failure != SourceUnverified
+		return t.record.Status == Failed && !t.ResumeBlocked()
 	case Restart:
 		return t.record.Status == Failed
 	}
@@ -234,4 +245,12 @@ func ParseBatch(text string) (Batch, error) {
 		return batch, errors.New("请先输入下载链接")
 	}
 	return batch, nil
+}
+
+func (t Task) ResumeBlocked() bool {
+	switch t.record.Failure {
+	case ResumeUnsupported, SourceUnverified, SourceChanged, CheckpointUnverified:
+		return true
+	}
+	return false
 }

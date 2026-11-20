@@ -2,6 +2,7 @@ package presentation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"skiff/internal/contexts/transfer/application"
 	"strconv"
@@ -113,12 +114,21 @@ func (v *View) run(action func(context.Context) error, done func(error)) {
 		return
 	}
 	v.Busy = true
+	parent := v.Actions.Context
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	v.cancelRun = cancel
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		err := action(ctx)
+		if ctx.Err() == context.Canceled && errors.Is(err, context.Canceled) {
+			err = nil
+		}
 		snap := v.API.Snapshot()
 		v.dispatch(func() {
+			v.cancelRun = nil
 			v.Busy = false
 			v.Snapshot = snap
 			done(err)

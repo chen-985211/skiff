@@ -19,6 +19,7 @@ type API interface {
 	Snapshot() application.Snapshot
 }
 type Actions struct {
+	Context        context.Context
 	DownloadEngine func()
 	OpenDirectory  func(string, func(error))
 	Dispatch       func(func())
@@ -26,6 +27,7 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
+	cancelRun                                      context.CancelFunc
 	concurrencyError                               error
 	advanced                                       bool
 	connectionLimit                                string

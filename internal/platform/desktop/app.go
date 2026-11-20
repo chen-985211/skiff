@@ -81,6 +81,7 @@ func Run() error {
 		defaultDirectory := filepath.Join(downloads, "Skiff")
 		installRequests := make(chan struct{}, 1)
 		actions := presentation.Actions{
+			Context:        pollCtx,
 			DownloadEngine: func() { installRequests <- struct{}{} },
 			OpenDirectory: func(path string, done func(error)) {
 				go func() {

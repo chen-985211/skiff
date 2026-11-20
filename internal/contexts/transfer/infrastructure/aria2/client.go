@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"skiff/internal/contexts/transfer/application"
+	"skiff/internal/contexts/transfer/domain"
 	"strconv"
 	"strings"
 )
@@ -19,10 +20,8 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 		options["split"] = strconv.Itoa(s.ConnectionLimit)
 		options["max-connection-per-server"] = strconv.Itoa(s.ConnectionLimit)
 	}
-	if s.Version.ETag != "" {
-		options["header"] = "If-Match: " + s.Version.ETag
-	} else if s.Version.LastModified != "" {
-		options["header"] = "If-Unmodified-Since: " + s.Version.LastModified
+	if header := conditionalHeader(s.Version); header != "" {
+		options["header"] = header
 	}
 	if s.OutputName != "" {
 		options["out"] = s.OutputName
@@ -129,4 +128,17 @@ func missingGID(err error, id string) bool {
 
 func (c *Client) SetConcurrency(ctx context.Context, limit int) error {
 	return c.call(ctx, "aria2.changeGlobalOption", []any{map[string]string{"max-concurrent-downloads": strconv.Itoa(limit)}}, nil)
+}
+
+func conditionalHeader(v domain.SourceVersion) string {
+	if v.ETag != "" {
+		return "If-Match: " + v.ETag
+	}
+	if v.LastModified != "" {
+		return "If-Unmodified-Since: " + v.LastModified
+	}
+	return ""
+}
+func (c *Client) ApplyVersion(ctx context.Context, id string, v domain.SourceVersion) error {
+	return c.call(ctx, "aria2.changeOption", []any{id, map[string]string{"header": conditionalHeader(v)}}, nil)
 }
