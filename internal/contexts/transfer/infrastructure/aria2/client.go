@@ -36,6 +36,8 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 }
 func (c *Client) Execute(ctx context.Context, id string, cmd application.Command) error {
 	switch cmd {
+	case application.Prioritize:
+		return c.call(ctx, "aria2.changePosition", []any{id, 0, "POS_SET"}, nil)
 	case application.Pause:
 		return c.call(ctx, "aria2.forcePause", []any{id}, nil)
 	case application.Resume:
@@ -94,8 +96,13 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 		if err := c.call(ctx, req.method, req.args, &tasks); err != nil {
 			return nil, err
 		}
+		firstWaiting := true
 		for _, t := range tasks {
 			o := application.Observation{ID: t.GID, Status: t.Status, Error: t.Error}
+			if req.method == "aria2.tellWaiting" && t.Status == "waiting" && firstWaiting {
+				o.NextInQueue = true
+				firstWaiting = false
+			}
 			if t.ErrorCode == "8" {
 				o.Failure = application.ResumeUnsupported
 			}
@@ -116,4 +123,8 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 func missingGID(err error, id string) bool {
 	var rpcErr *RPCError
 	return errors.As(err, &rpcErr) && rpcErr.Code == 1 && strings.Contains(rpcErr.Message, id) && strings.Contains(rpcErr.Message, "not found")
+}
+
+func (c *Client) SetConcurrency(ctx context.Context, limit int) error {
+	return c.call(ctx, "aria2.changeGlobalOption", []any{map[string]string{"max-concurrent-downloads": strconv.Itoa(limit)}}, nil)
 }

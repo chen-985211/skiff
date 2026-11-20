@@ -15,12 +15,15 @@ import (
 type Command = domain.Command
 
 const (
-	ResumeUnsupported = domain.ResumeUnsupported
-	Pause             = domain.Pause
-	Resume            = domain.Resume
-	Retry             = domain.Retry
-	Restart           = domain.Restart
-	Remove            = domain.Remove
+	DefaultConcurrency = 3
+	MaxConcurrency     = 16
+	Prioritize         = domain.Prioritize
+	ResumeUnsupported  = domain.ResumeUnsupported
+	Pause              = domain.Pause
+	Resume             = domain.Resume
+	Retry              = domain.Retry
+	Restart            = domain.Restart
+	Remove             = domain.Remove
 )
 
 const MaxConnectionLimit = domain.MaxConnectionLimit
@@ -38,12 +41,14 @@ type TransferSpec struct {
 	Paused             bool
 }
 type Observation struct {
+	NextInQueue                   bool
 	Connections                   int
 	ID, Status, Name, Path, Error string
 	Failure                       string
 	Total, Completed, Speed       int64
 }
 type Engine interface {
+	SetConcurrency(context.Context, int) error
 	HasPartial(context.Context, domain.Record) (bool, error)
 	InspectSource(context.Context, string, bool) (SourceInfo, error)
 	Enqueue(context.Context, TransferSpec) error
@@ -63,6 +68,7 @@ func (mode ThemeMode) valid() bool {
 }
 
 type Preferences struct {
+	Concurrency      int       `json:",omitempty"`
 	Theme            ThemeMode `json:",omitempty"`
 	DefaultDirectory string
 	StaticBackground bool
@@ -79,6 +85,7 @@ type Repository interface {
 	Save(context.Context, State) error
 }
 type TaskDTO struct {
+	CanPrioritize, NextInQueue                    bool
 	Connections, ConnectionLimit                  int
 	ID, URL, Name, Directory, Path, Status, Error string
 	Total, Completed, Speed                       int64
@@ -97,15 +104,16 @@ type Snapshot struct {
 // Service is the single serialized entry point for download intent and progress.
 // Call it from workers, never from the UI thread.
 type Service struct {
-	preferences Preferences
-	mu          sync.Mutex
-	engine      Engine
-	repo        Repository
-	directory   string
-	nextID      func() string
-	tasks       []domain.Task
-	dirty       bool
-	lastSave    time.Time
+	concurrencyPending bool
+	preferences        Preferences
+	mu                 sync.Mutex
+	engine             Engine
+	repo               Repository
+	directory          string
+	nextID             func() string
+	tasks              []domain.Task
+	dirty              bool
+	lastSave           time.Time
 }
 
 func New(engine Engine, repo Repository, directory string, nextID func() string) *Service {
@@ -122,6 +130,13 @@ func (s *Service) Open(ctx context.Context) error {
 		return err
 	}
 	s.preferences = state.Preferences
+	if s.preferences.Concurrency < 1 || s.preferences.Concurrency > MaxConcurrency {
+		s.preferences.Concurrency = DefaultConcurrency
+	}
+	s.concurrencyPending = true
+	if err := s.applyConcurrency(ctx); err != nil {
+		return err
+	}
 	if !s.preferences.Theme.valid() {
 		s.preferences.Theme = ThemeSystem
 	}
@@ -328,6 +343,9 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 	}
 	r := task.Record()
 	id := r.ID
+	if command == Prioritize {
+		return s.engine.Execute(ctx, id, Prioritize)
+	}
 	if command == Resume || command == Retry {
 		partial := r.Completed > 0
 		if !partial {
@@ -412,11 +430,14 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 	return s.persist(ctx)
 }
 func apply(task *domain.Task, o Observation) {
-	task.Observe(domain.Observation{Connections: o.Connections, Status: domain.Status(o.Status), Name: o.Name, Path: o.Path, Error: o.Error, Failure: o.Failure, Total: o.Total, Completed: o.Completed, Speed: o.Speed})
+	task.Observe(domain.Observation{NextInQueue: o.NextInQueue, Connections: o.Connections, Status: domain.Status(o.Status), Name: o.Name, Path: o.Path, Error: o.Error, Failure: o.Failure, Total: o.Total, Completed: o.Completed, Speed: o.Speed})
 }
 func (s *Service) Refresh(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.applyConcurrency(ctx); err != nil {
+		return err
+	}
 	observations, err := s.engine.Observe(ctx)
 	if err != nil {
 		return err
@@ -453,7 +474,7 @@ func (s *Service) Snapshot() Snapshot {
 	snap := Snapshot{Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
-		dto := TaskDTO{Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
+		dto := TaskDTO{CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
 		snap.Tasks = append(snap.Tasks, dto)
 		if r.Status == domain.Active {
 			snap.Active++
@@ -521,5 +542,34 @@ func (s *Service) savePreferences(ctx context.Context, next Preferences) error {
 		s.preferences = previous
 		return err
 	}
+	return nil
+}
+
+func (s *Service) SetConcurrency(ctx context.Context, limit int) error {
+	if limit < 1 || limit > MaxConcurrency {
+		return fmt.Errorf("同时下载数应为 1 到 %d", MaxConcurrency)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if limit != s.preferences.Concurrency {
+		next := s.preferences
+		next.Concurrency = limit
+		if err := s.savePreferences(ctx, next); err != nil {
+			return err
+		}
+		s.concurrencyPending = true
+	}
+	return s.applyConcurrency(ctx)
+}
+
+// The saved preference is authoritative. Retry an interrupted RPC on refresh or open.
+func (s *Service) applyConcurrency(ctx context.Context) error {
+	if !s.concurrencyPending {
+		return nil
+	}
+	if err := s.engine.SetConcurrency(ctx, s.preferences.Concurrency); err != nil {
+		return fmt.Errorf("等待下载引擎应用并发设置：%w", err)
+	}
+	s.concurrencyPending = false
 	return nil
 }

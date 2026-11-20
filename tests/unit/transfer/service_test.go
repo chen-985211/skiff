@@ -12,12 +12,21 @@ import (
 )
 
 type fakeEngine struct {
-	enqueued []application.TransferSpec
-	commands []application.Command
-	observed []application.Observation
-	addErr   error
+	concurrency int
+	limitErr    error
+	enqueued    []application.TransferSpec
+	commands    []application.Command
+	observed    []application.Observation
+	addErr      error
 }
 
+func (f *fakeEngine) SetConcurrency(_ context.Context, limit int) error {
+	if f.limitErr != nil {
+		return f.limitErr
+	}
+	f.concurrency = limit
+	return nil
+}
 func (f *fakeEngine) HasPartial(context.Context, domain.Record) (bool, error) { return false, nil }
 func (f *fakeEngine) InspectSource(context.Context, string, bool) (application.SourceInfo, error) {
 	return application.SourceInfo{SourceVersion: domain.SourceVersion{ETag: `"fixture"`}, RangeBytes: 128 << 20}, nil
@@ -242,5 +251,36 @@ func TestSettingsSaveFailureKeepsPreviousValues(t *testing.T) {
 	}
 	if got := s.Snapshot(); got.Preferences != before.Preferences || got.Directory != before.Directory {
 		t.Fatal("failed settings applied")
+	}
+}
+
+func TestQueuePreferenceSurvivesRestartAndEngineRetry(t *testing.T) {
+	f, repo := &fakeEngine{}, &fakeRepo{}
+	s := service(t, f, repo)
+	if f.concurrency != 3 {
+		t.Fatalf("old preferences should default to three: %d", f.concurrency)
+	}
+	for _, bad := range []int{0, 17} {
+		if err := s.SetConcurrency(t.Context(), bad); err == nil {
+			t.Fatal("invalid concurrency accepted", bad)
+		}
+	}
+	repo.saveErr = errors.New("disk full")
+	if err := s.SetConcurrency(t.Context(), 1); err == nil || f.concurrency != 3 {
+		t.Fatal("uncommitted limit applied")
+	}
+	repo.saveErr = nil
+	f.limitErr = errors.New("offline")
+	if err := s.SetConcurrency(t.Context(), 2); err == nil || repo.state.Preferences.Concurrency != 2 {
+		t.Fatal("pending limit lost")
+	}
+	f.limitErr = nil
+	if err := s.Refresh(t.Context()); err != nil || f.concurrency != 2 {
+		t.Fatal("limit was not reconciled", err)
+	}
+	restored := &fakeEngine{}
+	_ = service(t, restored, repo)
+	if restored.concurrency != 2 {
+		t.Fatal("restart did not configure the engine")
 	}
 }

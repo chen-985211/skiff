@@ -9,6 +9,7 @@ import (
 )
 
 type API interface {
+	SetConcurrency(context.Context, int) error
 	SetTheme(context.Context, application.ThemeMode) error
 	SetDefaultDirectory(context.Context, string) error
 	SetStaticBackground(context.Context, bool) error
@@ -25,6 +26,7 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
+	concurrencyError                               error
 	advanced                                       bool
 	connectionLimit                                string
 	themeSave                                      preferenceSave[application.ThemeMode]

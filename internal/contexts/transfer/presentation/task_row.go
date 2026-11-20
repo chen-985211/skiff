@@ -81,6 +81,12 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO, displayStatus st
 				c.Invalidate()
 			}
 		}
+		if t.CanPrioritize && cardAction(c, "download", "优先下载", "优先下载", "", textChange) {
+			v.command(t.ID, application.Prioritize)
+		}
+		if t.NextInQueue {
+			ui.Text(c, "下一项").FontSize(12).TextColor(c.Theme().TextMuted)
+		}
 		if t.CanRestart && cardAction(c, "restart", "从头下载", "从头下载", "", textChange) {
 			v.RestartID, v.RestartOpen = t.ID, true
 		}

@@ -31,11 +31,12 @@ type SourceVersion struct {
 func (v SourceVersion) Verified() bool { return v.ETag != "" || v.LastModified != "" }
 
 const (
-	Pause   Command = "pause"
-	Resume  Command = "resume"
-	Retry   Command = "retry"
-	Restart Command = "restart"
-	Remove  Command = "remove"
+	Prioritize Command = "prioritize"
+	Pause      Command = "pause"
+	Resume     Command = "resume"
+	Retry      Command = "retry"
+	Restart    Command = "restart"
+	Remove     Command = "remove"
 )
 
 const (
@@ -64,9 +65,11 @@ type Record struct {
 type Task struct {
 	record      Record
 	connections int
+	nextInQueue bool
 }
 
 type Observation struct {
+	NextInQueue             bool
 	Connections             int
 	Status                  Status
 	Name, Path, Error       string
@@ -87,6 +90,7 @@ func (t *Task) Observe(o Observation) {
 	}
 	t.record.Status, t.record.Error, t.record.Failure = o.Status, o.Error, o.Failure
 	t.record.Total, t.record.Completed, t.record.Speed = max(0, o.Total), max(0, o.Completed), max(0, o.Speed)
+	t.nextInQueue = o.Status == Waiting && o.NextInQueue
 	t.connections = max(0, o.Connections)
 	if o.Status != Active {
 		t.connections = 0
@@ -105,7 +109,8 @@ func (t *Task) Mark(status Status, detail string) {
 	t.Observe(Observation{Status: status, Total: o.Total, Completed: o.Completed, Name: o.Name, Path: o.Path, Error: detail})
 }
 
-func (t Task) Connections() int { return t.connections }
+func (t Task) NextInQueue() bool { return t.nextInQueue }
+func (t Task) Connections() int  { return t.connections }
 
 func (t *Task) PlanConnections(requested int, rangeBytes int64) {
 	limit := requested
@@ -169,6 +174,8 @@ func Restore(record Record) Task {
 func (t Task) Record() Record { return t.record }
 func (t Task) Allows(command Command) bool {
 	switch command {
+	case Prioritize:
+		return t.record.Status == Waiting && !t.nextInQueue
 	case Remove:
 		return true
 	case Pause:

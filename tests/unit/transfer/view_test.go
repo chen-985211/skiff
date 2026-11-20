@@ -934,3 +934,42 @@ func TestAdvancedConnectionLimitAndLiveCount(t *testing.T) {
 		t.Fatalf("missing live count: %v", tt.Texts())
 	}
 }
+
+func TestSettingsChangeQueueAndPrioritizeWaitingCard(t *testing.T) {
+	f := &fakeEngine{}
+	s := service(t, f, &fakeRepo{})
+	dir := s.Snapshot().Directory
+	_, _ = s.Add(t.Context(), "https://example.org/queued", dir)
+	dispatch := make(chan func(), 1)
+	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { dispatch <- fn }})
+	v.Snapshot = s.Snapshot()
+	tt := interactionScene(v, 800, 560)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	apply := func() {
+		t.Helper()
+		select {
+		case fn := <-dispatch:
+			fn()
+		case <-time.After(3 * time.Second):
+			t.Fatal("missing UI update")
+		}
+		tt.Frame()
+	}
+	click("设置")
+	click("减少同时下载数")
+	apply()
+	if s.Snapshot().Preferences.Concurrency != 2 {
+		t.Fatal("setting did not reach engine")
+	}
+	click("全部任务")
+	click("优先下载")
+	apply()
+	if len(f.commands) != 1 || f.commands[0] != application.Prioritize {
+		t.Fatal("priority action lost")
+	}
+}

@@ -36,6 +36,8 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 					v.pickDefaultDirectory()
 				}
 				settingsDivider(c, p)
+				settingsRow(c, ui.Row(c), "download", "同时下载数", v.concurrencyError, p, func(ui.Element) { v.concurrencySetting(c, p) })
+				settingsDivider(c, p)
 				settingsRow(c, ui.Row(c), "theme", "主题", v.themeSave.err, p, func(ui.Element) { v.themeSelector(c, p) })
 				settingsDivider(c, p)
 				settingsRow(c, ui.Row(c), "light", "背景流光", v.flowSave.err, p, func(label ui.Element) { v.lightSwitch(c, p, label) })
@@ -131,4 +133,20 @@ func (v *View) lightSwitch(c *ui.Context, p palette, label ui.Element) {
 		v.flowSave.choose(v, &v.Snapshot.Preferences.StaticBackground, !v.staticBackground(), v.API.SetStaticBackground)
 		c.Invalidate()
 	}
+}
+
+func (v *View) concurrencySetting(c *ui.Context, p palette) {
+	limit := v.Snapshot.Preferences.Concurrency
+	if limit == 0 {
+		limit = application.DefaultConcurrency
+	}
+	step := func(value int, label, symbol string) {
+		button := secondaryAction(c, symbol).Label(label).Tooltip(label).Width(36).PaddingX(0).Disabled(v.Busy || !v.Ready || value < 1 || value > application.MaxConcurrency)
+		if button.Clicked() {
+			v.run(func(ctx context.Context) error { return v.API.SetConcurrency(ctx, value) }, func(err error) { v.concurrencyError = err })
+		}
+	}
+	step(limit-1, "减少同时下载数", "−")
+	ui.Textf(c, "%d", limit).MinWidth(20).TextAlign(ui.Center).FontSize(14).FontFeatures("tnum").TextColor(p.muted)
+	step(limit+1, "增加同时下载数", "+")
 }
