@@ -8,7 +8,6 @@ import (
 	"skiff/internal/contexts/transfer/presentation"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestUnsupportedResumeDoesNotOfferBlindRetry(t *testing.T) {
@@ -118,7 +117,7 @@ type unmeasuredPartial struct{ fakeEngine }
 
 func (*unmeasuredPartial) HasPartial(context.Context, domain.Record) (bool, error) { return true, nil }
 
-func TestRecoveredPartialWithNoProgressSampleNeedsVerifiedSource(t *testing.T) {
+func TestContinueWithoutAProgressSampleResumesEngineTask(t *testing.T) {
 	dir := t.TempDir()
 	repo := &fakeRepo{state: application.State{Version: 1, Tasks: []domain.Record{{ID: "old", URL: "https://example.org/file", Directory: dir, Status: domain.Paused}}}}
 	engine := &unmeasuredPartial{}
@@ -129,8 +128,8 @@ func TestRecoveredPartialWithNoProgressSampleNeedsVerifiedSource(t *testing.T) {
 	if err := svc.Execute(t.Context(), "old", application.Resume); err != nil {
 		t.Fatal(err)
 	}
-	if task := svc.Snapshot().Tasks[0]; !task.CanRestart || task.CanRetry || len(engine.commands) > 0 {
-		t.Fatalf("unsafe old checkpoint %+v", task)
+	if task := svc.Snapshot().Tasks[0]; task.Status != "waiting" || len(engine.commands) != 1 || engine.commands[0] != application.Resume {
+		t.Fatalf("failed to continue from old checkpoint %+v", task)
 	}
 }
 
@@ -140,47 +139,5 @@ func TestLegacyMissingVersionRefusalRestoresAsPaused(t *testing.T) {
 	s := service(t, &fakeEngine{}, &fakeRepo{state: application.State{Version: 1, Tasks: []domain.Record{r}}})
 	if got := s.Snapshot().Tasks[0]; !got.CanResume || got.Completed != 12 || got.Path != r.Path {
 		t.Fatalf("old refusal is still terminal: %+v", got)
-	}
-}
-
-type pendingVerifier struct {
-	fakeEngine
-	started, release chan struct{}
-}
-
-func (e *pendingVerifier) CheckPartial(ctx context.Context, r domain.Record) (application.PartialCheck, error) {
-	close(e.started)
-	select {
-	case <-e.release:
-		return application.PartialCheck{}, nil
-	case <-ctx.Done():
-		return application.PartialCheck{}, ctx.Err()
-	}
-}
-func TestVerificationRemainsVisibleWithoutBlockingOtherProgress(t *testing.T) {
-	engine := &pendingVerifier{started: make(chan struct{}), release: make(chan struct{})}
-	defer close(engine.release)
-	dir := t.TempDir()
-	s := application.New(engine, &fakeRepo{state: application.State{Tasks: []domain.Record{{ID: "p", URL: "https://example.org/p", Directory: dir, Status: domain.Paused, Completed: 20, Total: 40}}}}, dir, func() string { return "new" })
-	if err := s.Open(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	go func() { _ = s.Execute(t.Context(), "p", application.Resume) }()
-	select {
-	case <-engine.started:
-	case <-time.After(time.Second):
-		t.Fatal("verification did not start")
-	}
-	ch := make(chan application.Snapshot, 1)
-	go func() { ch <- s.Snapshot() }()
-	select {
-	case snap := <-ch:
-		v := presentation.New(s, presentation.Actions{})
-		v.Snapshot = snap
-		if !interactionScene(v, 800, 560).HasText("正在校验已下载内容") {
-			t.Fatal("missing verification feedback")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("snapshot blocked on remote content")
 	}
 }

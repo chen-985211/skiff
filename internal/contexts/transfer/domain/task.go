@@ -32,6 +32,11 @@ type SourceVersion struct {
 
 func (v SourceVersion) Verified() bool { return v.ETag != "" || v.LastModified != "" }
 
+func (v SourceVersion) Changed(other SourceVersion) bool {
+	return v.ETag != "" && other.ETag != "" && v.ETag != other.ETag ||
+		v.LastModified != "" && other.LastModified != "" && v.LastModified != other.LastModified
+}
+
 const (
 	Prioritize Command = "prioritize"
 	Pause      Command = "pause"
@@ -127,10 +132,7 @@ func (t *Task) SetOutputName(name string) { t.record.OutputName = name; t.record
 
 func (t *Task) SetVersion(v SourceVersion) { t.record.Version = v }
 
-func (t *Task) RefuseResume(reason string) {
-	t.Mark(Failed, "")
-	t.record.Failure = reason
-}
+func (t *Task) MarkSourceChanged() { t.record.Failure = SourceChanged }
 
 func (t *Task) RestartAs(outputName string) {
 	t.PlanConnections(1, 0)

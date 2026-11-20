@@ -27,7 +27,6 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
-	cancelRun                                      context.CancelFunc
 	concurrencyError                               error
 	advanced                                       bool
 	connectionLimit                                string

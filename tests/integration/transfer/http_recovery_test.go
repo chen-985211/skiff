@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -85,7 +86,7 @@ func TestRedirectedSourceChangesBeforeResume(t *testing.T) {
 		t.Fatal(err)
 	}
 	failed := awaitTask(t, s, id, func(task application.TaskDTO) bool { return task.Status == "error" || task.Status == "complete" })
-	if !failed.CanRestart || failed.CanRetry {
+	if !failed.CanRestart || failed.CanRetry || !strings.Contains(failed.Error, "远端文件已变化") {
 		t.Fatalf("unsafe resume: %+v", failed)
 	}
 	after, err := os.ReadFile(active.Path)

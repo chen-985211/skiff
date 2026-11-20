@@ -99,7 +99,7 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 		}
 		firstWaiting := true
 		for _, t := range tasks {
-			o := application.Observation{ID: t.GID, Status: t.Status, Error: t.Error}
+			o := application.Observation{ID: t.GID, Status: t.Status, Error: t.Error, HTTPRejected: t.ErrorCode == "22"}
 			if req.method == "aria2.tellWaiting" && t.Status == "waiting" && firstWaiting {
 				o.NextInQueue = true
 				firstWaiting = false
@@ -138,7 +138,4 @@ func conditionalHeader(v domain.SourceVersion) string {
 		return "If-Unmodified-Since: " + v.LastModified
 	}
 	return ""
-}
-func (c *Client) ApplyVersion(ctx context.Context, id string, v domain.SourceVersion) error {
-	return c.call(ctx, "aria2.changeOption", []any{id, map[string]string{"header": conditionalHeader(v)}}, nil)
 }

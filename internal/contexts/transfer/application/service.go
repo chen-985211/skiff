@@ -42,6 +42,7 @@ type TransferSpec struct {
 	Paused             bool
 }
 type Observation struct {
+	HTTPRejected                  bool
 	NextInQueue                   bool
 	Connections                   int
 	ID, Status, Name, Path, Error string
@@ -50,13 +51,7 @@ type Observation struct {
 }
 type OutputCandidate struct{ ID, Name string }
 
-type PartialCheck struct {
-	Version domain.SourceVersion
-	Failure string
-}
 type Engine interface {
-	CheckPartial(context.Context, domain.Record) (PartialCheck, error)
-	ApplyVersion(context.Context, string, domain.SourceVersion) error
 	ProtectCheckpoints(context.Context, string, []OutputCandidate) (map[string]string, error)
 	SetConcurrency(context.Context, int) error
 	HasPartial(context.Context, domain.Record) (bool, error)
@@ -95,7 +90,6 @@ type Repository interface {
 	Save(context.Context, State) error
 }
 type TaskDTO struct {
-	Checking                                      bool
 	CanPrioritize, NextInQueue                    bool
 	Connections, ConnectionLimit                  int
 	ID, URL, Name, Directory, Path, Status, Error string
@@ -115,10 +109,6 @@ type Snapshot struct {
 // Service is the single serialized entry point for download intent and progress.
 // Call it from workers, never from the UI thread.
 type Service struct {
-	// Queue mutations take intentMu before mu. Content checks can release mu
-	// while retaining exclusive intent for the paused task and its checkpoint.
-	intentMu           sync.Mutex
-	checkingID         string
 	concurrencyPending bool
 	preferences        Preferences
 	mu                 sync.Mutex
@@ -142,8 +132,6 @@ func transferSpec(r domain.Record, paused bool) TransferSpec {
 	return TransferSpec{ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
-	s.intentMu.Lock()
-	defer s.intentMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state, err := s.repo.Load(ctx)
@@ -245,8 +233,6 @@ func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory s
 	if err := ctx.Err(); err != nil {
 		return BatchResult{}, err
 	}
-	s.intentMu.Lock()
-	defer s.intentMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	pending := make(map[string]bool)
@@ -334,8 +320,6 @@ func (s *Service) inspectBatch(ctx context.Context, sources []string, ranges boo
 }
 
 func (s *Service) Execute(ctx context.Context, id string, command Command) error {
-	s.intentMu.Lock()
-	defer s.intentMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	index := slices.IndexFunc(s.tasks, func(t domain.Task) bool { return t.Record().ID == id })
@@ -358,8 +342,6 @@ func (s *Service) SetPaused(ctx context.Context, ids []string, paused bool) erro
 		selected[id] = struct{}{}
 	}
 
-	s.intentMu.Lock()
-	defer s.intentMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var failures []error
@@ -389,37 +371,14 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 	if command == Prioritize {
 		return s.engine.Execute(ctx, id, Prioritize)
 	}
-	if command == Resume || command == Retry {
-		partial := r.Completed > 0
-		if !partial {
-			var err error
-			partial, err = s.engine.HasPartial(ctx, r)
-			if err != nil {
-				return err
-			}
+	// A paused task already owns an aria2 checkpoint. Resume it in place.
+	// A failed task with no bytes can adopt the source's current version on retry.
+	if command == Retry && r.Completed == 0 {
+		partial, err := s.engine.HasPartial(ctx, r)
+		if err != nil {
+			return err
 		}
-		if partial {
-			checked, err := s.checkResume(ctx, r)
-			if err != nil {
-				return err
-			}
-			if checked.Failure != "" {
-				task.RefuseResume(checked.Failure)
-				return s.persist(ctx)
-			}
-			if checked.Version.Verified() && checked.Version != r.Version {
-				if command == Resume {
-					if err := s.engine.ApplyVersion(ctx, id, checked.Version); err != nil {
-						return err
-					}
-				}
-				task.SetVersion(checked.Version)
-				if err := s.persist(ctx); err != nil {
-					task.SetVersion(r.Version)
-					return err
-				}
-			}
-		} else if command == Retry {
+		if !partial {
 			info, _ := s.engine.InspectSource(ctx, r.URL, r.RequestedConnections != 1)
 			previous := *task
 			task.SetVersion(info.SourceVersion)
@@ -428,7 +387,6 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 				*task = previous
 				return err
 			}
-			r = task.Record()
 		}
 	}
 	if command == Restart {
@@ -481,61 +439,77 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 	return s.persist(ctx)
 }
 
-// Called with both locks held. Polling and rendering of other tasks stay live
-// while reading potentially large HTTP ranges.
-func (s *Service) checkResume(ctx context.Context, r domain.Record) (PartialCheck, error) {
-	if r.Version.Verified() {
-		current, err := s.engine.InspectSource(ctx, r.URL, false)
-		if err != nil {
-			return PartialCheck{}, fmt.Errorf("暂时无法检查下载源，请稍后重试：%w", err)
-		}
-		if current.SourceVersion == r.Version {
-			return PartialCheck{}, nil
-		}
-		if current.ETag != "" && r.Version.ETag != "" && current.ETag != r.Version.ETag ||
-			current.LastModified != "" && r.Version.LastModified != "" && current.LastModified != r.Version.LastModified {
-			return PartialCheck{Failure: domain.SourceChanged}, nil
-		}
-	}
-	s.checkingID = r.ID
-	s.mu.Unlock()
-	defer func() { s.mu.Lock(); s.checkingID = "" }()
-	return s.engine.CheckPartial(ctx, r)
-}
 func apply(task *domain.Task, o Observation) {
 	task.Observe(domain.Observation{NextInQueue: o.NextInQueue, Connections: o.Connections, Status: domain.Status(o.Status), Name: o.Name, Path: o.Path, Error: o.Error, Failure: o.Failure, Total: o.Total, Completed: o.Completed, Speed: o.Speed})
 }
 func (s *Service) Refresh(ctx context.Context) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.applyConcurrency(ctx); err != nil {
+	rejected, err := s.refresh(ctx)
+	s.mu.Unlock()
+	if err != nil || len(rejected) == 0 {
 		return err
+	}
+	// aria2 can collapse a conditional HTTP rejection to "No URI available".
+	// Diagnose only failed transfers, outside the queue lock.
+	urls := make([]string, len(rejected))
+	for i, r := range rejected {
+		urls[i] = r.URL
+	}
+	sources := s.inspectBatch(ctx, urls, false)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	changed := false
+	for i, r := range rejected {
+		if !r.Version.Changed(sources[i].SourceVersion) {
+			continue
+		}
+		for j := range s.tasks {
+			if s.tasks[j].Record() == r {
+				s.tasks[j].MarkSourceChanged()
+				changed = true
+				break
+			}
+		}
+	}
+	if changed {
+		return s.persist(ctx)
+	}
+	return nil
+}
+
+func (s *Service) refresh(ctx context.Context) ([]domain.Record, error) {
+	if err := s.applyConcurrency(ctx); err != nil {
+		return nil, err
 	}
 	observations, err := s.engine.Observe(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	byID := map[string]Observation{}
 	for _, o := range observations {
 		byID[o.ID] = o
 	}
+	var rejected []domain.Record
 	transition := false
 	for i := range s.tasks {
 		if o, ok := byID[s.tasks[i].Record().ID]; ok {
 			before := s.tasks[i].Record()
-			if before.ID == s.checkingID || before.Status == domain.Failed && s.tasks[i].ResumeBlocked() {
+			if before.Status == domain.Failed && s.tasks[i].ResumeBlocked() {
 				continue
 			}
 			apply(&s.tasks[i], o)
 			after := s.tasks[i].Record()
+			if o.HTTPRejected && before.Status != domain.Failed && after.Status == domain.Failed && after.Completed > 0 && after.Version.Verified() {
+				rejected = append(rejected, after)
+			}
 			s.dirty = s.dirty || before != after
 			transition = transition || before.Status != after.Status
 		}
 	}
 	if s.dirty && (transition || time.Since(s.lastSave) > 3*time.Second) {
-		return s.persist(ctx)
+		return rejected, s.persist(ctx)
 	}
-	return nil
+	return rejected, nil
 }
 func (s *Service) Snapshot() Snapshot {
 	s.mu.Lock()
@@ -547,7 +521,7 @@ func (s *Service) Snapshot() Snapshot {
 	snap := Snapshot{Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
-		dto := TaskDTO{Checking: s.checkingID == r.ID, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
+		dto := TaskDTO{CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
 		snap.Tasks = append(snap.Tasks, dto)
 		if r.Status == domain.Active {
 			snap.Active++

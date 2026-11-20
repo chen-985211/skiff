@@ -5,7 +5,7 @@ package transfer_test
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +13,7 @@ import (
 	"skiff/internal/contexts/transfer/domain"
 	"skiff/internal/contexts/transfer/infrastructure/aria2"
 	"skiff/internal/contexts/transfer/infrastructure/persistence"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,31 +21,30 @@ import (
 	"skiff/internal/contexts/transfer/application"
 )
 
-// HEAD provides no version validator. The two representations even have the
-// same length and agree at both ends of the partial file.
-func TestResumeChecksSavedBytesWhenSourceHasNoValidator(t *testing.T) {
-	for _, change := range []bool{false, true} {
-		name := "unchanged"
-		if change {
-			name = "changed-interior"
-		}
-		t.Run(name, func(t *testing.T) {
-			original := bytes.Repeat([]byte("download"), 512<<10)
-			replaced := bytes.Clone(original)
-			replaced[200<<10] ^= 1
-			var switched atomic.Bool
+// The first request after clicking Continue should fetch missing file data.
+func TestContinueRequestsOnlyMissingData(t *testing.T) {
+	for _, tag := range []string{"", `"v1"`} {
+		t.Run("etag="+tag, func(t *testing.T) {
+			data := bytes.Repeat([]byte("download"), 512<<10)
+			var resumed atomic.Bool
 			var resumedRanges atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				content := original
-				if switched.Load() {
-					if change {
-						content = replaced
-					}
-					if r.Header.Get("Range") != "" {
-						resumedRanges.Add(1)
-					}
+				if tag != "" {
+					w.Header().Set("ETag", tag)
 				}
-				http.ServeContent(slowWriter{w, r.Context()}, r, "file.bin", time.Time{}, bytes.NewReader(content))
+				if resumed.Load() {
+					span := r.Header.Get("Range")
+					var offset int64
+					_, err := fmt.Sscanf(span, "bytes=%d-", &offset)
+					if r.Method != "GET" || err != nil || offset < 512<<10 {
+						t.Errorf("continue requested %s %q before fetching missing data", r.Method, span)
+					}
+					if r.Header.Get("If-Match") != tag {
+						t.Errorf("lost original version %q", tag)
+					}
+					resumedRanges.Add(1)
+				}
+				http.ServeContent(slowWriter{w, r.Context()}, r, "file.bin", time.Time{}, bytes.NewReader(data))
 			}))
 			defer server.Close()
 			svc := downloadService(t)
@@ -52,41 +52,27 @@ func TestResumeChecksSavedBytesWhenSourceHasNoValidator(t *testing.T) {
 				t.Fatal(err)
 			}
 			id := svc.Snapshot().Tasks[0].ID
-			task := awaitTask(t, svc, id, func(v application.TaskDTO) bool { return v.Completed >= 512<<10 })
+			awaitTask(t, svc, id, func(v application.TaskDTO) bool { return v.Completed >= 512<<10 })
 			if err := svc.Execute(t.Context(), id, application.Pause); err != nil {
 				t.Fatal(err)
 			}
 			awaitTask(t, svc, id, func(v application.TaskDTO) bool { return v.CanResume })
-			before, err := os.ReadFile(task.Path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			switched.Store(true)
+			resumed.Store(true)
 			if err := svc.Execute(t.Context(), id, application.Resume); err != nil {
 				t.Fatal(err)
 			}
 			end := awaitTask(t, svc, id, func(v application.TaskDTO) bool { return v.Status == "complete" || v.Status == "error" })
-			got, err := os.ReadFile(task.Path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if resumedRanges.Load() == 0 {
-				t.Fatal("resume rejected before checking any bytes")
-			}
-			if change {
-				if !end.CanRestart || !bytes.Equal(got, before) {
-					t.Fatal("different partial was reused", end)
-				}
-			} else if end.Status != "complete" || end.Path != task.Path || !bytes.Equal(got, original) || resumedRanges.Load() < 2 {
-				t.Fatal("did not resume original file", end)
+			got, err := os.ReadFile(end.Path)
+			if err != nil || !bytes.Equal(got, data) || resumedRanges.Load() == 0 || end.Status != "complete" {
+				t.Fatalf("resume failed: %+v, %v", end, err)
 			}
 		})
 	}
 }
 
-func TestReopenLegacyRefusalPinsVersionReturnedByRange(t *testing.T) {
+func TestReopenLegacyRefusalUsesOriginalCheckpoint(t *testing.T) {
 	data := bytes.Repeat([]byte("abc"), 1<<20)
-	var recovering, pinned atomic.Bool
+	var recovering, resumed atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "HEAD" {
 			w.WriteHeader(405)
@@ -98,8 +84,8 @@ func TestReopenLegacyRefusalPinsVersionReturnedByRange(t *testing.T) {
 			name = "new-name.bin"
 		}
 		w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
-		if recovering.Load() && r.Header.Get("If-Match") == `"download-revision"` && r.Header.Get("Range") != "" {
-			pinned.Store(true)
+		if recovering.Load() && strings.HasPrefix(r.Header.Get("Range"), "bytes=") && !strings.HasPrefix(r.Header.Get("Range"), "bytes=0-") {
+			resumed.Store(true)
 		}
 		http.ServeContent(slowWriter{w, r.Context()}, r, "file", time.Time{}, bytes.NewReader(data))
 	}))
@@ -164,8 +150,8 @@ func TestReopenLegacyRefusalPinsVersionReturnedByRange(t *testing.T) {
 	}
 	end := awaitTask(t, svc, id, func(v application.TaskDTO) bool { return v.Status == "complete" || v.Status == "error" })
 	got, err := os.ReadFile(task.Path)
-	if end.Path != task.Path || end.Status != "complete" || !pinned.Load() || err != nil || !bytes.Equal(got, data) {
-		t.Fatalf("checkpoint resume/pinning failed: %+v, pinned %t", end, pinned.Load())
+	if end.Path != task.Path || end.Status != "complete" || !resumed.Load() || err != nil || !bytes.Equal(got, data) {
+		t.Fatalf("checkpoint resume failed: %+v, requested missing data %t", end, resumed.Load())
 	}
 }
 
@@ -188,64 +174,5 @@ func TestCaptureValidatorFromGetWhenHEADUnavailable(t *testing.T) {
 	info, err := aria2.NewClient("", "").InspectSource(t.Context(), server.URL, true)
 	if err != nil || info.ETag != `"get-only"` || info.RangeBytes != total {
 		t.Fatal(info, err)
-	}
-}
-
-func TestSparseCheckpointChecksEveryReusableBlockWithoutReadingHoles(t *testing.T) {
-	const piece = 32 << 10
-	data := bytes.Repeat([]byte{17}, 3*piece)
-	requests := make(chan string, 4)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests <- r.Header.Get("Range")
-		http.ServeContent(w, r, "file.bin", time.Time{}, bytes.NewReader(data))
-	}))
-	defer server.Close()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "file.bin")
-	partial := bytes.Clone(data)
-	clear(partial[16<<10 : 2*piece])
-	if err := os.WriteFile(path, partial, 0600); err != nil {
-		t.Fatal(err)
-	}
-	var checkpoint bytes.Buffer
-	fields := []any{uint16(1), uint32(0), uint32(0), uint32(piece), uint64(len(data)), uint64(0), uint32(1), byte(0x20), uint32(1), uint32(0), uint32(piece), uint32(1), byte(0x80)}
-	for _, v := range fields {
-		if err := binary.Write(&checkpoint, binary.BigEndian, v); err != nil {
-			t.Fatal(err)
-		}
-	}
-	ctrl := path + ".aria2"
-	if err := os.WriteFile(ctrl, checkpoint.Bytes(), 0600); err != nil {
-		t.Fatal(err)
-	}
-	client := aria2.NewClient("", "")
-	r := domain.Record{URL: server.URL, Directory: dir, Path: path, Status: domain.Failed, Total: int64(len(data))}
-	result, err := client.CheckPartial(t.Context(), r)
-	if err != nil || result.Failure != "" {
-		t.Fatal(result, err)
-	}
-	for _, want := range []string{"bytes=0-16383", "bytes=65536-98303"} {
-		select {
-		case got := <-requests:
-			if got != want {
-				t.Fatalf("range %s, want %s", got, want)
-			}
-		default:
-			t.Fatal("missing range", want)
-		}
-	}
-	for _, bad := range [][]byte{checkpoint.Bytes()[:16], append(bytes.Clone(checkpoint.Bytes()), 1)} {
-		if err := os.WriteFile(ctrl, bad, 0600); err != nil {
-			t.Fatal(err)
-		}
-		got, err := client.CheckPartial(t.Context(), r)
-		if err != nil || got.Failure != domain.CheckpointUnverified {
-			t.Fatalf("bad checkpoint accepted: %+v, %v", got, err)
-		}
-		select {
-		case <-requests:
-			t.Fatal("invalid checkpoint caused network request")
-		default:
-		}
 	}
 }

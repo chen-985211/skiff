@@ -2,7 +2,6 @@ package presentation
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"skiff/internal/contexts/transfer/application"
 	"strconv"
@@ -118,17 +117,10 @@ func (v *View) run(action func(context.Context) error, done func(error)) {
 	if parent == nil {
 		parent = context.Background()
 	}
-	ctx, cancel := context.WithCancel(parent)
-	v.cancelRun = cancel
 	go func() {
-		defer cancel()
-		err := action(ctx)
-		if ctx.Err() == context.Canceled && errors.Is(err, context.Canceled) {
-			err = nil
-		}
+		err := action(parent)
 		snap := v.API.Snapshot()
 		v.dispatch(func() {
-			v.cancelRun = nil
 			v.Busy = false
 			v.Snapshot = snap
 			done(err)
