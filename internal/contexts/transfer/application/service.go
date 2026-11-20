@@ -24,6 +24,7 @@ const (
 )
 
 type TransferSpec struct {
+	Version            domain.SourceVersion
 	ID, URL, Directory string
 	OutputName         string
 	Paused             bool
@@ -34,6 +35,8 @@ type Observation struct {
 	Total, Completed, Speed       int64
 }
 type Engine interface {
+	HasPartial(context.Context, domain.Record) (bool, error)
+	InspectSource(context.Context, string) (domain.SourceVersion, error)
 	Enqueue(context.Context, TransferSpec) error
 	Execute(context.Context, string, Command) error
 	Observe(context.Context) ([]Observation, error)
@@ -146,7 +149,7 @@ func (s *Service) Open(ctx context.Context) error {
 				task.Mark(domain.Paused, "")
 			}
 		} else {
-			err := s.engine.Enqueue(ctx, TransferSpec{ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: r.OutputName, Paused: true})
+			err := s.engine.Enqueue(ctx, TransferSpec{Version: r.Version, ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: r.OutputName, Paused: true})
 			if err != nil {
 				task.Mark(domain.Failed, "恢复失败："+err.Error())
 			} else {
@@ -168,11 +171,17 @@ func (s *Service) Add(ctx context.Context, text, directory string) (int, error) 
 	if !filepath.IsAbs(directory) {
 		return 0, errors.New("保存目录需要使用绝对路径，请点击选择文件夹")
 	}
+	versions := s.inspectBatch(ctx, sources)
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	oldTasks, oldDir := slices.Clone(s.tasks), s.directory
-	for _, source := range sources {
-		s.tasks = append(s.tasks, domain.NewTask(s.nextID(), source, directory))
+	for i, source := range sources {
+		task := domain.NewTask(s.nextID(), source, directory)
+		task.SetVersion(versions[i])
+		s.tasks = append(s.tasks, task)
 	}
 	s.directory = directory
 	// The persistent intent precedes the external effect, so a crash can be reconciled.
@@ -184,7 +193,7 @@ func (s *Service) Add(ctx context.Context, text, directory string) (int, error) 
 	for i := len(oldTasks); i < len(s.tasks); i++ {
 		task := &s.tasks[i]
 		r := task.Record()
-		if err := s.engine.Enqueue(ctx, TransferSpec{ID: r.ID, URL: r.URL, Directory: r.Directory}); err != nil {
+		if err := s.engine.Enqueue(ctx, TransferSpec{Version: r.Version, ID: r.ID, URL: r.URL, Directory: r.Directory}); err != nil {
 			task.Mark(domain.Failed, err.Error())
 			failures = append(failures, err)
 		}
@@ -194,6 +203,33 @@ func (s *Service) Add(ctx context.Context, text, directory string) (int, error) 
 	}
 	return len(sources), errors.Join(failures...)
 }
+
+// Bound metadata latency for an entire paste. Sources that do not answer HEAD
+// can still download; their partial files require an explicit fresh start.
+func (s *Service) inspectBatch(ctx context.Context, sources []string) []domain.SourceVersion {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	versions := make([]domain.SourceVersion, len(sources))
+	jobs := make(chan int, len(sources))
+	for i := range sources {
+		jobs <- i
+	}
+	close(jobs)
+	var workers sync.WaitGroup
+	for range min(8, len(sources)) {
+		workers.Go(func() {
+			for i := range jobs {
+				if ctx.Err() != nil {
+					return
+				}
+				versions[i], _ = s.engine.InspectSource(ctx, sources[i])
+			}
+		})
+	}
+	workers.Wait()
+	return versions
+}
+
 func (s *Service) Execute(ctx context.Context, id string, command Command) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -243,12 +279,46 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 	}
 	r := task.Record()
 	id := r.ID
+	if command == Resume || command == Retry {
+		partial := r.Completed > 0
+		if !partial {
+			var err error
+			partial, err = s.engine.HasPartial(ctx, r)
+			if err != nil {
+				return err
+			}
+		}
+		if partial {
+			var current domain.SourceVersion
+			if r.Version.Verified() {
+				var err error
+				current, err = s.engine.InspectSource(ctx, r.URL)
+				if err != nil {
+					return fmt.Errorf("暂时无法检查下载源，请稍后重试：%w", err)
+				}
+			}
+			if !r.Version.Verified() || current != r.Version {
+				task.RefuseResume()
+				return s.persist(ctx)
+			}
+		} else if command == Retry {
+			version, _ := s.engine.InspectSource(ctx, r.URL)
+			task.SetVersion(version)
+			if err := s.persist(ctx); err != nil {
+				task.SetVersion(r.Version)
+				return err
+			}
+			r = task.Record()
+		}
+	}
 	if command == Restart {
 		previous := *task
 		name := filepath.Base(r.Name)
 		ext := filepath.Ext(name)
 		outputName := strings.TrimSuffix(name, ext) + ".restart-" + s.nextID() + ext
+		version, _ := s.engine.InspectSource(ctx, r.URL)
 		task.RestartAs(outputName)
+		task.SetVersion(version)
 		// Commit the new target before any external effect. The previous partial
 		// file and its control file are never removed or overwritten.
 		if err := s.persist(ctx); err != nil {
@@ -260,7 +330,7 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 			_ = s.persist(ctx)
 			return err
 		}
-		if err := s.engine.Enqueue(ctx, TransferSpec{ID: id, URL: r.URL, Directory: r.Directory, OutputName: outputName}); err != nil {
+		if err := s.engine.Enqueue(ctx, TransferSpec{Version: version, ID: id, URL: r.URL, Directory: r.Directory, OutputName: outputName}); err != nil {
 			task.Mark(domain.Failed, err.Error())
 			_ = s.persist(ctx)
 			return err
@@ -269,7 +339,7 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 		if err := s.engine.Execute(ctx, id, Retry); err != nil {
 			return err
 		}
-		if err := s.engine.Enqueue(ctx, TransferSpec{ID: id, URL: r.URL, Directory: r.Directory, OutputName: r.OutputName}); err != nil {
+		if err := s.engine.Enqueue(ctx, TransferSpec{Version: r.Version, ID: id, URL: r.URL, Directory: r.Directory, OutputName: r.OutputName}); err != nil {
 			task.Mark(domain.Failed, err.Error())
 			_ = s.persist(ctx)
 			return err
@@ -308,6 +378,9 @@ func (s *Service) Refresh(ctx context.Context) error {
 	for i := range s.tasks {
 		if o, ok := byID[s.tasks[i].Record().ID]; ok {
 			before := s.tasks[i].Record()
+			if before.Failure == domain.SourceUnverified {
+				continue
+			}
 			apply(&s.tasks[i], o)
 			after := s.tasks[i].Record()
 			s.dirty = s.dirty || before != after

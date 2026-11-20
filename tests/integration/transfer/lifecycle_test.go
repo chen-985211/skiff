@@ -155,7 +155,7 @@ func TestRealDownloadPauseRestartResumeAndRemoveKeepsFile(t *testing.T) {
 	}
 	data := bytes.Repeat([]byte("skiff-download-fixture\n"), 100000)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeContent(slowWriter{w, r.Context()}, r, "fixture.bin", time.Unix(0, 0), bytes.NewReader(data))
+		http.ServeContent(slowWriter{w, r.Context()}, r, "fixture.bin", time.Unix(1700000000, 0), bytes.NewReader(data))
 	}))
 	defer server.Close()
 	stateDir := t.TempDir()

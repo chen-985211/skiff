@@ -112,3 +112,23 @@ func TestRestartsKeepStableFileNameAcrossLegacyRecords(t *testing.T) {
 		}
 	}
 }
+
+type unmeasuredPartial struct{ fakeEngine }
+
+func (*unmeasuredPartial) HasPartial(context.Context, domain.Record) (bool, error) { return true, nil }
+
+func TestRecoveredPartialWithNoProgressSampleNeedsVerifiedSource(t *testing.T) {
+	dir := t.TempDir()
+	repo := &fakeRepo{state: application.State{Version: 1, Tasks: []domain.Record{{ID: "old", URL: "https://example.org/file", Directory: dir, Status: domain.Paused}}}}
+	engine := &unmeasuredPartial{}
+	svc := application.New(engine, repo, dir, func() string { return "new" })
+	if err := svc.Open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Execute(t.Context(), "old", application.Resume); err != nil {
+		t.Fatal(err)
+	}
+	if task := svc.Snapshot().Tasks[0]; !task.CanRestart || task.CanRetry || len(engine.commands) > 0 {
+		t.Fatalf("unsafe old checkpoint %+v", task)
+	}
+}

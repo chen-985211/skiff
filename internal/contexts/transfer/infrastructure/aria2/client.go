@@ -15,6 +15,11 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 		return err
 	}
 	options := map[string]string{"gid": s.ID, "dir": s.Directory, "pause": strconv.FormatBool(s.Paused)}
+	if s.Version.ETag != "" {
+		options["header"] = "If-Match: " + s.Version.ETag
+	} else if s.Version.LastModified != "" {
+		options["header"] = "If-Unmodified-Since: " + s.Version.LastModified
+	}
 	if s.OutputName != "" {
 		options["out"] = s.OutputName
 		options["continue"] = "false"
@@ -36,8 +41,7 @@ func (c *Client) Execute(ctx context.Context, id string, cmd application.Command
 			Status string `json:"status"`
 		}
 		if err := c.call(ctx, "aria2.tellStatus", []any{id, []string{"status"}}, &status); err != nil {
-			var rpcErr *RPCError
-			if errors.As(err, &rpcErr) && rpcErr.Code == 1 && strings.Contains(rpcErr.Message, "not found") {
+			if missingGID(err, id) {
 				return nil
 			}
 			return err
@@ -47,7 +51,11 @@ func (c *Client) Execute(ctx context.Context, id string, cmd application.Command
 				return err
 			}
 		}
-		return c.call(ctx, "aria2.removeDownloadResult", []any{id}, nil)
+		err := c.call(ctx, "aria2.removeDownloadResult", []any{id}, nil)
+		if missingGID(err, id) {
+			return nil
+		}
+		return err
 	}
 	return errors.New("未知下载操作")
 }
@@ -97,4 +105,9 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 		}
 	}
 	return result, nil
+}
+
+func missingGID(err error, id string) bool {
+	var rpcErr *RPCError
+	return errors.As(err, &rpcErr) && rpcErr.Code == 1 && strings.Contains(rpcErr.Message, id) && strings.Contains(rpcErr.Message, "not found")
 }

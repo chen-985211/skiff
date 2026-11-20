@@ -21,6 +21,14 @@ const (
 type Command string
 
 const ResumeUnsupported = "resume_unsupported"
+const SourceUnverified = "source_unverified"
+
+// SourceVersion identifies the representation selected by the original HTTP request.
+type SourceVersion struct {
+	Resource, ETag, LastModified string
+}
+
+func (v SourceVersion) Verified() bool { return v.ETag != "" || v.LastModified != "" }
 
 const (
 	Pause   Command = "pause"
@@ -31,6 +39,7 @@ const (
 )
 
 type Record struct {
+	Version    SourceVersion
 	ID         string
 	URL        string
 	Name       string
@@ -55,12 +64,12 @@ type Observation struct {
 
 func (t *Task) Observe(o Observation) {
 	switch o.Status {
-	case Waiting, Active, Paused:
+	case Waiting, Active, Paused, Failed:
 		// A restored transfer can report no lengths until its file is opened.
 		if o.Total == 0 && o.Completed == 0 {
 			o.Total, o.Completed = t.record.Total, t.record.Completed
 		}
-	case Complete, Failed:
+	case Complete:
 	default:
 		return
 	}
@@ -82,6 +91,13 @@ func (t *Task) Mark(status Status, detail string) {
 	t.Observe(Observation{Status: status, Total: o.Total, Completed: o.Completed, Name: o.Name, Path: o.Path, Error: detail})
 }
 
+func (t *Task) SetVersion(v SourceVersion) { t.record.Version = v }
+
+func (t *Task) RefuseResume() {
+	t.Mark(Failed, "")
+	t.record.Failure = SourceUnverified
+}
+
 func (t *Task) RestartAs(outputName string) {
 	t.record.OutputName = outputName
 	t.record.Path, t.record.Error, t.record.Failure = "", "", ""
@@ -90,6 +106,9 @@ func (t *Task) RestartAs(outputName string) {
 }
 
 func (t Task) FailureDescription() string {
+	if t.record.Failure == SourceUnverified {
+		return "无法确认远端文件版本，当前文件不支持断点续传；可保留原文件并从头下载"
+	}
 	if t.record.Failure == ResumeUnsupported {
 		return "服务器不支持断点续传，请选择从头下载"
 	}
@@ -124,7 +143,7 @@ func (t Task) Allows(command Command) bool {
 	case Resume:
 		return t.record.Status == Paused
 	case Retry:
-		return t.record.Status == Failed && t.record.Failure != ResumeUnsupported
+		return t.record.Status == Failed && t.record.Failure != ResumeUnsupported && t.record.Failure != SourceUnverified
 	case Restart:
 		return t.record.Status == Failed
 	}
