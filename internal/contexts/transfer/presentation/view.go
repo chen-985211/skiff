@@ -27,7 +27,9 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
-	concurrencyError                               error
+	concurrencySave                                preferenceSave[int]
+	concurrencyText                                string
+	concurrencyEdited                              bool
 	advanced                                       bool
 	connectionLimit                                string
 	themeSave                                      preferenceSave[application.ThemeMode]

@@ -261,16 +261,16 @@ func TestSettingsSaveFailureKeepsPreviousValues(t *testing.T) {
 func TestQueuePreferenceSurvivesRestartAndEngineRetry(t *testing.T) {
 	f, repo := &fakeEngine{}, &fakeRepo{}
 	s := service(t, f, repo)
-	if f.concurrency != 3 {
-		t.Fatalf("old preferences should default to three: %d", f.concurrency)
+	if f.concurrency != 10 {
+		t.Fatalf("old preferences should default to ten: %d", f.concurrency)
 	}
-	for _, bad := range []int{0, 17} {
+	for _, bad := range []int{0, 201} {
 		if err := s.SetConcurrency(t.Context(), bad); err == nil {
 			t.Fatal("invalid concurrency accepted", bad)
 		}
 	}
 	repo.saveErr = errors.New("disk full")
-	if err := s.SetConcurrency(t.Context(), 1); err == nil || f.concurrency != 3 {
+	if err := s.SetConcurrency(t.Context(), 1); err == nil || f.concurrency != 10 {
 		t.Fatal("uncommitted limit applied")
 	}
 	repo.saveErr = nil

@@ -961,9 +961,9 @@ func TestSettingsChangeQueueAndPrioritizeWaitingCard(t *testing.T) {
 		tt.Frame()
 	}
 	click("设置")
-	click("减少同时下载数")
+	click("同时下载 20 项")
 	apply()
-	if s.Snapshot().Preferences.Concurrency != 2 {
+	if s.Snapshot().Preferences.Concurrency != 20 {
 		t.Fatal("setting did not reach engine")
 	}
 	click("全部任务")

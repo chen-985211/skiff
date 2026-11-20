@@ -2,6 +2,9 @@ package presentation
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
@@ -28,7 +31,7 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 				if row.Hovered() {
 					row.Background(p.panel.Alpha(.30))
 				}
-				settingsRow(c, row, "folder", "默认保存目录", v.directoryError, p, func(ui.Element) {
+				settingsRow(c, row, "folder", "默认保存目录", "", v.directoryError, p, func(ui.Element) {
 					ui.Text(c, v.Snapshot.Directory).Grow(1).MinWidth(0).SingleLine().TextAlign(ui.End).FontSize(13).TextColor(p.muted).ContentTransition(textChange)
 					ui.Icon(c, icons["chevron"]).Rotate(-90).FontSize(14).TextColor(p.muted)
 				})
@@ -36,17 +39,17 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 					v.pickDefaultDirectory()
 				}
 				settingsDivider(c, p)
-				settingsRow(c, ui.Row(c), "download", "同时下载数", v.concurrencyError, p, func(ui.Element) { v.concurrencySetting(c, p) })
+				settingsRow(c, ui.Row(c), "download", "同时下载数", fmt.Sprintf("1–%d 项，超出后排队", application.MaxConcurrency), v.concurrencySave.err, p, func(ui.Element) { v.concurrencySetting(c, p) })
 				settingsDivider(c, p)
-				settingsRow(c, ui.Row(c), "theme", "主题", v.themeSave.err, p, func(ui.Element) { v.themeSelector(c, p) })
+				settingsRow(c, ui.Row(c), "theme", "主题", "", v.themeSave.err, p, func(ui.Element) { v.themeSelector(c, p) })
 				settingsDivider(c, p)
-				settingsRow(c, ui.Row(c), "light", "背景流光", v.flowSave.err, p, func(label ui.Element) { v.lightSwitch(c, p, label) })
+				settingsRow(c, ui.Row(c), "light", "背景流光", "", v.flowSave.err, p, func(label ui.Element) { v.lightSwitch(c, p, label) })
 			})
 		})
 	})
 }
 
-func settingsRow(c *ui.Context, row ui.Element, icon, name string, err error, p palette, control func(ui.Element)) {
+func settingsRow(c *ui.Context, row ui.Element, icon, name, hint string, err error, p palette, control func(ui.Element)) {
 	row.Row().FillWidth().Height(70).AlignItems(ui.Center).Justify(ui.Start).PaddingX(18).Gap(12).Children(func() {
 		ui.Box(c).Size(32, 32).Center().Radius(cornerSettingsIcon).Gradient(p.panel.Alpha(.74), p.tint.Alpha(.48), 135).Children(func() {
 			ui.Icon(c, icons[icon]).FontSize(18).TextColor(p.muted)
@@ -54,7 +57,11 @@ func settingsRow(c *ui.Context, row ui.Element, icon, name string, err error, p 
 		var label ui.Element
 		ui.Column(c).MinWidth(0).Gap(3).Children(func() {
 			label = ui.Text(c, name).FontSize(14).FontWeight(600).Shrink(0)
-			inlineError(c, err)
+			if err == nil && hint != "" {
+				ui.Text(c, hint).FontSize(12).TextColor(p.muted)
+			} else {
+				inlineError(c, err)
+			}
 		})
 		ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Center).Justify(ui.End).Gap(10).Children(func() {
 			control(label)
@@ -135,18 +142,66 @@ func (v *View) lightSwitch(c *ui.Context, p palette, label ui.Element) {
 	}
 }
 
-func (v *View) concurrencySetting(c *ui.Context, p palette) {
-	limit := v.Snapshot.Preferences.Concurrency
+func (v *View) concurrencyLimit() int {
+	limit := v.concurrencySave.current(v.Snapshot.Preferences.Concurrency)
 	if limit == 0 {
-		limit = application.DefaultConcurrency
+		return application.DefaultConcurrency
 	}
-	step := func(value int, label, symbol string) {
-		button := secondaryAction(c, symbol).Label(label).Tooltip(label).Width(36).PaddingX(0).Disabled(v.Busy || !v.Ready || value < 1 || value > application.MaxConcurrency)
-		if button.Clicked() {
-			v.run(func(ctx context.Context) error { return v.API.SetConcurrency(ctx, value) }, func(err error) { v.concurrencyError = err })
+	return limit
+}
+
+func (v *View) concurrencySetting(c *ui.Context, p palette) {
+	limit := v.concurrencyLimit()
+	disabled := !v.Ready || v.API == nil
+	ui.Row(c.Key("concurrency-presets")).Label("常用同时下载数").Padding(2).Radius(cornerCompact).Background(p.haze.Alpha(.21)).Children(func() {
+		for _, n := range [...]int{1, 3, 5, 10, 20, 30} {
+			selected := limit == n
+			preset := ui.ButtonBase(c.Key(strconv.Itoa(n))).Size(30, 28).Center().Radius(cornerSmall).Label(fmt.Sprintf("同时下载 %d 项", n)).AccessSelected(selected).Disabled(disabled)
+			if selected {
+				preset.Background(p.panel)
+			} else if preset.Hovered() {
+				preset.Background(p.panel.Alpha(.48))
+			}
+			preset.Children(func() { ui.Textf(c, "%d", n).FontSize(12).FontFeatures("tnum").FontWeight(570) })
+			if preset.Clicked() {
+				v.concurrencyEdited = false
+				v.saveConcurrency(n)
+				c.Invalidate()
+			}
+		}
+	})
+	field := ui.TextInputBase(c.Key("concurrency-number"), &v.concurrencyText).Size(62, 32).PaddingX(8).FontSize(13).FontFeatures("tnum").TextAlign(ui.Center).Radius(cornerSmall).Border(1, p.border).Background(p.panel.Alpha(.50)).Label("自定义同时下载数").Description("1–200，回车或离开输入框时保存").Tooltip("自定义同时下载数（1–200）").Disabled(disabled).FocusRing(true)
+	if field.Changed() {
+		v.concurrencyEdited = true
+		v.concurrencySave.err = nil
+	}
+	if v.concurrencyEdited && (field.Submitted() || !field.Focused()) {
+		v.commitConcurrency(field.Focused())
+	}
+	if !v.concurrencyEdited {
+		text := strconv.Itoa(v.concurrencyLimit())
+		if v.concurrencyText != text {
+			v.concurrencyText = text
+			c.Invalidate()
 		}
 	}
-	step(limit-1, "减少同时下载数", "−")
-	ui.Textf(c, "%d", limit).MinWidth(20).TextAlign(ui.Center).FontSize(14).FontFeatures("tnum").TextColor(p.muted)
-	step(limit+1, "增加同时下载数", "+")
+}
+
+func (v *View) commitConcurrency(keepInvalidDraft bool) {
+	n, err := strconv.Atoi(strings.TrimSpace(v.concurrencyText))
+	if err != nil || n < 1 || n > application.MaxConcurrency {
+		v.concurrencyEdited = keepInvalidDraft
+		v.concurrencySave.err = nil
+		if keepInvalidDraft {
+			v.concurrencySave.err = fmt.Errorf("请输入 1–%d 的整数", application.MaxConcurrency)
+		}
+		return
+	}
+	v.concurrencyEdited = false
+	v.saveConcurrency(n)
+}
+
+func (v *View) saveConcurrency(limit int) {
+	v.concurrencySave.err = nil
+	v.concurrencySave.choose(v, &v.Snapshot.Preferences.Concurrency, limit, v.API.SetConcurrency)
 }

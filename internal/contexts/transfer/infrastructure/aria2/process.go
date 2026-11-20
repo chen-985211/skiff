@@ -77,7 +77,7 @@ func Start(ctx context.Context, dataDir, binary string) (*Process, error) {
 		"enable-rpc=true", "rpc-listen-all=false", "rpc-allow-origin-all=false",
 		"rpc-listen-port=" + strconv.Itoa(port), "rpc-secret=" + secret,
 		"save-session=" + session, "input-file=" + session, "save-session-interval=5",
-		"force-save=true", "continue=false", "pause=true", "max-concurrent-downloads=3",
+		"force-save=true", "continue=false", "pause=true", "max-concurrent-downloads=" + strconv.Itoa(application.DefaultConcurrency),
 		"max-connection-per-server=4", "split=4", "min-split-size=4M",
 		"auto-file-renaming=true", "allow-overwrite=false", "file-allocation=none",
 		"follow-torrent=false", "follow-metalink=false", "enable-dht=false", "enable-dht6=false",

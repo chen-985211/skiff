@@ -15,8 +15,8 @@ import (
 type Command = domain.Command
 
 const (
-	DefaultConcurrency = 3
-	MaxConcurrency     = 16
+	DefaultConcurrency = 10
+	MaxConcurrency     = 200
 	Prioritize         = domain.Prioritize
 	ResumeUnsupported  = domain.ResumeUnsupported
 	Pause              = domain.Pause

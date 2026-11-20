@@ -388,3 +388,79 @@ func TestSettingsFlowKeepsLatestChoiceAndRestoresLastSaveOnError(t *testing.T) {
 		t.Fatal("failed save did not restore the switch and explain the error")
 	}
 }
+
+func TestRenderConcurrencySaveOnlyChangesItsOwnControl(t *testing.T) {
+	s := service(t, &fakeEngine{}, &fakeRepo{})
+	done := make(chan func(), 1)
+	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { done <- fn }, PickDirectory: func(string, func(string, error)) {}})
+	v.Snapshot = s.Snapshot()
+	tt := interactionScene(v, 800, 560)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	apply := func() {
+		t.Helper()
+		select {
+		case fn := <-done:
+			fn()
+			tt.Frame()
+		case <-time.After(3 * time.Second):
+			t.Fatal("no preference save")
+		}
+	}
+	click("设置")
+	dir, _ := tt.AccessByRole(ui.RoleButton, "更改默认保存目录")
+	// A save must leave unrelated controls interactive and visually identical.
+	sample := func() []byte {
+		img := tt.Image()
+		var pixels []byte
+		r := dir.Bounds
+		for y := int(r.Y) + 3; y < int(r.Y+r.H)-3; y += 2 {
+			for x := int(r.X) + 3; x < int(r.X+r.W)-3; x += 2 {
+				p := img.RGBAAt(x, y)
+				pixels = append(pixels, p.R, p.G, p.B)
+			}
+		}
+		return pixels
+	}
+	before := sample()
+	click("同时下载 20 项")
+	click("同时下载 30 项")
+	other, _ := tt.AccessByRole(ui.RoleButton, "更改默认保存目录")
+	if v.Busy || other.Disabled || !bytes.Equal(before, sample()) {
+		t.Fatal("saving concurrency repainted or disabled the directory row")
+	}
+	apply()
+	apply()
+	if s.Snapshot().Preferences.Concurrency != 30 {
+		t.Fatal("rapid selections did not save the final value")
+	}
+	field, ok := tt.AccessByRole(ui.RoleTextField, "自定义同时下载数")
+	if !ok {
+		t.Fatal("missing custom numeric field")
+	}
+	r := field.Bounds
+	tt.ClickAt(r.X+r.W/2, r.Y+r.H/2)
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("201")
+	tt.Key(0, ui.KeyEnter)
+	if !tt.HasText("请输入 1–200 的整数") || s.Snapshot().Preferences.Concurrency != 30 {
+		t.Fatal("out-of-range input changed the queue", tt.Texts())
+	}
+	click("全部任务")
+	click("设置")
+	if tt.HasText("请输入 1–200 的整数") {
+		t.Fatal("validation error remained after the invalid edit was discarded")
+	}
+	tt.ClickAt(r.X+r.W/2, r.Y+r.H/2)
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("200")
+	click("全部任务")
+	apply()
+	if s.Snapshot().Preferences.Concurrency != 200 {
+		t.Fatal("custom limit was not saved")
+	}
+}

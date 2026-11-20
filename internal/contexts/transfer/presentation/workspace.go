@@ -26,6 +26,9 @@ func (v *View) category() category {
 }
 
 func (v *View) selectCategory(id string) {
+	if v.settingsOpen && v.concurrencyEdited {
+		v.commitConcurrency(false)
+	}
 	v.settingsOpen = false
 	v.Filter, v.detailID = id, ""
 	v.batchNotice = ""
