@@ -33,23 +33,39 @@ func (v *View) submit() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		n, err := v.API.Add(ctx, text, dir)
+		result, err := v.API.AddBatch(ctx, text, dir)
 		snap := v.API.Snapshot()
 		v.dispatch(func() {
 			v.Busy = false
 			v.Snapshot = snap
-			if n > 0 {
-				v.URLs = ""
-				v.selectCategory("all")
-				v.Query = ""
-				if err != nil {
-					v.FormError = fmt.Sprintf("已创建 %d 个任务，部分操作失败：%v", n, err)
-				} else {
-					v.DialogOpen = false
-					v.Directory = ""
-				}
-			} else if err != nil {
+			if err != nil && result.Added == 0 {
 				v.FormError = err.Error()
+				return
+			}
+			v.URLs = strings.Join(result.Remaining, "\n")
+			v.selectCategory("all")
+			v.Query = ""
+			summary := fmt.Sprintf("新增 %d · 重复 %d · 无效 %d", result.Added, result.Duplicates, result.Invalid)
+			if result.Deferred > 0 {
+				summary += fmt.Sprintf(" · 待下批 %d", result.Deferred)
+			}
+			switch {
+			case err != nil:
+				v.FormError = fmt.Sprintf("已创建 %d 个任务，部分操作失败：%v", result.Added, err)
+				if len(result.Remaining) > 0 || result.Duplicates > 0 {
+					v.FormError = summary + "\n" + v.FormError
+				}
+			case len(result.Remaining) > 0:
+				v.FormError = summary
+				if result.Invalid > 0 {
+					v.FormError += "。请修改无效的 HTTP 或 HTTPS 链接。"
+				}
+			default:
+				v.DialogOpen = false
+				v.Directory = ""
+				if result.Added+result.Duplicates > 1 || result.Duplicates > 0 {
+					v.batchNotice = summary
+				}
 			}
 		})
 	}()

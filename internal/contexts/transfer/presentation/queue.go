@@ -70,6 +70,9 @@ func (v *View) queueHeader(c *ui.Context, p palette, gridWidth float32, items []
 		} else {
 			ui.Row(c.Key("queue-toolbar")).Transition(panelMotion).AlignItems(ui.Center).Gap(9).Width(gridWidth).Height(workspaceHeader).Children(func() {
 				ui.Box(c).Grow(1).FillHeight().DragWindow()
+				if v.batchNotice != "" {
+					ui.Text(c, v.batchNotice).SingleLine().FontSize(12).TextColor(p.muted).Tooltip(v.batchNotice)
+				}
 				inlineError(c, v.queueError)
 				v.batchAction(c, items, application.Pause)
 				v.batchAction(c, items, application.Resume)

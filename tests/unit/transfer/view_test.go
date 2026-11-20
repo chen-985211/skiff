@@ -854,3 +854,26 @@ func TestSettingsControlsSaveAndSupplyNextDownload(t *testing.T) {
 		t.Fatalf("new download uses %q instead of %q", v.Directory, dir)
 	}
 }
+
+func TestBatchFormRetainsOnlyRowsThatNeedAttention(t *testing.T) {
+	s := service(t, &fakeEngine{}, &fakeRepo{})
+	dispatch := make(chan func(), 1)
+	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { dispatch <- fn }})
+	v.Snapshot = s.Snapshot()
+	v.OpenNew()
+	v.URLs = "https://example.org/a\ninvalid\nhttps://example.org/a"
+	tt := interactionScene(v, 800, 560)
+	if err := tt.Click("开始下载"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case apply := <-dispatch:
+		apply()
+	case <-time.After(3 * time.Second):
+		t.Fatal("no batch result")
+	}
+	tt.Frame()
+	if !v.DialogOpen || v.URLs != "invalid" || len(v.Snapshot.Tasks) != 1 || !tt.HasText("新增 1 · 重复 1 · 无效 1") {
+		t.Fatalf("draft %q; %v", v.URLs, tt.Texts())
+	}
+}

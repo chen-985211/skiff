@@ -158,28 +158,38 @@ func (t Task) Progress() float64 {
 	}
 	return max(0, min(1, float64(t.record.Completed)/float64(t.record.Total)))
 }
-func ParseBatch(text string) ([]string, error) {
-	var sources []string
+
+type Batch struct {
+	Sources, Remaining            []string
+	Duplicates, Invalid, Deferred int
+}
+
+func ParseBatch(text string) (Batch, error) {
+	var batch Batch
 	seen := make(map[string]bool)
-	for _, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
-		line = strings.TrimSpace(line)
+	for raw := range strings.Lines(text) {
+		line := strings.TrimSpace(raw)
 		if line == "" {
 			continue
 		}
 		u, err := url.Parse(line)
-		if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || strings.ContainsAny(line, " \t\r\n") {
-			return nil, errors.New("请输入有效的 HTTP 或 HTTPS 下载链接，每行一个")
-		}
-		if !seen[line] {
+		switch {
+		case err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || strings.ContainsAny(line, " \t\r\n"):
+			batch.Invalid++
+			batch.Remaining = append(batch.Remaining, line)
+		case seen[line]:
+			batch.Duplicates++
+		case len(batch.Sources) >= 100:
 			seen[line] = true
-			sources = append(sources, line)
+			batch.Deferred++
+			batch.Remaining = append(batch.Remaining, line)
+		default:
+			seen[line] = true
+			batch.Sources = append(batch.Sources, line)
 		}
 	}
-	if len(sources) == 0 {
-		return nil, errors.New("请先输入下载链接")
+	if len(batch.Sources) == 0 && batch.Invalid == 0 {
+		return batch, errors.New("请先输入下载链接")
 	}
-	if len(sources) > 100 {
-		return nil, errors.New("一次最多添加 100 个链接")
-	}
-	return sources, nil
+	return batch, nil
 }

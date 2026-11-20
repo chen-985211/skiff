@@ -12,7 +12,7 @@ type API interface {
 	SetTheme(context.Context, application.ThemeMode) error
 	SetDefaultDirectory(context.Context, string) error
 	SetStaticBackground(context.Context, bool) error
-	Add(context.Context, string, string) (int, error)
+	AddBatch(context.Context, string, string) (application.BatchResult, error)
 	Execute(context.Context, string, application.Command) error
 	SetPaused(context.Context, []string, bool) error
 	Snapshot() application.Snapshot
@@ -27,7 +27,7 @@ type Actions struct {
 type View struct {
 	themeSave                                      preferenceSave[application.ThemeMode]
 	flowSave                                       preferenceSave[bool]
-	lastDefault                                    string
+	lastDefault, batchNotice                       string
 	settingsOpen                                   bool
 	light                                          windowLight
 	API                                            API

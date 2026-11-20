@@ -59,14 +59,17 @@ func service(t *testing.T, f *fakeEngine, r *fakeRepo) *application.Service {
 	return s
 }
 
-func TestAddValidatesEntireBatchBeforeAnyExternalEffect(t *testing.T) {
+func TestBatchQueuesValidLinesAndKeepsOnlyInvalidInput(t *testing.T) {
 	f, r := &fakeEngine{}, &fakeRepo{}
 	s := service(t, f, r)
-	if _, err := s.Add(context.Background(), "https://example.com/a\nfile:///tmp/b", s.Snapshot().Directory); err == nil {
-		t.Fatal("invalid batch accepted")
+	dir := s.Snapshot().Directory
+	if _, err := s.Add(t.Context(), "https://example.com/existing", dir); err != nil {
+		t.Fatal(err)
 	}
-	if len(f.enqueued) != 0 || len(s.Snapshot().Tasks) != 0 {
-		t.Fatal("invalid batch created tasks")
+	text := "https://example.com/a\nfile:///tmp/b\nhttps://example.com/a\nhttps://example.com/existing"
+	result, err := s.AddBatch(t.Context(), text, dir)
+	if err != nil || result.Added != 1 || result.Duplicates != 2 || result.Invalid != 1 || strings.Join(result.Remaining, "\n") != "file:///tmp/b" || len(f.enqueued) != 2 {
+		t.Fatalf("batch %+v, %v", result, err)
 	}
 }
 

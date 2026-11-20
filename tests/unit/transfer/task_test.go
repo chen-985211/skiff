@@ -11,16 +11,16 @@ import (
 func TestBatchAcceptsLinksAndDeduplicatesWithoutChangingSignedQuery(t *testing.T) {
 	want := []string{"https://example.com/file.zip?token=a%2Bb", "http://localhost:8123/a"}
 	got, err := domain.ParseBatch(" \r\n" + want[0] + "\r\n" + want[1] + "\n" + want[0] + "\n")
-	if err != nil || !reflect.DeepEqual(got, want) {
+	if err != nil || !reflect.DeepEqual(got.Sources, want) || got.Duplicates != 1 {
 		t.Fatalf("got %v, %v; want %v", got, err, want)
 	}
 }
 
-func TestBatchRejectsInvalidInputAsAWhole(t *testing.T) {
-	for _, value := range []string{"", "file:///tmp/a", "magnet:?xt=abc", "https://", "https://example.com/a b", "https://example.com/good\nftp://example.com/bad", "https://example.com:bad/a"} {
+func TestBatchKeepsInvalidAndOverflowLinesForCorrection(t *testing.T) {
+	for _, value := range []string{"file:///tmp/a", "magnet:?xt=abc", "https://", "https://example.com/a b", "https://example.com:bad/a"} {
 		t.Run(value, func(t *testing.T) {
 			got, err := domain.ParseBatch(value)
-			if err == nil || len(got) != 0 {
+			if err != nil || len(got.Sources) != 0 || got.Invalid != 1 || !reflect.DeepEqual(got.Remaining, []string{value}) {
 				t.Fatalf("invalid batch accepted: %v, %v", got, err)
 			}
 		})
@@ -29,7 +29,7 @@ func TestBatchRejectsInvalidInputAsAWhole(t *testing.T) {
 	for i := 0; i < 101; i++ {
 		batch.WriteString("https://example.com/" + strings.Repeat("a", i+1) + "\n")
 	}
-	if _, err := domain.ParseBatch(batch.String()); err == nil {
+	if result, err := domain.ParseBatch(batch.String()); err != nil || len(result.Sources) != 100 || len(result.Remaining) != 1 || result.Deferred != 1 {
 		t.Fatal("more than 100 unique links accepted")
 	}
 }

@@ -160,34 +160,63 @@ func (s *Service) Open(ctx context.Context) error {
 	return s.persist(ctx)
 }
 func (s *Service) Add(ctx context.Context, text, directory string) (int, error) {
-	sources, err := domain.ParseBatch(text)
+	result, err := s.AddBatch(ctx, text, directory)
+	if err == nil && len(result.Remaining) > 0 {
+		err = fmt.Errorf("还有 %d 行待处理", len(result.Remaining))
+	}
+	return result.Added, err
+}
+
+type BatchResult struct {
+	Added, Duplicates, Invalid, Deferred int
+	Remaining                            []string
+}
+
+func (s *Service) AddBatch(ctx context.Context, text, directory string) (BatchResult, error) {
+	batch, err := domain.ParseBatch(text)
 	if err != nil {
-		return 0, err
+		return BatchResult{}, err
 	}
-	directory = strings.TrimSpace(directory)
-	if directory == "" {
-		return 0, errors.New("请选择保存目录")
-	}
+	directory = filepath.Clean(strings.TrimSpace(directory))
 	if !filepath.IsAbs(directory) {
-		return 0, errors.New("保存目录需要使用绝对路径，请点击选择文件夹")
+		return BatchResult{}, errors.New("请选择绝对路径作为保存目录")
 	}
-	versions := s.inspectBatch(ctx, sources)
+	result := BatchResult{Duplicates: batch.Duplicates, Invalid: batch.Invalid, Deferred: batch.Deferred, Remaining: batch.Remaining}
+	if len(batch.Sources) == 0 {
+		return result, nil
+	}
+	versions := s.inspectBatch(ctx, batch.Sources)
 	if err := ctx.Err(); err != nil {
-		return 0, err
+		return BatchResult{}, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	pending := make(map[string]bool)
+	for _, task := range s.tasks {
+		r := task.Record()
+		if r.Status != domain.Complete && r.Status != domain.Failed && filepath.Clean(r.Directory) == directory {
+			pending[r.URL] = true
+		}
+	}
 	oldTasks, oldDir := slices.Clone(s.tasks), s.directory
-	for i, source := range sources {
+	for i, source := range batch.Sources {
+		if pending[source] {
+			result.Duplicates++
+			continue
+		}
 		task := domain.NewTask(s.nextID(), source, directory)
 		task.SetVersion(versions[i])
 		s.tasks = append(s.tasks, task)
+	}
+	result.Added = len(s.tasks) - len(oldTasks)
+	if result.Added == 0 {
+		return result, nil
 	}
 	s.directory = directory
 	// The persistent intent precedes the external effect, so a crash can be reconciled.
 	if err := s.persist(ctx); err != nil {
 		s.tasks, s.directory = oldTasks, oldDir
-		return 0, err
+		return BatchResult{}, err
 	}
 	var failures []error
 	for i := len(oldTasks); i < len(s.tasks); i++ {
@@ -201,7 +230,7 @@ func (s *Service) Add(ctx context.Context, text, directory string) (int, error) 
 	if err := s.persist(ctx); err != nil {
 		failures = append(failures, err)
 	}
-	return len(sources), errors.Join(failures...)
+	return result, errors.Join(failures...)
 }
 
 // Bound metadata latency for an entire paste. Sources that do not answer HEAD
