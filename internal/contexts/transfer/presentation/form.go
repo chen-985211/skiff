@@ -1,6 +1,7 @@
 package presentation
 
 import (
+	"path/filepath"
 	"skiff/internal/contexts/transfer/application"
 	"strings"
 
@@ -9,9 +10,9 @@ import (
 
 const (
 	formInsetX         = 20
-	formInsetY         = 16
-	formGap            = 12
-	formHeaderHeight   = 34
+	formInsetY         = 14
+	formGap            = 10
+	formHeaderHeight   = 32
 	formFooterHeight   = 36
 	formErrorMaxHeight = 68
 )
@@ -73,14 +74,14 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 			panel.Height(anchor.H + (height-anchor.H)*reveal)
 		}
 
-		// Keep the button's label visible throughout. Its plus gives way to the heading.
-		title := ui.Row(c.Key("compose-title")).Absolute().Left(17 + 3*reveal).Top(9 + 11*reveal).
-			Height(26).Gap(7 * closed).AlignItems(ui.Center).Opacity(editorOpacity(1 - ink)).IgnoreInput(true).AccessHidden(v.advanced)
-		titleInk := c.Theme().Text.Mix(c.Theme().AccentText, buttonInk)
-		title.Children(func() {
-			ui.Icon(c, icons["plus"]).Width(15 * closed).Clip().FontSize(15).TextColor(titleInk.Alpha(closed))
-			ui.Text(c, "新建下载").SingleLine().FontSize(13 + 6*reveal).FontWeight(600).TextColor(titleInk)
-		})
+		// Carry the dock label through the start of the morph, then yield to the editor.
+		if buttonInk > 0 {
+			ui.Row(c.Key("compose-title")).Transition(controlMotion).Absolute().Left(17).Top(9).Height(26).
+				Gap(7).AlignItems(ui.Center).Opacity(buttonInk).IgnoreInput(true).AccessHidden(true).Children(func() {
+				ui.Icon(c, icons["plus"]).FontSize(15).TextColor(c.Theme().AccentText)
+				ui.Text(c, "新建下载").SingleLine().FontSize(13).FontWeight(600).TextColor(c.Theme().AccentText)
+			})
+		}
 		// Until the inputs are revealed, a second press belongs to the morphing
 		// button. Keep keyboard focus in the editor so a paste is accepted immediately.
 		if !v.Busy && (!v.DialogOpen || fields < .5) {
@@ -102,7 +103,7 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 }
 
 func (v *View) composeTools(c *ui.Context, p palette, width, ink float32, disabled bool) ui.Element {
-	const actionWidth = 82
+	const actionWidth = 64
 	const gap = 12
 	header := ui.Row(c.Key("compose-tools")).FillWidth().Height(formHeaderHeight).AlignItems(ui.Center).Gap(gap)
 	var toggle ui.Element
@@ -119,7 +120,7 @@ func (v *View) composeTools(c *ui.Context, p palette, width, ink float32, disabl
 				}
 			}
 			if count > 1 {
-				ui.Textf(c, "已输入 %d 行", count).Transition(pageFade).Absolute().Right(0).Top(9).
+				ui.Textf(c, "已输入 %d 行", count).Transition(pageFade).Absolute().Right(0).Top(8).
 					Opacity(editorOpacity(1 - ink)).AccessHidden(v.advanced).FontSize(11).TextColor(p.muted).ContentTransition(numberChange)
 			}
 		})
@@ -137,7 +138,7 @@ func (v *View) composeTools(c *ui.Context, p palette, width, ink float32, disabl
 				ui.Icon(c, icons["settings"]).FontSize(15).TextColor(p.muted).Opacity(editorOpacity(1 - ink))
 				ui.Icon(c, icons["chevron"]).Absolute().Left(0).Top(0).FontSize(15).Rotate(90).TextColor(p.muted).Opacity(editorOpacity(ink))
 			})
-			composeCaption(c, "高级选项", "返回链接", ink, 12, 550, p.muted)
+			composeCaption(c, "高级", "返回", ink, 12, 550, p.muted)
 		})
 	})
 	return toggle
@@ -185,7 +186,7 @@ func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink floa
 
 func (v *View) linkEditor(c *ui.Context, p palette) {
 	links := ui.TextAreaBase(c, &v.URLs).Transition(controlMotion).FillWidth().Lines(2, 7).MinHeight(104).Padding(12, 14).FontSize(13).FixedLineHeight(20).
-		Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接或浏览器 cURL").PlaceholderColor(p.muted).
+		Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接或 cURL").PlaceholderColor(p.muted).
 		Description("支持 HTTP、HTTPS 和 FTP 文件链接").Disabled(v.Busy)
 	if !v.advanced {
 		links.AutoFocus()
@@ -218,8 +219,7 @@ func (v *View) linkEditor(c *ui.Context, p palette) {
 }
 
 func (v *View) composeDestination(c *ui.Context, p palette) {
-	ui.Row(c).Grow(1).MinWidth(0).Height(formFooterHeight).AlignItems(ui.Center).Gap(8).Children(func() {
-
+	ui.Row(c).Grow(1).MinWidth(0).Height(formFooterHeight).AlignItems(ui.Center).Gap(2).Children(func() {
 		pick := func() {
 			v.Actions.PickDirectory(v.Directory, func(path string, err error) {
 				if err != nil {
@@ -230,7 +230,7 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 			})
 		}
 		if v.Snapshot.Preferences.RecentDirectories[0] != "" {
-			dropdown(c.Key("recent-destinations"), p, "选择保存目录", "保存到", v.Busy, func(m *ui.Menu) {
+			dropdown(c.Key("recent-destinations"), p, "选择保存目录", "", v.Busy, func(m *ui.Menu) {
 				w, _ := c.Size()
 				m.MaxWidth(min(400, w-24))
 				if v.Actions.PickDirectory != nil && m.Item("选择文件夹…").Chosen() {
@@ -241,7 +241,7 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 						v.Directory, v.FormError = dir, ""
 					}
 				}
-			}).Tooltip("选择文件夹或最近位置")
+			}, icons["folder"]).Tooltip("选择文件夹或最近位置")
 		} else {
 			var label ui.Element
 			if v.Actions.PickDirectory != nil {
@@ -253,9 +253,8 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 			if v.Actions.PickDirectory != nil && label.Hovered() {
 				label.Background(p.panel.Alpha(.45))
 			}
-			label.Row().Shrink(0).FillHeight().AlignItems(ui.Center).Gap(5).Children(func() {
+			label.Size(30, 32).Center().Children(func() {
 				ui.Icon(c, icons["folder"]).FontSize(15).TextColor(p.muted)
-				ui.Text(c, "保存到").FontSize(12).TextColor(p.muted)
 			})
 			if v.Actions.PickDirectory != nil && label.Clicked() {
 				pick()
@@ -267,9 +266,13 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 			if dir.Focused() || c.Preferences().HighContrast {
 				dir.Border(1, p.border)
 			}
+			caption := v.Directory
+			if caption != "" && caption == v.Snapshot.Directory {
+				caption = filepath.Base(caption)
+			}
 			if !dir.Focused() {
 				dir.TextColor(ui.Transparent)
-				ui.Text(c, v.Directory).Transition(pageFade).Margin(0, 6).FontSize(12).SingleLine().TruncateMiddle().IgnoreInput(true).AccessHidden(true)
+				ui.Text(c, caption).Transition(pageFade).Margin(0, 6).FontSize(12).TextColor(p.muted).SingleLine().TruncateMiddle().IgnoreInput(true).AccessHidden(true)
 			}
 			if dir.Changed() {
 				v.FormError = ""

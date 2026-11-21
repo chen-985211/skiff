@@ -2,6 +2,7 @@ package transfer_test
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -99,24 +100,75 @@ func TestComposeDirectoryPickerBelongsToThePath(t *testing.T) {
 	}
 }
 
-func TestRenderComposeLongDirectoryShowsBothEnds(t *testing.T) {
+func TestRenderComposeDestinationAbbreviatesOnlyTheDefaultFolder(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready, v.DialogOpen = true, true
 	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true, ReduceTransparency: true}})
-	render := func(head, middle, tail string) []byte {
+	render := func(head, middle, tail string, isDefault bool) []byte {
 		v.Directory = head + strings.Repeat("/documents", 6) + middle + strings.Repeat("/documents", 6) + tail
+		if isDefault {
+			v.Snapshot.Directory = v.Directory
+		}
 		tt.Frame()
 		field, ok := tt.AccessByRole(ui.RoleTextField, "保存目录")
 		if !ok || field.Value != v.Directory {
 			t.Fatal("the directory field must retain the full path")
 		}
-		return bytes.Clone(tt.Image().Pix)
+		r, im := field.Bounds, tt.Image()
+		var pixels []byte
+		for y := int(r.Y); y < int(r.Y+r.H); y++ {
+			pixels = append(pixels, im.Pix[im.PixOffset(int(r.X), y):im.PixOffset(int(r.X+r.W), y)]...)
+		}
+		return pixels
 	}
-	base := render("/Users", "/A", "/Photos")
-	if !bytes.Equal(base, render("/Users", "/B", "/Photos")) {
+	base := render("/Users", "/A", "/Photos", false)
+	if !bytes.Equal(base, render("/Users", "/B", "/Photos", false)) {
 		t.Error("the middle of the long path should be elided")
 	}
-	if bytes.Equal(base, render("/Media", "/A", "/Photos")) || bytes.Equal(base, render("/Users", "/A", "/Videos")) {
+	if bytes.Equal(base, render("/Media", "/A", "/Photos", false)) || bytes.Equal(base, render("/Users", "/A", "/Videos", false)) {
 		t.Error("both ends of the long path should remain visible")
+	}
+	defaultFolder := render("/Users", "/A", "/Photos", true)
+	if !bytes.Equal(defaultFolder, render("/Media", "/B", "/Photos", true)) ||
+		bytes.Equal(defaultFolder, render("/Media", "/B", "/Videos", true)) {
+		t.Error("the resting default destination should paint only the final folder name")
+	}
+}
+
+func TestComposeReservesLeadingToolbarSpaceAndNamesTheDefaultFolder(t *testing.T) {
+	for _, recent := range []bool{false, true} {
+		v := presentation.New(nil, presentation.Actions{})
+		v.Ready = true
+		dir := filepath.Join(t.TempDir(), "Desktop")
+		v.Snapshot.Directory = dir
+		if recent {
+			v.Snapshot.Preferences.RecentDirectories[0] = dir
+		}
+		v.OpenNew()
+		tt := interactionScene(v, 800, 560)
+		panel, ok := tt.AccessByRole(ui.RoleDialog, "新建下载")
+		field, links := tt.AccessByRole(ui.RoleTextField, "下载链接")
+		advanced, tools := tt.AccessByRole(ui.RoleButton, "高级选项")
+		if !ok || !links || !tools || !tt.Focused("下载链接") {
+			t.Fatal("missing focused link editor or advanced options")
+		}
+		right := func(r ui.Rect) float32 { return r.X + r.W }
+		if advanced.Bounds.Y < panel.Bounds.Y || advanced.Bounds.Y+advanced.Bounds.H > field.Bounds.Y ||
+			right(advanced.Bounds) != right(field.Bounds) || advanced.Bounds.X-field.Bounds.X < field.Bounds.W/2 {
+			t.Errorf("advanced belongs at the top right, leaving space for future source tabs: %v, editor %v", advanced.Bounds, field.Bounds)
+		}
+		if _, heading := tt.AccessByRole(ui.RoleText, "新建下载"); heading || tt.HasText("保存到") {
+			t.Error("redundant compose labels are still visible")
+		}
+		if _, shown := tt.Find("Desktop"); !shown {
+			t.Error("the default folder should show its name beside the folder icon")
+		}
+		if err := tt.Click("保存目录"); err != nil {
+			t.Fatal(err)
+		}
+		path, ok := tt.AccessByRole(ui.RoleTextField, "保存目录")
+		if !ok || path.Value != dir || !tt.Focused("保存目录") {
+			t.Fatal("the full path should still be editable")
+		}
 	}
 }

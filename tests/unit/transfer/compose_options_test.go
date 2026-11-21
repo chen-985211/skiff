@@ -273,12 +273,13 @@ func TestAdvancedToolbarAndEditorsShareEdges(t *testing.T) {
 		}
 		links := box(ui.RoleTextField, "下载链接")
 		submit := box(ui.RoleButton, "开始下载")
+		options := box(ui.RoleButton, "高级选项")
 		click("高级选项")
 		box(ui.RoleDialog, "下载选项")
 		rail := box(ui.RoleTabList, "高级下载选项")
 		back := box(ui.RoleButton, "返回链接")
 		right := func(r ui.Rect) float32 { return r.X + r.W }
-		if rail.X != links.X || rail.Y+rail.H/2 != back.Y+back.H/2 || right(back) != right(submit) {
+		if rail.X != links.X || rail.Y+rail.H/2 != back.Y+back.H/2 || right(back) != right(submit) || back.X != options.X {
 			t.Errorf("category switch and back action must share a toolbar: %+v, %+v; content edges %.0f–%.0f", rail, back, links.X, right(submit))
 		}
 		file := box(ui.RoleTextField, "单文件另存为")

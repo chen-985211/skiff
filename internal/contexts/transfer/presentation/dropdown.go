@@ -4,7 +4,7 @@ import "github.com/egoist/mygo/ui"
 
 // dropdown is the single trigger and menu surface for choices made in-place.
 // MyGo owns placement, keyboard navigation, and checked items.
-func dropdown(c *ui.Context, p palette, label, value string, disabled bool, build func(*ui.Menu)) ui.Element {
+func dropdown(c *ui.Context, p palette, label, value string, disabled bool, build func(*ui.Menu), icon ...*ui.SVG) ui.Element {
 	trigger := ui.ButtonBase(c).Transition(controlMotion).Label(label).Disabled(disabled).
 		FocusRing(true).Cursor(ui.CursorPointer).Row().Height(32).PaddingX(10).Gap(8).AlignItems(ui.Center).Radius(cornerSmall)
 	open := ui.Local(trigger, "expanded", func() bool { return false })
@@ -31,7 +31,12 @@ func dropdown(c *ui.Context, p palette, label, value string, disabled bool, buil
 	}
 	angle := trigger.AnimateTo("chevron", 180*amount(*open), selectionSpring)
 	trigger.Background(fill).Border(1, edge).Children(func() {
-		ui.Text(c, value).Grow(1).MinWidth(0).SingleLine().TruncateMiddle().FontSize(13).ContentTransition(textChange)
+		if len(icon) > 0 {
+			ui.Icon(c, icon[0]).Size(15, 15).TextColor(p.muted).AccessHidden(true)
+		}
+		if value != "" {
+			ui.Text(c, value).Transition(pageFade).Grow(1).MinWidth(0).SingleLine().TruncateMiddle().FontSize(13).ContentTransition(textChange)
+		}
 		ui.Icon(c, icons["chevron"]).Size(14, 14).Shrink(0).Rotate(angle).TextColor(p.muted)
 	})
 	return trigger
