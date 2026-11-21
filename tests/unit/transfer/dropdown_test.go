@@ -23,7 +23,12 @@ func TestSettingsDropdownPicksWithKeysAndDismissesInsideDialog(t *testing.T) {
 	}
 	click("设置")
 	click("代理与 DNS")
+	dns, _ := tt.AccessByRole(ui.RoleMenuButton, "DNS · 自动")
 	click("DNS · 自动")
+	menu, shown := tt.AccessByRole(ui.RoleMenu, "")
+	if !shown || menu.Bounds.W+1 < dns.Bounds.W {
+		t.Fatalf("menu %.1f narrower than field %.1f", menu.Bounds.W, dns.Bounds.W)
+	}
 	if _, ok := tt.AccessByRole(ui.RoleMenuItemCheckBox, "系统解析"); !ok {
 		t.Fatal("missing in-window DNS choices")
 	}

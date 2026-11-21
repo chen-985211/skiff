@@ -12,7 +12,7 @@ func dropdown(c *ui.Context, p palette, label, value string, disabled bool, buil
 	trigger.PopoverMenuButton(build, ui.PopoverMenuButtonOptions{
 		Open: open,
 		Panel: func(panel ui.Element) {
-			panel.Padding(4).Radius(cornerField).Background(p.panel).Border(1, p.border).
+			panel.MinWidth(max(144, trigger.Bounds().W)).Padding(4).Radius(cornerField).Background(p.panel).Border(1, p.border).
 				NoShadow().Shadow(0, 5, 16, 0, p.scrim.Alpha(.2)).Transition(dropdownMotion)
 		},
 		Item: func(item ui.Element) {
