@@ -1,9 +1,12 @@
 package transfer_test
 
 import (
+	"context"
 	"github.com/egoist/mygo/ui"
+	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/presentation"
 	"testing"
+	"time"
 )
 
 func TestBTTabKeepsSeparateLinkDraft(t *testing.T) {
@@ -63,5 +66,37 @@ func TestBTCreateEditorKeepsDownloadDraft(t *testing.T) {
 	click("返回下载")
 	if _, ok := tt.AccessByRole(ui.RoleTextField, "磁力链接"); !ok {
 		t.Fatal("lost torrent download editor")
+	}
+}
+
+type previewTorrentAPI struct{ *application.Service }
+
+func (previewTorrentAPI) PrepareTorrent(context.Context, string) (application.Torrent, error) {
+	return application.Torrent{Name: "样本", Hash: "fixture", Files: []application.TorrentFile{{Path: "a.txt", Size: 1}, {Path: "b.txt", Size: 1}}}, nil
+}
+func TestBTReplacePreviewReleasesOldFileTree(t *testing.T) {
+	api := previewTorrentAPI{service(t, &fakeEngine{}, &fakeRepo{})}
+	updates := make(chan func(), 1)
+	v := presentation.New(api, presentation.Actions{Dispatch: func(fn func()) { updates <- fn }, PickTorrent: func(done func(string, error)) { done("/sample.torrent", nil) }})
+	v.OpenNew()
+	tt := interactionScene(v, 900, 600)
+	for _, label := range []string{"BT", "打开种子"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	select {
+	case show := <-updates:
+		show()
+	case <-time.After(2 * time.Second):
+		t.Fatal("no metadata")
+	}
+	tt.Frame()
+	if err := tt.Click("更换种子"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.AccessByRole(ui.RoleTextField, "磁力链接"); !ok {
+		t.Fatal("replace did not return to source")
 	}
 }

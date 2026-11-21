@@ -32,6 +32,13 @@ type torrentDraft struct {
 	deadline   time.Time
 }
 
+func (b *torrentDraft) clearPreview() {
+	b.meta = application.Torrent{}
+	b.rows = nil
+	b.selected = nil
+	b.list = ui.ListState{}
+}
+
 func (b *torrentDraft) stopLookup() {
 	b.deadline = time.Time{}
 	if b.cancel != nil {
@@ -70,7 +77,7 @@ func (v *View) lookupTorrent(source string) {
 	b.generation++
 	seq := b.generation
 	b.source = source
-	b.meta = application.Torrent{}
+	b.clearPreview()
 	v.FormError = ""
 	parent := v.Actions.Context
 	if parent == nil {
@@ -189,11 +196,14 @@ func (v *View) torrentEditor(c *ui.Context, p palette) {
 			ui.Text(c, b.meta.Name).Grow(1).SingleLine().TruncateMiddle().FontWeight(600).Tooltip(b.meta.Name)
 			if secondaryAction(c, "更换种子").Disabled(v.Busy).Clicked() {
 				b.stopLookup()
-				b.meta = application.Torrent{}
+				b.clearPreview()
 				b.source = ""
 				c.Invalidate()
 			}
 		})
+		if b.meta.Hash == "" {
+			return
+		}
 		ui.List(c.Key("torrent-tree"), &b.list, len(b.rows), func(i int) {
 			r := b.rows[i]
 			ui.Row(c.Key(r.path)).FillWidth().Height(28).PaddingX(float32(min(r.depth, 8))*12 + 4).AlignItems(ui.Center).Gap(6).Children(func() {
