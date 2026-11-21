@@ -8,67 +8,78 @@ const (
 	proxyTab
 )
 
-var optionTitles = [...]string{"文件与连接", "请求头", "代理"}
+var optionTabs = [...]struct{ name, caption, icon string }{
+	{"文件与连接", "文件", "file"},
+	{"请求头", "请求头", "headers"},
+	{"代理", "代理", "network"},
+}
 
-// Tabs share one viewport. Switching to a shorter page keeps the tab under
-// the pointer and the download action anchored at the bottom of the sheet.
+const (
+	optionLabelWidth = 82
+	optionGap        = 8
+	optionGutter     = 8 // the scroll thumb lives in the sheet margin
+)
+
+func (v *View) optionToolbar(c *ui.Context, p palette, width, ink float32) {
+	const inset = 3
+	cell := (width - 2*inset) / float32(len(optionTabs))
+	tabs := ui.TabsBase(c, &v.optionTab, len(optionTabs))
+	rail := tabs.List.Label("高级下载选项").Width(width).Height(formHeaderHeight).Padding(inset).
+		Radius(cornerCompact).Background(p.haze.Alpha(.25)).Opacity(editorOpacity(ink)).
+		IgnoreInput(!v.advanced).AccessHidden(!v.advanced).Disabled(v.Busy)
+	x := rail.AnimateTo("active-tab", float32(v.optionTab)*cell, selectionSpring)
+	rail.Draw(func(painter *ui.Painter, r ui.Rect) {
+		painter.Fill(ui.Rect{X: r.X + inset + x, Y: r.Y + inset, W: cell, H: r.H - 2*inset}, p.panel, cornerSmall)
+	})
+	rail.Children(func() {
+		for i, option := range optionTabs {
+			tab := tabs.Tab(i).ZIndex(1).Transition(controlMotion).Label(option.name).Tooltip(option.name).Width(cell).FillHeight().
+				Center().Gap(5).Radius(cornerSmall).FocusRing(true).FocusRingOffset(-2)
+			selected := tab.AnimateTo("selection-ink", amount(i == v.optionTab), colorFade)
+			color := p.muted.Mix(p.active, selected)
+			if tab.Hovered() {
+				color = c.Theme().Text
+			}
+			tab.Children(func() {
+				ui.Icon(c, icons[option.icon]).FontSize(15).TextColor(color).AccessHidden(true)
+				ui.Text(c, option.caption).SingleLine().FontSize(12).FontWeight(600).TextColor(color)
+			})
+		}
+	})
+}
+
 func (v *View) advancedOptions(c *ui.Context, p palette, width, height, reveal float32) {
-	const navigationHeight = 44
-	bodyHeight := height - navigationHeight
-	slot := ui.Column(c.Key("advanced-slot")).Absolute().Top(0).Left(0).Opacity(editorOpacity(reveal)).
-		Width(width).Height(height).Clip().AccessHidden(!v.advanced).IgnoreInput(!v.advanced).Disabled(v.Busy)
-	slot.Children(func() {
-		tabs := ui.TabsBase(c, &v.optionTab, len(optionTitles))
-		tabWidth := width / float32(len(optionTitles))
-		rail := tabs.List.FillWidth().Margin(0, 0, 12).Height(32).Label("高级下载选项")
-		x := rail.AnimateTo("active-tab", float32(v.optionTab)*tabWidth, selectionSpring)
-		rail.Children(func() {
-			ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(1).Background(p.border.Alpha(.55)).IgnoreInput(true)
-			ui.Box(c.Key("active-tab")).Absolute().Left(10).Bottom(0).Size(tabWidth-20, 3).Translate(x, 0).Radius(cornerProgress).Background(p.active).IgnoreInput(true).AccessHidden(true)
-			for i, title := range optionTitles {
-				tab := tabs.Tab(i).Transition(controlMotion).Width(tabWidth).FillHeight().Center().Radius(cornerSmall).Label(title).FocusRing(true).FocusRingOffset(-3)
-				ink := p.muted
-				if i == v.optionTab {
-					ink = c.Theme().Text
-				}
-				if tab.Hovered() {
-					tab.Background(p.panel.Alpha(.24))
-				}
-				tab.Children(func() { ui.Text(c, title).SingleLine().FontSize(13).FontWeight(590).TextColor(ink) })
+	viewport := ui.Box(c.Key("option-pages")).Absolute().Top(0).Left(0).
+		Width(width + optionGutter).Height(height).Clip().Opacity(editorOpacity(reveal)).
+		AccessHidden(!v.advanced).IgnoreInput(!v.advanced).Disabled(v.Busy)
+	viewport.Children(func() {
+		for i, option := range optionTabs {
+			active := i == v.optionTab
+			weight := viewport.AnimateTo(i, amount(active), colorFade)
+			if !active && weight == 0 {
+				continue
 			}
-		})
-		// Each actual editor has an independent weight on the stable viewport.
-		// Skipping a tab leaves that editor at zero, including during a reversal.
-		viewport := ui.Box(c.Key("option-pages")).FillWidth().Height(bodyHeight).Clip()
-		viewport.Children(func() {
-			for i, title := range optionTitles {
-				active := i == v.optionTab
-				weight := viewport.AnimateTo(i, amount(active), colorFade)
-				if !active && weight == 0 {
-					continue
-				}
-				scroll := ui.Scroll(c.Key(title)).Absolute().Top(0).Left(0).
-					Width(width).Height(bodyHeight).Clip().Opacity(editorOpacity(weight)).IgnoreInput(!active).AccessHidden(!active)
-				scroll.Children(func() {
-					ui.Column(c).FillWidth().Gap(7).Padding(2, 8, 3, 0).Children(func() {
-						switch i {
-						case fileTab:
-							v.fileOptions(c, p)
-						case headerTab:
-							v.headerOptions(c, p)
-						case proxyTab:
-							v.proxyOptions(c, p, &v.taskNetwork, true, width-8)
-						}
-					})
+			scroll := ui.Scroll(c.Key(option.name)).Absolute().Top(0).Left(0).
+				Width(width + optionGutter).Height(height).Clip().Opacity(editorOpacity(weight)).IgnoreInput(!active).AccessHidden(!active)
+			scroll.Children(func() {
+				ui.Column(c).Width(width).Gap(12).Padding(2, 0, 3).Children(func() {
+					switch i {
+					case fileTab:
+						v.fileOptions(c, p)
+					case headerTab:
+						v.headerOptions(c, p)
+					case proxyTab:
+						v.proxyOptions(c, p, &v.taskNetwork, true, width)
+					}
 				})
-			}
-		})
+			})
+		}
 	})
 }
 
 func formRow(c *ui.Context, p palette, label string, control func()) {
-	ui.Row(c.Key(label)).FillWidth().Height(32).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, label).Width(82).FontSize(12).FontWeight(560).TextColor(p.muted).SingleLine()
+	ui.Row(c.Key(label)).FillWidth().Height(32).Shrink(0).Gap(optionGap).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, label).Width(optionLabelWidth).FontSize(12).FontWeight(560).TextColor(p.muted).SingleLine()
 		control()
 	})
 }
@@ -90,9 +101,9 @@ func (v *View) fileOptions(c *ui.Context, p palette) {
 			v.FormError = ""
 		}
 	})
-	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(8).Children(func() {
-		ui.Text(c, "备用地址").Width(82).Padding(8, 0, 0).FontSize(12).FontWeight(560).TextColor(p.muted)
-		field := ui.TextAreaBase(c, &v.mirrorText).Transition(controlMotion).Grow(1).MinWidth(0).Lines(3, 4).Padding(8, 9).FontSize(13).FixedLineHeight(18).Radius(cornerSmall).Border(1, p.border).Background(p.panel.Alpha(.42)).FocusRing(true).Label("备用下载地址").Placeholder("同一文件的备用链接，每行一个")
+	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(optionGap).Children(func() {
+		ui.Text(c, "备用地址").Width(optionLabelWidth).Padding(8, 0, 0).FontSize(12).FontWeight(560).TextColor(p.muted)
+		field := ui.TextAreaBase(c, &v.mirrorText).Transition(controlMotion).Grow(1).MinWidth(0).Lines(4, 4).Padding(8, 9).FontSize(13).FixedLineHeight(18).Radius(cornerSmall).Border(1, p.border).Background(p.panel.Alpha(.42)).FocusRing(true).Label("备用下载地址").Placeholder("每行一个备用链接")
 		if field.Focused() {
 			field.Border(1, p.active)
 		}

@@ -11,7 +11,7 @@ const (
 	formInsetX         = 20
 	formInsetY         = 16
 	formGap            = 12
-	formHeaderHeight   = 26
+	formHeaderHeight   = 34
 	formFooterHeight   = 36
 	formErrorMaxHeight = 68
 )
@@ -27,7 +27,11 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 	closed := 1 - reveal
 	shown := true // Keep the modal and its draft mounted until the spring reaches the button.
 	ui.DialogBase(c, &shown, func(back, panel ui.Element) {
-		panel.Absolute().Left(left+(anchor.X-left)*closed).Bottom(footerInset+(windowH-anchor.Y-anchor.H-footerInset)*closed).
+		name := "新建下载"
+		if v.advanced {
+			name = "下载选项"
+		}
+		panel.Label(name).Absolute().Left(left+(anchor.X-left)*closed).Bottom(footerInset+(windowH-anchor.Y-anchor.H-footerInset)*closed).
 			Width(anchor.W+(width-anchor.W)*reveal).Column().AlignItems(ui.Start).Radius(cornerSheet).Clip().
 			Shadow(0, 6*reveal, 20*reveal, 0, p.scrim.Alpha(.15*reveal))
 
@@ -44,35 +48,11 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 		form := ui.Column(c.Key("form")).Width(width).Shrink(0).Padding(formInsetY, formInsetX).Gap(formGap).
 			Opacity(fields).IgnoreInput(!v.DialogOpen).AccessHidden(!v.DialogOpen)
 		advanced := form.AnimateTo("advanced", amount(v.advanced), panelSpring)
+		ink := form.AnimateTo("editor-ink", amount(v.advanced), colorFade)
 		form.Children(func() {
-			// The moving title occupies the leading side of this header.
-			ui.Row(c).FillWidth().Height(formHeaderHeight).Gap(8).AlignItems(ui.Center).Justify(ui.End).Children(func() {
-				count := 0
-				for line := range strings.Lines(v.URLs) {
-					if strings.TrimSpace(line) != "" {
-						count++
-					}
-				}
-				if count > 1 {
-					ui.Textf(c, "已输入 %d 行", count).Transition(pageFade).Margin(0, 82, 0, 0).FontSize(11).TextColor(p.muted).ContentTransition(numberChange)
-				}
-			})
+			toggle := v.composeTools(c, p, width-2*formInsetX, ink, v.Busy || fields < .5)
 			back.Background(p.canvas.Alpha(.18 * advanced * reveal))
-			ink := form.AnimateTo("editor-ink", amount(v.advanced), colorFade)
 			v.composeFields(c, p, width-2*formInsetX, advanced, ink)
-			action := "高级选项"
-			if v.advanced {
-				action = "返回链接"
-			}
-			toggle := ui.ButtonBase(c.Key("advanced-toggle")).Transition(controlMotion).Label(action).Expanded(v.advanced).Absolute().Top(14).Right(16).Height(30).PaddingX(8).Radius(cornerSmall).FocusRing(true).Disabled(v.Busy || fields < .5)
-			turn := toggle.AnimateTo("disclosure", amount(v.advanced), selectionSpring)
-			if toggle.Hovered() {
-				toggle.Background(p.panel.Alpha(.5))
-			}
-			toggle.Row().AlignItems(ui.Center).Gap(5).Children(func() {
-				composeCaption(c, "高级选项", "返回链接", advanced, 12, 550, p.muted)
-				ui.Icon(c, icons["chevron"]).FontSize(12).TextColor(p.muted).Rotate(90 + 180*(1-turn))
-			})
 			if toggle.Clicked() {
 				v.advanced = !v.advanced
 				v.focusLinks = !v.advanced
@@ -94,12 +74,12 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 		}
 
 		// Keep the button's label visible throughout. Its plus gives way to the heading.
-		title := ui.Row(c.Key("compose-title")).Absolute().Left(17 + 3*reveal).Top(9 + 7*reveal).
-			Height(26).Gap(7 * closed).AlignItems(ui.Center).IgnoreInput(true)
-		ink := c.Theme().Text.Mix(c.Theme().AccentText, buttonInk)
+		title := ui.Row(c.Key("compose-title")).Absolute().Left(17 + 3*reveal).Top(9 + 11*reveal).
+			Height(26).Gap(7 * closed).AlignItems(ui.Center).Opacity(editorOpacity(1 - ink)).IgnoreInput(true).AccessHidden(v.advanced)
+		titleInk := c.Theme().Text.Mix(c.Theme().AccentText, buttonInk)
 		title.Children(func() {
-			ui.Icon(c, icons["plus"]).Width(15 * closed).Clip().FontSize(15).TextColor(ink.Alpha(closed))
-			composeCaption(c, "新建下载", "下载选项", advanced*reveal, 13+6*reveal, 600, ink)
+			ui.Icon(c, icons["plus"]).Width(15 * closed).Clip().FontSize(15).TextColor(titleInk.Alpha(closed))
+			ui.Text(c, "新建下载").SingleLine().FontSize(13 + 6*reveal).FontWeight(600).TextColor(titleInk)
 		})
 		// Until the inputs are revealed, a second press belongs to the morphing
 		// button. Keep keyboard focus in the editor so a paste is accepted immediately.
@@ -121,8 +101,49 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 	}
 }
 
-// Both captions move with the sheet. A detached exit snapshot would leave
-// the old title behind in window coordinates as the sheet grows upwards.
+func (v *View) composeTools(c *ui.Context, p palette, width, ink float32, disabled bool) ui.Element {
+	const actionWidth = 82
+	const gap = 12
+	header := ui.Row(c.Key("compose-tools")).FillWidth().Height(formHeaderHeight).AlignItems(ui.Center).Gap(gap)
+	var toggle ui.Element
+	header.Children(func() {
+		leading := ui.Box(c).Grow(1).MinWidth(0).FillHeight()
+		leading.Children(func() {
+			if v.advanced || ink > 0 {
+				v.optionToolbar(c, p, min(264, width-actionWidth-gap), ink)
+			}
+			count := 0
+			for line := range strings.Lines(v.URLs) {
+				if strings.TrimSpace(line) != "" {
+					count++
+				}
+			}
+			if count > 1 {
+				ui.Textf(c, "已输入 %d 行", count).Transition(pageFade).Absolute().Right(0).Top(9).
+					Opacity(editorOpacity(1 - ink)).AccessHidden(v.advanced).FontSize(11).TextColor(p.muted).ContentTransition(numberChange)
+			}
+		})
+		action := "高级选项"
+		if v.advanced {
+			action = "返回链接"
+		}
+		toggle = ui.ButtonBase(c.Key("advanced-toggle")).Transition(controlMotion).Label(action).Tooltip(action).Expanded(v.advanced).
+			Width(actionWidth).FillHeight().Radius(cornerSmall).FocusRing(true).Disabled(disabled)
+		if toggle.Hovered() {
+			toggle.Background(p.panel.Alpha(.5))
+		}
+		toggle.Row().Center().Gap(6).Children(func() {
+			ui.Box(c).Size(15, 15).Center().AccessHidden(true).Children(func() {
+				ui.Icon(c, icons["settings"]).FontSize(15).TextColor(p.muted).Opacity(editorOpacity(1 - ink))
+				ui.Icon(c, icons["chevron"]).Absolute().Left(0).Top(0).FontSize(15).Rotate(90).TextColor(p.muted).Opacity(editorOpacity(ink))
+			})
+			composeCaption(c, "高级选项", "返回链接", ink, 12, 550, p.muted)
+		})
+	})
+	return toggle
+}
+
+// Both captions are painted at the current position of the toolbar.
 func composeCaption(c *ui.Context, first, second string, progress, size float32, weight int, ink ui.Color) {
 	ui.Box(c).AccessHidden(true).Children(func() {
 		ui.Text(c, first).SingleLine().FontSize(size).FontWeight(weight).TextColor(ink).Opacity(max(0, 1-2*progress))
@@ -138,9 +159,9 @@ func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink floa
 	if v.FormError != "" {
 		available -= formErrorMaxHeight + formGap
 	}
-	optionsHeight := min(float32(244), available)
-	ui.Column(c.Key("editor-viewport")).FillWidth().Clip().Children(func() {
-		source := ui.Column(c.Key("source-fields")).FillWidth().Shrink(0).
+	optionsHeight := min(float32(194), available)
+	ui.Column(c.Key("editor-viewport")).Width(width + optionGutter).Clip().Children(func() {
+		source := ui.Column(c.Key("source-fields")).Width(width).Shrink(0).
 			Opacity(editorOpacity(1 - ink)).IgnoreInput(v.advanced).AccessHidden(v.advanced)
 		source.Children(func() { v.linkEditor(c, p) })
 		// The link editor measures wrapped text at its full width, including

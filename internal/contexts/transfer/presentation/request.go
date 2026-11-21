@@ -48,46 +48,57 @@ func (v *View) headerOptions(c *ui.Context, p palette) {
 		v.loadHeaders("")
 	}
 	added := false
-	ui.Row(c).FillWidth().Height(28).Shrink(0).AlignItems(ui.Center).Gap(8).Children(func() {
-		count := 0
-		for _, h := range v.fields {
-			if h.Value != "" {
-				count++
-			}
-		}
-		ui.Textf(c, "已设置 %d 项", count).ContentTransition(numberChange).Grow(1).FontSize(13).FontWeight(580)
-		if secondaryAction(c, "从剪贴板导入").Height(26).Label("从剪贴板导入请求头").Clicked() {
+	rows := ui.Column(c.Key("header-fields")).FillWidth().Gap(7)
+	// Build the actions first so an added row can take focus in this frame.
+	// The rows already own their place above this trailing toolbar.
+	ui.Row(c).FillWidth().Height(28).Shrink(0).AlignItems(ui.Center).Justify(ui.End).Gap(8).Children(func() {
+		if headerAction(c, p, "paste", "导入", "从剪贴板导入请求头") {
 			block, err := application.ImportHeaders(c.ReadClipboard())
 			v.headerErr = err
 			if err == nil && block != "" {
 				v.loadHeaders(block)
 			}
 		}
-		if secondaryAction(c, "添加请求头").Height(26).Label("添加自定义请求头").Clicked() {
+		if headerAction(c, p, "plus", "添加", "添加自定义请求头") {
 			v.fields = append(v.fields, requestField{})
 			added = true
 		}
 	})
 	inlineError(c, v.headerErr)
 	remove := -1
-	for i := range v.fields {
-		h := &v.fields[i]
-		if i < 4 {
-			formRow(c, p, h.Name, func() { rowInput(c, p, h.Name, "", &h.Value, i < 2) })
-			continue
+	rows.Children(func() {
+		for i := range v.fields {
+			h := &v.fields[i]
+			if i < 4 {
+				formRow(c, p, h.Name, func() { rowInput(c, p, h.Name, "", &h.Value, i < 2) })
+				continue
+			}
+			ui.Row(c.Key("custom-" + strconv.Itoa(i))).Transition(pageFade).FillWidth().Height(32).Shrink(0).Gap(optionGap).AlignItems(ui.Center).Children(func() {
+				name := rowInput(c, p, "请求头名称", "名称", &h.Name, false).Grow(0).Basis(optionLabelWidth).MinWidth(optionLabelWidth)
+				if added && i == len(v.fields)-1 {
+					name.Focus().ScrollIntoView()
+				}
+				rowInput(c, p, "请求头值", "值", &h.Value, true)
+				if iconButton(c, "close", "移除自定义请求头 "+strconv.Itoa(i-3), false) {
+					remove = i
+				}
+			})
 		}
-		ui.Row(c.Key("custom-" + strconv.Itoa(i))).Transition(pageFade).FillWidth().Height(32).Shrink(0).Gap(6).AlignItems(ui.Center).Children(func() {
-			name := rowInput(c, p, "请求头名称", "名称", &h.Name, false).Grow(0).Basis(82).MinWidth(82)
-			if added && i == len(v.fields)-1 {
-				name.Focus().ScrollIntoView()
-			}
-			rowInput(c, p, "请求头值", "值", &h.Value, true)
-			if iconButton(c, "close", "移除自定义请求头 "+strconv.Itoa(i-3), false) {
-				remove = i
-			}
-		})
-	}
+	})
 	if remove >= 0 {
 		v.fields = slices.Delete(v.fields, remove, remove+1)
 	}
+}
+
+func headerAction(c *ui.Context, p palette, symbol, caption, label string) bool {
+	b := ui.ButtonBase(c.Key(label)).Transition(controlMotion).Label(label).Tooltip(label).
+		Height(28).PaddingX(8).Gap(5).Radius(cornerSmall).FocusRing(true).FocusRingOffset(-2)
+	if b.Hovered() {
+		b.Background(p.panel.Alpha(.55))
+	}
+	b.Children(func() {
+		ui.Icon(c, icons[symbol]).FontSize(14).TextColor(p.active).AccessHidden(true)
+		ui.Text(c, caption).SingleLine().FontSize(12).FontWeight(550).TextColor(p.active)
+	})
+	return b.Clicked()
 }

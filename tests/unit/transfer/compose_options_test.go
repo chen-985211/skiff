@@ -94,6 +94,29 @@ func TestRenderComposeOptionsSelectionMovesWithoutMovingTabs(t *testing.T) {
 	if !ok {
 		t.Fatal("missing file tab")
 	}
+	// Sample the moving selection fill below the glyphs, away from their ink.
+	y := int(initial.Bounds.Y+initial.Bounds.H) - 4
+	initialImage := tt.Image()
+	lit := int(initialImage.RGBAAt(int(initial.Bounds.X+initial.Bounds.W/2), y).R)
+	dim := int(initialImage.RGBAAt(int(initial.Bounds.X+1.5*initial.Bounds.W), y).R)
+	if lit <= dim+8 {
+		t.Fatalf("selection has no distinct fill: %d vs %d", lit, dim)
+	}
+	marker := func() int {
+		im := tt.Image()
+		var sum, count int
+		for x := int(initial.Bounds.X); x < int(initial.Bounds.X+3*initial.Bounds.W); x++ {
+			if int(im.RGBAAt(x, y).R) > (lit+dim)/2 {
+				sum += x
+				count++
+			}
+		}
+		if count == 0 {
+			t.Fatal("selection disappeared")
+		}
+		return sum / count
+	}
+	start := marker()
 	if err := tt.Click("代理"); err != nil {
 		t.Fatal(err)
 	}
@@ -101,20 +124,6 @@ func TestRenderComposeOptionsSelectionMovesWithoutMovingTabs(t *testing.T) {
 	tt.Frame()
 	if current, ok := tt.AccessByRole(ui.RoleTab, "文件与连接"); !ok || current.Bounds != initial.Bounds {
 		t.Fatal("tab strip moved during switch")
-	}
-	// The active underline crosses the second tab before settling at the third.
-	y := int(initial.Bounds.Y+initial.Bounds.H) - 2
-	marker := func() int {
-		im := tt.Image()
-		best, xBest := int(1<<20), 0
-		for x := int(initial.Bounds.X); x < int(initial.Bounds.X+3*initial.Bounds.W); x++ {
-			pixel := im.RGBAAt(x, y)
-			score := int(pixel.R) + int(pixel.G) + int(pixel.B)
-			if score < best {
-				best, xBest = score, x
-			}
-		}
-		return xBest
 	}
 	mid := marker()
 	if err := tt.Click("文件与连接"); err != nil {
@@ -129,7 +138,7 @@ func TestRenderComposeOptionsSelectionMovesWithoutMovingTabs(t *testing.T) {
 	}
 	tt.Advance(time.Second)
 	end := marker()
-	if float32(mid) <= initial.Bounds.X+4 || mid >= end || float32(end) < initial.Bounds.X+initial.Bounds.W*2 {
+	if mid <= start+4 || mid >= end || float32(end) < initial.Bounds.X+initial.Bounds.W*2 {
 		t.Fatalf("indicator did not travel: start=%v mid=%d end=%d", initial.Bounds, mid, end)
 	}
 }
@@ -238,5 +247,59 @@ func TestEscapeFromAdvancedKeepsTheDraftAndRestoresFocus(t *testing.T) {
 	tt.Frame()
 	if v.DialogOpen {
 		t.Fatal("second Escape did not dismiss the sheet")
+	}
+}
+
+func TestAdvancedToolbarAndEditorsShareEdges(t *testing.T) {
+	for _, size := range [][2]int{{800, 560}, {1020, 680}} {
+		v := presentation.New(nil, presentation.Actions{})
+		v.Ready = true
+		v.OpenNew()
+		tt := interactionScene(v, size[0], size[1])
+		click := func(name string) {
+			t.Helper()
+			if err := tt.Click(name); err != nil {
+				t.Fatal(err)
+			}
+			tt.Frame()
+		}
+		box := func(role ui.Role, name string) ui.Rect {
+			t.Helper()
+			n, ok := tt.AccessByRole(role, name)
+			if !ok {
+				t.Fatalf("missing %s", name)
+			}
+			return n.Bounds
+		}
+		links := box(ui.RoleTextField, "下载链接")
+		submit := box(ui.RoleButton, "开始下载")
+		click("高级选项")
+		box(ui.RoleDialog, "下载选项")
+		rail := box(ui.RoleTabList, "高级下载选项")
+		back := box(ui.RoleButton, "返回链接")
+		right := func(r ui.Rect) float32 { return r.X + r.W }
+		if rail.X != links.X || rail.Y+rail.H/2 != back.Y+back.H/2 || right(back) != right(submit) {
+			t.Errorf("category switch and back action must share a toolbar: %+v, %+v; content edges %.0f–%.0f", rail, back, links.X, right(submit))
+		}
+		file := box(ui.RoleTextField, "单文件另存为")
+		mirrors := box(ui.RoleTextField, "备用下载地址")
+		if gap := submit.Y - mirrors.Y - mirrors.H; gap < 8 || gap > 32 {
+			t.Errorf("unbalanced space between the multiline editor and footer: %.1f", gap)
+		}
+		click("请求头")
+		cookie := box(ui.RoleTextField, "Cookie")
+		if cookie.Y != file.Y || cookie.X != file.X || right(file) != right(submit) || right(cookie) != right(submit) {
+			t.Errorf("default editors must start on the same row and grid: file %+v, header %+v, submit %+v", file, cookie, submit)
+		}
+		if tt.HasText("已设置 0 项") {
+			t.Error("empty counter occupies the header controls")
+		}
+		click("代理")
+		click("手动代理")
+		proxy := box(ui.RoleTextField, "HTTP 代理地址")
+		mode := box(ui.RoleRadioGroup, "代理模式")
+		if mode.X != file.X || right(mode) != right(submit) || proxy.X != file.X || right(proxy) != right(submit) {
+			t.Errorf("proxy controls left the value column: %+v, %+v", mode, proxy)
+		}
 	}
 }

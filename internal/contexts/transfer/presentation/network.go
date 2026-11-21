@@ -56,36 +56,13 @@ type proxyChoice struct{ mode, label string }
 var proxyChoices = [...]proxyChoice{{"", "全局设置"}, {"system", "跟随系统"}, {"direct", "直连"}, {"manual", "手动代理"}}
 
 func (v *View) proxyOptions(c *ui.Context, p palette, n *application.NetworkSettings, task bool, width float32) {
-	choices := proxyChoices[:]
-	if !task {
-		choices = choices[1:]
-	}
-	index := 0
-	for i, choice := range choices {
-		if choice.mode == n.Mode {
-			index = i
-		}
-	}
 	ui.Column(c.Key("proxy-options")).Width(width).Shrink(0).Children(func() {
-		parts := ui.SegmentedBase(c, &index, len(choices))
-		cell := (width - 4) / float32(len(choices))
-		track := parts.Track.Label("代理模式").Width(width).Height(32).Shrink(0).Padding(2).Radius(cornerCompact).Background(p.haze.Alpha(.22))
-		x := track.AnimateTo("selection", float32(index)*cell, selectionSpring)
-		track.Draw(func(painter *ui.Painter, r ui.Rect) {
-			painter.Fill(ui.Rect{X: r.X + 2 + x, Y: r.Y + 2, W: cell, H: 28}, p.panel, cornerSmall)
-		})
-		track.Children(func() {
-			for i, choice := range choices {
-				item := parts.Segment(i).ZIndex(1).Transition(controlMotion).Size(cell, 28).Label(choice.label).Radius(cornerSmall).FocusRing(true)
-				item.Children(func() { ui.Text(c, choice.label).SingleLine().TextColor(c.Theme().Text).FontSize(12).FontWeight(560) })
-				if item.Changed() {
-					n.Mode = choice.mode
-					v.networkErr = nil
-					v.FormError = ""
-					c.Invalidate()
-				}
-			}
-		})
+		var track ui.Element
+		if task {
+			formRow(c, p, "代理模式", func() { track = v.proxySelector(c, p, n, width-optionLabelWidth-optionGap, proxyChoices[:]) })
+		} else {
+			track = v.proxySelector(c, p, n, width, proxyChoices[1:])
+		}
 		manual := n.Mode == "manual"
 		visible := track.AnimateTo("manual-fields", amount(manual), panelSpring)
 		inherits := task && n.Mode == ""
@@ -100,7 +77,7 @@ func (v *View) proxyOptions(c *ui.Context, p palette, n *application.NetworkSett
 				label = v.Snapshot.Preferences.Network.Proxy
 			}
 			line.Children(func() {
-				ui.Text(c, "当前全局设置 · "+label).Absolute().Top(7).SingleLine().FontSize(12).TextColor(p.muted)
+				ui.Text(c, "当前全局设置 · "+label).Absolute().Left(optionLabelWidth + optionGap).Right(0).Top(7).TruncateMiddle().Tooltip(label).SingleLine().FontSize(12).TextColor(p.muted)
 			})
 		}
 		// Include the gap above the fields in the reveal. An outer layout gap
@@ -125,4 +102,33 @@ func (v *View) proxyOptions(c *ui.Context, p palette, n *application.NetworkSett
 			})
 		}
 	})
+}
+
+func (v *View) proxySelector(c *ui.Context, p palette, n *application.NetworkSettings, width float32, choices []proxyChoice) ui.Element {
+	index := 0
+	for i, choice := range choices {
+		if choice.mode == n.Mode {
+			index = i
+		}
+	}
+	parts := ui.SegmentedBase(c, &index, len(choices))
+	cell := (width - 4) / float32(len(choices))
+	track := parts.Track.Label("代理模式").Width(width).Height(32).Shrink(0).Padding(2).Radius(cornerCompact).Background(p.haze.Alpha(.22))
+	x := track.AnimateTo("selection", float32(index)*cell, selectionSpring)
+	track.Draw(func(painter *ui.Painter, r ui.Rect) {
+		painter.Fill(ui.Rect{X: r.X + 2 + x, Y: r.Y + 2, W: cell, H: 28}, p.panel, cornerSmall)
+	})
+	track.Children(func() {
+		for i, choice := range choices {
+			item := parts.Segment(i).ZIndex(1).Transition(controlMotion).Size(cell, 28).Label(choice.label).Radius(cornerSmall).FocusRing(true)
+			item.Children(func() { ui.Text(c, choice.label).SingleLine().TextColor(c.Theme().Text).FontSize(12).FontWeight(560) })
+			if item.Changed() {
+				n.Mode = choice.mode
+				v.networkErr = nil
+				v.FormError = ""
+				c.Invalidate()
+			}
+		}
+	})
+	return track
 }
