@@ -61,6 +61,7 @@ const (
 )
 
 type Record struct {
+	PeerLimit                     int             `json:",omitempty"`
 	TorrentHash, SelectedFiles    string          `json:",omitempty"`
 	Network                       NetworkSettings `json:",omitzero"`
 	DownloadLimit                 int64           `json:",omitempty"`
@@ -295,3 +296,4 @@ func (t *Task) UseMirror(source, remaining string, version SourceVersion) {
 	t.SetVersion(version)
 	t.Mark(Waiting, "")
 }
+func (t *Task) SetPeerLimit(n int) { t.record.PeerLimit = n }

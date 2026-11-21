@@ -79,6 +79,13 @@ func StartConfigured(ctx context.Context, dataDir, binary string, prefs applicat
 		return nil, err
 	}
 	f.Close()
+	if err := prefs.BT.Validate(); err != nil {
+		return nil, err
+	}
+	listen := "6881-6999"
+	if prefs.BT.ListenPort > 0 {
+		listen = strconv.Itoa(prefs.BT.ListenPort)
+	}
 	config := strings.Join([]string{
 		"disk-cache=" + strconv.FormatInt(prefs.Disk.CacheBytes(), 10), "rpc-max-request-size=32M", "enable-rpc=true", "rpc-listen-all=false", "rpc-allow-origin-all=false",
 		"rpc-listen-port=" + strconv.Itoa(port), "rpc-secret=" + secret,
@@ -86,8 +93,8 @@ func StartConfigured(ctx context.Context, dataDir, binary string, prefs applicat
 		"force-save=true", "continue=false", "pause=true", "max-concurrent-downloads=" + strconv.Itoa(application.DefaultConcurrency),
 		"max-connection-per-server=4", "split=4", "min-split-size=4M",
 		"auto-file-renaming=true", "allow-overwrite=false", "file-allocation=none",
-		"follow-torrent=false", "follow-metalink=false", "enable-dht=false", "enable-dht6=false",
-		"enable-peer-exchange=false", "bt-enable-lpd=false", "seed-time=0",
+		"follow-torrent=false", "follow-metalink=false", "enable-dht=" + strconv.FormatBool(!prefs.BT.DisableDHT), "enable-dht6=false", "dht-file-path=" + filepath.Join(dataDir, "dht.dat"), "listen-port=" + listen, "dht-listen-port=" + listen,
+		"enable-peer-exchange=true", "bt-enable-lpd=" + strconv.FormatBool(prefs.BT.LocalDiscovery), "seed-time=0",
 		"console-log-level=error", "summary-interval=0", "download-result=hide", "max-download-result=10000",
 		"stop-with-process=" + strconv.Itoa(os.Getpid()),
 	}, "\n") + "\n"

@@ -39,6 +39,9 @@ type SourceInfo struct {
 type NetworkSettings = domain.NetworkSettings
 type DiskSettings = domain.DiskSettings
 type TransferSpec struct {
+	PeerLimit                  int
+	BT                         BTSettings
+	Trackers                   string
 	TorrentHash, SelectedFiles string
 	Network                    NetworkSettings `json:",omitzero"`
 	DownloadLimit              int64           `json:",omitempty"`
@@ -86,6 +89,7 @@ func (mode ThemeMode) valid() bool {
 }
 
 type Preferences struct {
+	BT                BTSettings      `json:",omitzero"`
 	Network           NetworkSettings `json:",omitzero"`
 	DownloadLimit     int64           `json:",omitempty"`
 	Disk              DiskSettings    `json:",omitzero"`
@@ -97,16 +101,18 @@ type Preferences struct {
 }
 
 type State struct {
-	Preferences Preferences
-	Version     int
-	Directory   string
-	Tasks       []domain.Record
+	BTSubscriptions []BTSubscription `json:",omitempty"`
+	Preferences     Preferences
+	Version         int
+	Directory       string
+	Tasks           []domain.Record
 }
 type Repository interface {
 	Load(context.Context) (State, error)
 	Save(context.Context, State) error
 }
 type TaskDTO struct {
+	PeerLimit                                     int
 	TorrentHash                                   string
 	DownloadLimit                                 int64 `json:",omitempty"`
 	MirrorSource                                  string
@@ -120,16 +126,19 @@ type TaskDTO struct {
 	CanRestart                                    bool
 }
 type Snapshot struct {
-	Preferences Preferences
-	Tasks       []TaskDTO
-	Directory   string
-	Speed       int64
-	Active      int
+	BTSubscriptions []BTSubscription
+	Preferences     Preferences
+	Tasks           []TaskDTO
+	Directory       string
+	Speed           int64
+	Active          int
 }
 
 // Service is the single serialized entry point for download intent and progress.
 // Call it from workers, never from the UI thread.
 type Service struct {
+	subscriptions      map[string]BTSubscription
+	subscriptionMu     sync.Mutex
 	concurrencyPending bool
 	preferences        Preferences
 	mu                 sync.Mutex
@@ -159,7 +168,7 @@ func transferSpec(r domain.Record, paused bool) TransferSpec {
 			headers = ""
 		}
 	}
-	return TransferSpec{TorrentHash: r.TorrentHash, SelectedFiles: r.SelectedFiles, Network: r.Network, DownloadLimit: r.DownloadLimit, Digest: digest, Disk: r.Disk, Headers: headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: source, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
+	return TransferSpec{PeerLimit: r.PeerLimit, TorrentHash: r.TorrentHash, SelectedFiles: r.SelectedFiles, Network: r.Network, DownloadLimit: r.DownloadLimit, Digest: digest, Disk: r.Disk, Headers: headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: source, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
@@ -169,6 +178,10 @@ func (s *Service) Open(ctx context.Context) error {
 		return err
 	}
 	s.preferences = state.Preferences
+	s.subscriptions = make(map[string]BTSubscription)
+	for _, sub := range state.BTSubscriptions {
+		s.subscriptions[sub.URL] = sub
+	}
 	if s.preferences.Concurrency < 1 || s.preferences.Concurrency > MaxConcurrency {
 		s.preferences.Concurrency = DefaultConcurrency
 	}
@@ -231,7 +244,7 @@ func (s *Service) Open(ctx context.Context) error {
 				task.Mark(domain.Paused, "")
 			}
 		} else {
-			err := s.engine.Enqueue(ctx, transferSpec(r, true))
+			err := s.enqueue(ctx, transferSpec(r, true))
 			if err != nil {
 				task.Mark(domain.Failed, "恢复失败："+err.Error())
 			} else {
@@ -409,7 +422,7 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 	var failures []error
 	for i := len(oldTasks); i < len(s.tasks); i++ {
 		task := &s.tasks[i]
-		if err := s.engine.Enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
+		if err := s.enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
 			task.Mark(domain.Failed, err.Error())
 			failures = append(failures, err)
 		}
@@ -535,7 +548,7 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 			_ = s.persist(ctx)
 			return err
 		}
-		if err := s.engine.Enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
+		if err := s.enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
 			task.Mark(domain.Failed, err.Error())
 			_ = s.persist(ctx)
 			return err
@@ -544,7 +557,7 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 		if err := s.engine.Execute(ctx, id, Retry); err != nil {
 			return err
 		}
-		if err := s.engine.Enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
+		if err := s.enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
 			task.Mark(domain.Failed, err.Error())
 			_ = s.persist(ctx)
 			return err
@@ -662,10 +675,10 @@ func (s *Service) Snapshot() Snapshot {
 	if directory == "" {
 		directory = s.directory
 	}
-	snap := Snapshot{Directory: directory, Preferences: s.preferences}
+	snap := Snapshot{BTSubscriptions: s.btSources(), Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
-		dto := TaskDTO{TorrentHash: r.TorrentHash, DownloadLimit: r.DownloadLimit, MirrorSource: r.MirrorSource, NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
+		dto := TaskDTO{PeerLimit: r.PeerLimit, TorrentHash: r.TorrentHash, DownloadLimit: r.DownloadLimit, MirrorSource: r.MirrorSource, NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
 		snap.Tasks = append(snap.Tasks, dto)
 		if r.Status == domain.Active {
 			snap.Active++
@@ -675,7 +688,7 @@ func (s *Service) Snapshot() Snapshot {
 	return snap
 }
 func (s *Service) persist(ctx context.Context) error {
-	state := State{Version: 1, Directory: s.directory, Preferences: s.preferences}
+	state := State{BTSubscriptions: s.btSources(), Version: 1, Directory: s.directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
 		r.Speed = 0

@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func btService(t *testing.T) (*application.Service, *aria2.Process, string) {
 	}
 	data := t.TempDir()
 	dir := t.TempDir()
-	p, err := aria2.Start(t.Context(), data, bin)
+	p, err := aria2.StartConfigured(t.Context(), data, bin, application.Preferences{BT: application.BTSettings{DisableDHT: true}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,10 +89,20 @@ func TestBTSelectedFileDownloadsAndMagnetUsesMatchingMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := s.SetTorrentPeerLimit(t.Context(), id, 17); err != nil {
+		t.Fatal(err)
+	}
+	if s.Snapshot().Tasks[0].PeerLimit != 17 {
+		t.Fatal("individual peer limit was not saved")
+	}
 	task := awaitTask(t, s, id, func(t application.TaskDTO) bool { return t.Status == "complete" || t.Status == "error" })
 	b, err := os.ReadFile(filepath.Join(dir, "set", "sub", "b.txt"))
 	if err != nil || len(b) != 16384 || b[0] != 'b' || task.Name != "set" || task.Total != 16384 {
 		t.Fatalf("selected download: %+v, %v", task, err)
+	}
+	details, err := s.TorrentDetails(t.Context(), id)
+	if err != nil || details.Pieces != 2 || details.Bitfield == "" {
+		t.Fatalf("missing BT piece telemetry: %+v, %v", details, err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "set", "a.txt")); !os.IsNotExist(err) {
 		t.Fatal("unselected file was downloaded")
@@ -145,5 +156,37 @@ func TestBTMagnetFetchesOnlyMetadataFromLoopbackPeer(t *testing.T) {
 	entries, err := os.ReadDir(dir)
 	if err != nil || len(entries) != 0 {
 		t.Fatalf("magnet fetched payload before selection: %v %v", entries, err)
+	}
+}
+
+func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T) {
+	s, _, _ := btService(t)
+	var broken atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if broken.Load() {
+			http.Error(w, "offline", 503)
+			return
+		}
+		fmt.Fprintln(w, "udp://127.0.0.1:9090/announce\n\nhttp://127.0.0.1:7070/announce\nudp://127.0.0.1:9090/announce")
+	}))
+	defer server.Close()
+	cfg := application.BTSettings{Sources: server.URL, MaxPeers: 12, ListenPort: 9870}
+	if err := s.SetBTSettings(t.Context(), cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RefreshBTSubscriptions(t.Context(), true); err != nil {
+		t.Fatal(err)
+	}
+	sub := s.Snapshot().BTSubscriptions
+	if len(sub) != 1 || len(sub[0].Trackers) != 2 || sub[0].Error != "" {
+		t.Fatal(sub)
+	}
+	broken.Store(true)
+	if err := s.RefreshBTSubscriptions(t.Context(), true); err == nil {
+		t.Fatal("failed source reported healthy")
+	}
+	sub = s.Snapshot().BTSubscriptions
+	if len(sub[0].Trackers) != 2 || sub[0].Error == "" {
+		t.Fatal("lost cached trackers or health", sub)
 	}
 }

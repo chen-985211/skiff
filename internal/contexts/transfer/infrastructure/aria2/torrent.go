@@ -53,6 +53,7 @@ func readTorrent(file string) ([]byte, application.Torrent, error) {
 	if !safe(info.Name) || !safe(info.BestName()) {
 		return nil, t, errors.New("种子文件名无效")
 	}
+	t.Private = info.Private != nil && *info.Private
 	t.Name, t.Hash, t.Multi = info.BestName(), m.HashInfoBytes().HexString(), len(info.Files) > 0
 	seen := map[string]bool{}
 	for file := range info.UpvertedV1Files() {
@@ -170,5 +171,11 @@ func (c *Client) enqueueTorrent(ctx context.Context, s application.TransferSpec)
 		return errors.New("种子记录与文件不符")
 	}
 	opts := map[string]string{"gid": s.ID, "dir": s.Directory, "select-file": s.SelectedFiles, "pause": fmt.Sprint(s.Paused), "check-integrity": "true", "allow-overwrite": "false", "rpc-save-upload-metadata": "true"}
+	if s.Trackers != "" && !meta.Private {
+		opts["bt-tracker"] = s.Trackers
+	}
+	if s.BT.MaxPeers > 0 {
+		opts["bt-max-peers"] = fmt.Sprint(s.BT.MaxPeers)
+	}
 	return c.call(ctx, "aria2.addTorrent", []any{base64.StdEncoding.EncodeToString(data), []string{}, opts}, nil)
 }

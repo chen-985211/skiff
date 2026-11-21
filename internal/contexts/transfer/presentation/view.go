@@ -32,6 +32,8 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
+	btNetwork                                      btNetworkPanel
+	btInfo                                         btInspector
 	bt                                             torrentDraft
 	mirrorText                                     string
 	importedURL                                    string
@@ -97,7 +99,7 @@ func (v *View) FinishEngineStartup(api API, snapshot application.Snapshot, err e
 }
 
 func (v *View) OpenNew() {
-	if v.Ready && !v.Busy && !v.DialogOpen && !v.RestartOpen && !v.networkOpen && !v.diskOpen && !v.rateOpen && !v.ftpOpen {
+	if v.Ready && !v.Busy && !v.DialogOpen && !v.RestartOpen && !v.networkOpen && !v.diskOpen && !v.rateOpen && !v.ftpOpen && !v.btNetwork.open && !v.btInfo.open {
 		v.DialogOpen = true
 		if v.URLs == "" && (v.Directory == "" || v.Directory == v.lastDefault) {
 			v.Directory = v.Snapshot.Directory
@@ -155,6 +157,8 @@ func (v *View) Render(c *ui.Context) {
 		search.Opacity(max(0, 1-reveal/.35))
 		v.newDialog(c, p, anchor, reveal)
 	}
+	v.renderBTNetwork(c, p, stage)
+	v.renderBTDetails(c, p, stage)
 	v.rateDialog(c, p, stage)
 	v.diskDialog(c, p, stage)
 	v.networkDialog(c, p, stage)

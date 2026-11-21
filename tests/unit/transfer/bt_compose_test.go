@@ -25,3 +25,19 @@ func TestBTTabKeepsSeparateLinkDraft(t *testing.T) {
 		t.Fatal("lost link draft")
 	}
 }
+func TestBTSettingsOpensFromSettings(t *testing.T) {
+	s := service(t, &fakeEngine{}, &fakeRepo{})
+	v := presentation.New(s, presentation.Actions{})
+	tt := interactionScene(v, 1020, 680)
+	if err := tt.Click("设置"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("BT 网络"); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"Tracker 订阅源", "监听端口", "每种节点上限"} {
+		if _, ok := tt.AccessByRole(ui.RoleTextField, name); !ok {
+			t.Fatal("missing", name)
+		}
+	}
+}

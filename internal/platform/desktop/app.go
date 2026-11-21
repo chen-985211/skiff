@@ -179,6 +179,20 @@ func Run() error {
 			}
 			initial := service.Snapshot()
 			win.Update(func() { view.FinishEngineStartup(service, initial, nil) })
+			go func() {
+				timer := time.NewTicker(time.Minute)
+				defer timer.Stop()
+				for {
+					if err := service.RefreshBTSubscriptions(pollCtx, false); err != nil && pollCtx.Err() == nil {
+						log.Print(err)
+					}
+					select {
+					case <-pollCtx.Done():
+						return
+					case <-timer.C:
+					}
+				}
+			}()
 			previous := initial
 			ticker := time.NewTicker(700 * time.Millisecond)
 			defer ticker.Stop()

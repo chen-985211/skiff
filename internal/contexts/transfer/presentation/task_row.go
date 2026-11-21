@@ -321,7 +321,11 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 						target = t.Directory
 					}
 					detailField(c, p, "位置", target)
-					if t.Status == "active" && t.ConnectionLimit > 0 {
+					if t.TorrentHash != "" {
+						if secondaryAction(c, "BT 详情").Clicked() {
+							v.showBTDetails(t.ID)
+						}
+					} else if t.Status == "active" && t.ConnectionLimit > 0 {
 						detailField(c, p, "连接", fmt.Sprintf("%d / %d", t.Connections, t.ConnectionLimit))
 					}
 				})

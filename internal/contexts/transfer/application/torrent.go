@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -16,6 +17,7 @@ type TorrentFile struct {
 	Size int64
 }
 type Torrent struct {
+	Private    bool
 	Hash, Name string
 	Files      []TorrentFile
 	Multi      bool
@@ -31,7 +33,21 @@ func (s *Service) PrepareTorrent(ctx context.Context, source string) (Torrent, e
 	if !ok {
 		return Torrent{}, errors.New("当前引擎不支持 BT")
 	}
-	return lib.PrepareTorrent(ctx, strings.TrimSpace(source))
+	source = strings.TrimSpace(source)
+	if u, err := url.Parse(source); err == nil && u.Scheme == "magnet" && u.Query().Get("tr") == "" {
+		s.mu.Lock()
+		trackers := s.trackers()
+		s.mu.Unlock()
+		q := u.Query()
+		for _, tr := range strings.Split(trackers, ",") {
+			if tr != "" {
+				q.Add("tr", tr)
+			}
+		}
+		u.RawQuery = q.Encode()
+		source = u.String()
+	}
+	return lib.PrepareTorrent(ctx, source)
 }
 func (s *Service) AddTorrent(ctx context.Context, hash, dir string, files []int) (string, error) {
 	lib, ok := s.engine.(TorrentLibrary)
@@ -73,7 +89,7 @@ func (s *Service) AddTorrent(ctx context.Context, hash, dir string, files []int)
 		s.tasks = s.tasks[:len(s.tasks)-1]
 		return "", err
 	}
-	if err = s.engine.Enqueue(ctx, transferSpec(rec, false)); err != nil {
+	if err = s.enqueue(ctx, transferSpec(rec, false)); err != nil {
 		s.tasks[len(s.tasks)-1].Mark(domain.Failed, err.Error())
 		return id, errors.Join(err, s.persist(ctx))
 	}

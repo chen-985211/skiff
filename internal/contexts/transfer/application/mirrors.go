@@ -79,7 +79,7 @@ func (s *Service) tryMirror(ctx context.Context, r domain.Record) error {
 		*task = previous
 		return err
 	}
-	if err := s.engine.Enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
+	if err := s.enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
 		task.Mark(domain.Failed, err.Error())
 		return s.persist(ctx)
 	}

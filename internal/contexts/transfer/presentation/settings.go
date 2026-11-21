@@ -64,6 +64,13 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 					v.openDisk(v.Snapshot.Preferences.Disk)
 				}
 			})
+			if _, ok := v.API.(btNetworkAPI); ok {
+				section("BitTorrent", func() {
+					if v.settingsLink(c, p, "network", "BT 网络", "Tracker 与节点") {
+						v.openBTNetwork()
+					}
+				})
+			}
 			section("外观", func() {
 				settingsRow(c, ui.Row(c), "theme", "主题", "", v.themeSave.err, p, func(ui.Element) { v.themeSelector(c, p) })
 				settingsDivider(c, p)
