@@ -99,7 +99,9 @@ func preferenceNumber(c *ui.Context, p palette, label, unit, placeholder, hint s
 		formRow(c, p, label, func() {
 			ui.Row(c).Grow(1).MinWidth(0).Height(32).AlignItems(ui.Center).Children(func() {
 				field = rowInput(c, p, label, placeholder, value, false).Padding(0, 50, 0, 9).Description(unit + "。" + hint)
-				ui.Text(c, unit).Absolute().Right(10).FontSize(12).TextColor(p.muted).AccessHidden(true).IgnoreInput(true)
+				ui.Box(c).Absolute().Right(10).Top(0).Bottom(0).Center().AccessHidden(true).IgnoreInput(true).Children(func() {
+					ui.Text(c, unit).FontSize(12).TextColor(p.muted)
+				})
 			})
 		})
 		ui.Text(c, hint).Margin(0, 0, 0, optionLabelWidth+optionGap).FontSize(12).TextColor(p.muted)

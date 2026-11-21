@@ -28,38 +28,39 @@ func optionalNumber(value string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(value))
 }
 func (v *View) diskDialog(c *ui.Context, p palette, stage ui.Element) {
-	optionDialog(c, p, stage, "disk", &v.diskOpen, func(panel ui.Element) {
-		panel.Width(340).Column().Padding(18).Gap(10).Radius(cornerSheet).Background(p.panel).Children(func() {
-			ui.Text(c, "性能与磁盘").FontSize(18).FontWeight(600)
-			optionField(c, p, "磁盘缓存（MiB，重启生效）", &v.cacheText, false)
-			optionField(c, p, "最小分段（MiB，新任务生效）", &v.splitText, false)
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
-				ui.Text(c, "文件预分配").Grow(1)
-				label := map[string]string{"": "自动", "prealloc": "预分配", "none": "关闭"}[v.allocation]
-				dropdown(c.Key("allocation"), p, "文件预分配 · "+label, label, v.Busy, func(m *ui.Menu) {
-					for _, item := range [][2]string{{"自动", ""}, {"预分配", "prealloc"}, {"关闭", "none"}} {
-						if m.Item(item[0]).Checked(v.allocation == item[1]).Chosen() {
-							v.allocation = item[1]
-						}
+	preferenceSheet(c, p, stage, "disk", "性能与磁盘", "tray", &v.diskOpen, func() {
+		if preferenceNumber(c, p, "磁盘缓存", "MiB", "自动", "填 0 关闭缓存，重启后生效", &v.cacheText).Changed() {
+			v.diskErr = nil
+		}
+		if preferenceNumber(c, p, "最小分段", "MiB", "自动", "用于新建下载", &v.splitText).Changed() {
+			v.diskErr = nil
+		}
+		formRow(c, p, "文件预分配", func() {
+			label := map[string]string{"": "自动", "prealloc": "预分配", "none": "关闭"}[v.allocation]
+			dropdown(c.Key("allocation"), p, "文件预分配 · "+label, label, v.Busy, func(m *ui.Menu) {
+				for _, item := range [][2]string{{"自动", ""}, {"预分配", "prealloc"}, {"关闭", "none"}} {
+					if m.Item(item[0]).Checked(v.allocation == item[1]).Chosen() {
+						v.allocation = item[1]
+						v.diskErr = nil
 					}
-				})
-			})
-			inlineError(c, v.diskErr)
-			ui.Row(c).FillWidth().Justify(ui.End).Gap(8).Children(func() {
-				if secondaryAction(c, "恢复默认").Clicked() {
-					v.openDisk(application.DiskSettings{})
 				}
-				if primaryAction(c, "保存", "check", v.Busy).Clicked() {
-					cache, e1 := optionalNumber(v.cacheText)
-					split, e2 := optionalNumber(v.splitText)
-					if e1 != nil || e2 != nil || v.splitText != "" && split == 0 {
-						v.diskErr = errors.New("请输入有效的 MiB 数值")
-						return
-					}
-					d := application.DiskSettings{CacheMiB: cache, SplitMiB: split, DisableCache: v.cacheText != "" && cache == 0, Allocation: v.allocation}
-					v.run(func(ctx context.Context) error { return v.API.SetDiskSettings(ctx, d) }, func(err error) { v.diskErr = err; v.diskOpen = err != nil })
+			}).Grow(1)
+		})
+		inlineError(c, v.diskErr)
+		ui.Row(c).FillWidth().Justify(ui.SpaceBetween).AlignItems(ui.Center).Gap(8).Children(func() {
+			if secondaryAction(c, "恢复默认").Clicked() {
+				v.openDisk(application.DiskSettings{})
+			}
+			if primaryAction(c, "保存", "check", v.Busy).Clicked() {
+				cache, e1 := optionalNumber(v.cacheText)
+				split, e2 := optionalNumber(v.splitText)
+				if e1 != nil || e2 != nil || v.splitText != "" && split == 0 {
+					v.diskErr = errors.New("请输入有效的 MiB 数值")
+					return
 				}
-			})
+				d := application.DiskSettings{CacheMiB: cache, SplitMiB: split, DisableCache: v.cacheText != "" && cache == 0, Allocation: v.allocation}
+				v.run(func(ctx context.Context) error { return v.API.SetDiskSettings(ctx, d) }, func(err error) { v.diskErr = err; v.diskOpen = err != nil })
+			}
 		})
 	})
 }
