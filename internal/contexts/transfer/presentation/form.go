@@ -90,7 +90,7 @@ func (v *View) composeFields(c *ui.Context, p palette, advanced float32) {
 	ui.Column(c.Key("source-fields")).FillWidth().Children(func() {
 		links := ui.TextAreaBase(c, &v.URLs).Transition(controlMotion).FillWidth().Lines(4, 7).Padding(12, 14).FontSize(13).FixedLineHeight(20).
 			Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接，每行一个").PlaceholderColor(p.muted).
-			Description("支持 HTTP 和 HTTPS 链接").AutoFocus().Disabled(v.Busy)
+			Description("支持 HTTP、HTTPS 和 FTP 文件链接").AutoFocus().Disabled(v.Busy)
 		edge, focusEdge := p.border, p.active
 		if !c.Preferences().HighContrast {
 			edge, focusEdge = p.muted.Alpha(.36), p.active.Alpha(.65)

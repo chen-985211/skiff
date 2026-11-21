@@ -16,6 +16,13 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 		return err
 	}
 	options := map[string]string{"gid": s.ID, "dir": s.Directory, "pause": strconv.FormatBool(s.Paused)}
+	if strings.HasPrefix(s.URL, "ftp://") {
+		options["ftp-pasv"] = "true"
+		if s.FTPUser != "" {
+			options["ftp-user"] = s.FTPUser
+			options["ftp-passwd"] = s.FTPPassword
+		}
+	}
 	if s.ConnectionLimit > 0 {
 		options["split"] = strconv.Itoa(s.ConnectionLimit)
 		options["max-connection-per-server"] = strconv.Itoa(s.ConnectionLimit)
@@ -103,6 +110,9 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 			if req.method == "aria2.tellWaiting" && t.Status == "waiting" && firstWaiting {
 				o.NextInQueue = true
 				firstWaiting = false
+			}
+			if t.ErrorCode == "21" && strings.HasSuffix(strings.TrimSpace(t.Error), "status=530") {
+				o.Failure = domain.FTPLoginRequired
 			}
 			if t.ErrorCode == "8" {
 				o.Failure = application.ResumeUnsupported

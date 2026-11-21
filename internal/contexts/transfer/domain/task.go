@@ -22,6 +22,13 @@ type Command string
 
 const ResumeUnsupported = "resume_unsupported"
 const SourceUnverified = "source_unverified" // Legacy resume refusal.
+const FTPLoginRequired = "ftp_login_required"
+
+func (t *Task) SetFTPLogin(user, password string) {
+	t.record.FTPUser = user
+	t.record.FTPPassword = password
+}
+
 const SourceChanged = "source_changed"
 const CheckpointUnverified = "checkpoint_unverified"
 
@@ -53,8 +60,10 @@ const (
 )
 
 type Record struct {
-	RequestedConnections int `json:",omitempty"`
-	ConnectionLimit      int `json:",omitempty"`
+	FTPUser              string `json:",omitempty"`
+	FTPPassword          string `json:",omitempty"`
+	RequestedConnections int    `json:",omitempty"`
+	ConnectionLimit      int    `json:",omitempty"`
 	Version              SourceVersion
 	ID                   string
 	URL                  string
@@ -148,6 +157,8 @@ func (t Task) FailureDescription() string {
 		return "无法确认远端文件版本。已保留部分文件，可从头下载"
 	case CheckpointUnverified:
 		return "无法校验本地下载记录。已保留部分文件，可从头下载"
+	case FTPLoginRequired:
+		return "FTP 服务器需要登录，请输入账号和密码"
 	case SourceChanged:
 		return "远端文件已变化。已保留原文件，可从头下载"
 	}
@@ -159,11 +170,18 @@ func (t Task) FailureDescription() string {
 
 func NewTask(id, source, directory string) Task {
 	u, _ := url.Parse(source)
+	var user, password string
+	if u.Scheme == "ftp" && u.User != nil {
+		user = u.User.Username()
+		password, _ = u.User.Password()
+		u.User = nil
+		source = u.String()
+	}
 	name := path.Base(u.Path)
 	if name == "." || name == "/" {
 		name = u.Hostname()
 	}
-	return Task{record: Record{ID: id, URL: source, Directory: directory, Name: name, Status: Waiting}}
+	return Task{record: Record{ID: id, URL: source, FTPUser: user, FTPPassword: password, Directory: directory, Name: name, Status: Waiting}}
 }
 
 // Older versions also saved the generated disk name as the task's title.
@@ -229,7 +247,7 @@ func ParseBatch(text string) (Batch, error) {
 		}
 		u, err := url.Parse(line)
 		switch {
-		case err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || strings.ContainsAny(line, " \t\r\n"):
+		case err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "ftp") || (u.Scheme == "ftp" && (u.Path == "" || strings.HasSuffix(u.Path, "/"))) || strings.ContainsAny(line, " \t\r\n"):
 			batch.Invalid++
 			batch.Remaining = append(batch.Remaining, line)
 		case seen[line]:

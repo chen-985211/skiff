@@ -66,15 +66,23 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO, displayStatus st
 			label, text, icon, cmd = "暂停下载", "暂停", "pause", application.Pause
 		case t.CanResume:
 			label, text, icon, cmd = "继续下载", "继续", "play", application.Resume
+		case t.NeedsFTPLogin:
+			label, text, icon = "登录 FTP", "登录 FTP", "download"
 		case t.CanRetry:
 			label, text, icon, cmd = "重试下载", "重试下载", "retry", application.Retry
 		}
-		if cmd == "" && v.detailID == t.ID {
+		if cmd == "" && !t.NeedsFTPLogin && v.detailID == t.ID {
 			state := statusText(displayStatus)
 			badge := ui.Box(c.Key("task-status")).Role(ui.RoleStatus).Label(state).Background(c.Theme().Surface.Alpha(.38))
 			cardPill(c, badge, stateSymbol(displayStatus), state, displayStatus, change)
 		} else if cardAction(c, icon, text, label, displayStatus, change) {
-			if cmd != "" {
+			if t.NeedsFTPLogin {
+				v.ftpID = t.ID
+				v.ftpOpen = true
+				v.ftpUser = ""
+				v.ftpPassword = ""
+				c.Invalidate()
+			} else if cmd != "" {
 				v.command(t.ID, cmd)
 			} else {
 				v.detailID = t.ID

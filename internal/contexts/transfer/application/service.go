@@ -35,11 +35,12 @@ type SourceInfo struct {
 }
 
 type TransferSpec struct {
-	ConnectionLimit    int
-	Version            domain.SourceVersion
-	ID, URL, Directory string
-	OutputName         string
-	Paused             bool
+	FTPUser, FTPPassword string
+	ConnectionLimit      int
+	Version              domain.SourceVersion
+	ID, URL, Directory   string
+	OutputName           string
+	Paused               bool
 }
 type Observation struct {
 	HTTPRejected                  bool
@@ -90,6 +91,7 @@ type Repository interface {
 	Save(context.Context, State) error
 }
 type TaskDTO struct {
+	NeedsFTPLogin                                 bool
 	CanPrioritize, NextInQueue                    bool
 	Connections, ConnectionLimit                  int
 	ID, URL, Name, Directory, Path, Status, Error string
@@ -129,7 +131,7 @@ func transferSpec(r domain.Record, paused bool) TransferSpec {
 	if r.Path != "" && filepath.Clean(filepath.Dir(r.Path)) == filepath.Clean(r.Directory) {
 		name = filepath.Base(r.Path)
 	}
-	return TransferSpec{ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
+	return TransferSpec{FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
@@ -245,11 +247,13 @@ func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory s
 	oldTasks, oldDir := slices.Clone(s.tasks), s.directory
 	var candidates []OutputCandidate
 	for i, source := range batch.Sources {
-		if pending[source] {
+		task := domain.NewTask("", source, directory)
+		if pending[task.Record().URL] {
 			result.Duplicates++
 			continue
 		}
-		task := domain.NewTask(s.nextID(), source, directory)
+		task = domain.NewTask(s.nextID(), source, directory)
+		pending[task.Record().URL] = true
 		name := sources[i].Filename
 		if name == "" {
 			name = task.Record().Name
@@ -521,7 +525,7 @@ func (s *Service) Snapshot() Snapshot {
 	snap := Snapshot{Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
-		dto := TaskDTO{CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
+		dto := TaskDTO{NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
 		snap.Tasks = append(snap.Tasks, dto)
 		if r.Status == domain.Active {
 			snap.Active++
@@ -619,4 +623,23 @@ func (s *Service) applyConcurrency(ctx context.Context) error {
 	}
 	s.concurrencyPending = false
 	return nil
+}
+
+func (s *Service) RetryFTP(ctx context.Context, id, user, password string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := slices.IndexFunc(s.tasks, func(t domain.Task) bool { return t.Record().ID == id })
+	if i < 0 || s.tasks[i].Record().Failure != domain.FTPLoginRequired {
+		return errors.New("任务无需 FTP 登录")
+	}
+	if strings.TrimSpace(user) == "" || strings.ContainsAny(user+password, "\r\n\x00") {
+		return errors.New("请输入有效的 FTP 账号和密码")
+	}
+	previous := s.tasks[i]
+	s.tasks[i].SetFTPLogin(user, password)
+	if err := s.persist(ctx); err != nil {
+		s.tasks[i] = previous
+		return err
+	}
+	return s.execute(ctx, i, Retry)
 }

@@ -19,6 +19,9 @@ import (
 )
 
 func (c *Client) InspectSource(ctx context.Context, source string, ranges bool) (application.SourceInfo, error) {
+	if strings.HasPrefix(source, "ftp://") {
+		return application.SourceInfo{}, nil
+	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, source, nil)

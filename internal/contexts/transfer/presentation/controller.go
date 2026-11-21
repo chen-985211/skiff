@@ -69,7 +69,7 @@ func (v *View) submit() {
 			case len(result.Remaining) > 0:
 				v.FormError = summary
 				if result.Invalid > 0 {
-					v.FormError += "。请修改无效的 HTTP 或 HTTPS 链接。"
+					v.FormError += "。请修改无效的文件链接。"
 				}
 			default:
 				v.DialogOpen = false
