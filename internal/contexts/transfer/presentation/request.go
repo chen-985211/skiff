@@ -52,6 +52,8 @@ func (v *View) requestDialog(c *ui.Context, p palette) {
 			_, height := c.Size()
 			ui.Scroll(c).FillWidth().Height(min(320, height-160)).Children(func() {
 				ui.Column(c).FillWidth().Gap(8).Children(func() {
+					ui.Text(c, "备用下载地址").FontSize(12).TextColor(p.muted)
+					ui.TextAreaBase(c, &v.mirrorText).Transition(controlMotion).FillWidth().Lines(2, 3).Padding(8).Radius(cornerSmall).Border(1, p.border).Label("备用下载地址").Placeholder("同一文件，每行一个备用地址")
 					for i := range v.fields {
 						h := &v.fields[i]
 						if i < 4 {

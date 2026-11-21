@@ -30,6 +30,7 @@ const (
 const MaxConnectionLimit = domain.MaxConnectionLimit
 
 type SourceInfo struct {
+	Digest string
 	domain.SourceVersion
 	Filename   string
 	RangeBytes int64
@@ -37,6 +38,7 @@ type SourceInfo struct {
 
 type DiskSettings = domain.DiskSettings
 type TransferSpec struct {
+	Digest               string
 	Disk                 DiskSettings
 	Headers              string
 	FTPUser, FTPPassword string
@@ -97,6 +99,7 @@ type Repository interface {
 	Save(context.Context, State) error
 }
 type TaskDTO struct {
+	MirrorSource                                  string
 	NeedsFTPLogin                                 bool
 	CanPrioritize, NextInQueue                    bool
 	Connections, ConnectionLimit                  int
@@ -137,7 +140,16 @@ func transferSpec(r domain.Record, paused bool) TransferSpec {
 	if r.Path != "" && filepath.Clean(filepath.Dir(r.Path)) == filepath.Clean(r.Directory) {
 		name = filepath.Base(r.Path)
 	}
-	return TransferSpec{Disk: r.Disk, Headers: r.Headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
+	source, headers := r.URL, r.Headers
+	digest := ""
+	if r.MirrorSource != "" {
+		source = r.MirrorSource
+		digest = r.Digest
+		if !sameOrigin(r.URL, source) {
+			headers = ""
+		}
+	}
+	return TransferSpec{Digest: digest, Disk: r.Disk, Headers: headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: source, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
@@ -233,6 +245,7 @@ func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory s
 }
 
 type AddOptions struct {
+	Mirrors         string
 	Headers         string
 	OutputName      string
 	ConnectionLimit int
@@ -265,6 +278,13 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 	result := BatchResult{Duplicates: batch.Duplicates, Invalid: batch.Invalid, Deferred: batch.Deferred, Remaining: batch.Remaining}
 	if len(batch.Sources) == 0 {
 		return result, nil
+	}
+	if opts.Mirrors != "" && (len(batch.Sources) != 1 || len(batch.Remaining) > 0 || strings.HasPrefix(batch.Sources[0], "ftp://")) {
+		return BatchResult{}, errors.New("请为单个 HTTP 下载添加备用地址")
+	}
+	mirrors, err := normalizeMirrors(opts.Mirrors, batch.Sources[0])
+	if err != nil {
+		return BatchResult{}, err
 	}
 	headers, err := domain.NormalizeHeaders(opts.Headers)
 	if err != nil {
@@ -308,6 +328,7 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 			continue
 		}
 		task = domain.NewTask(s.nextID(), source, directory)
+		task.SetMirrors(mirrors, sources[i].Digest)
 		task.SetDisk(disk)
 		task.SetHeaders(headers)
 		pending[task.Record().URL] = true
@@ -522,7 +543,21 @@ func apply(task *domain.Task, o Observation) {
 func (s *Service) Refresh(ctx context.Context) error {
 	s.mu.Lock()
 	rejected, err := s.refresh(ctx)
+	var fallbacks []domain.Record
+	for _, t := range s.tasks {
+		r := t.Record()
+		if r.Mirrors != "" && r.Status == domain.Failed && (r.Failure == domain.SourceUnavailable || r.Failure == ResumeUnsupported || r.Failure == domain.SourceChanged) {
+			fallbacks = append(fallbacks, r)
+		}
+	}
 	s.mu.Unlock()
+	if err == nil {
+		for _, r := range fallbacks {
+			if err := s.tryMirror(ctx, r); err != nil {
+				return err
+			}
+		}
+	}
 	if err != nil || len(rejected) == 0 {
 		return err
 	}
@@ -598,7 +633,7 @@ func (s *Service) Snapshot() Snapshot {
 	snap := Snapshot{Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
-		dto := TaskDTO{NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
+		dto := TaskDTO{MirrorSource: r.MirrorSource, NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
 		snap.Tasks = append(snap.Tasks, dto)
 		if r.Status == domain.Active {
 			snap.Active++

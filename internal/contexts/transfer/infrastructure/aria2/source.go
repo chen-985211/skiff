@@ -2,6 +2,8 @@ package aria2
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"mime"
@@ -62,6 +64,14 @@ func (c *Client) InspectRequest(ctx context.Context, s application.TransferSpec,
 
 func responseInfo(resp *http.Response) application.SourceInfo {
 	info := application.SourceInfo{SourceVersion: responseVersion(resp), Filename: path.Base(resp.Request.URL.Path)}
+	for part := range strings.SplitSeq(resp.Header.Get("Repr-Digest"), ",") {
+		key, value, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if ok && strings.EqualFold(key, "sha-256") {
+			if b, e := base64.StdEncoding.DecodeString(strings.Trim(value, ":")); e == nil && len(b) == 32 {
+				info.Digest = hex.EncodeToString(b)
+			}
+		}
+	}
 	if _, params, err := mime.ParseMediaType(resp.Header.Get("Content-Disposition")); err == nil && params["filename"] != "" {
 		info.Filename = params["filename"]
 	}

@@ -31,6 +31,9 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 		options["split"] = strconv.Itoa(s.ConnectionLimit)
 		options["max-connection-per-server"] = strconv.Itoa(s.ConnectionLimit)
 	}
+	if s.Digest != "" {
+		options["checksum"] = "sha-256=" + s.Digest
+	}
 	if header := conditionalHeader(s.Version); header != "" {
 		options["header"] = header
 	}
@@ -132,6 +135,10 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 			if req.method == "aria2.tellWaiting" && t.Status == "waiting" && firstWaiting {
 				o.NextInQueue = true
 				firstWaiting = false
+			}
+			switch t.ErrorCode {
+			case "1", "2", "3", "4", "5", "6", "7", "19", "21", "22", "23", "24", "29", "32":
+				o.Failure = domain.SourceUnavailable
 			}
 			if t.ErrorCode == "21" && strings.HasSuffix(strings.TrimSpace(t.Error), "status=530") {
 				o.Failure = domain.FTPLoginRequired

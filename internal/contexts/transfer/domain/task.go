@@ -60,25 +60,26 @@ const (
 )
 
 type Record struct {
-	Disk                 DiskSettings `json:",omitzero"`
-	Headers              string       `json:",omitempty"`
-	FTPUser              string       `json:",omitempty"`
-	FTPPassword          string       `json:",omitempty"`
-	RequestedConnections int          `json:",omitempty"`
-	ConnectionLimit      int          `json:",omitempty"`
-	Version              SourceVersion
-	ID                   string
-	URL                  string
-	Name                 string
-	Directory            string
-	Path                 string
-	Status               Status
-	Total                int64
-	Completed            int64
-	Speed                int64
-	Error                string
-	Failure              string
-	OutputName           string
+	Mirrors, MirrorSource, Digest string       `json:",omitempty"`
+	Disk                          DiskSettings `json:",omitzero"`
+	Headers                       string       `json:",omitempty"`
+	FTPUser                       string       `json:",omitempty"`
+	FTPPassword                   string       `json:",omitempty"`
+	RequestedConnections          int          `json:",omitempty"`
+	ConnectionLimit               int          `json:",omitempty"`
+	Version                       SourceVersion
+	ID                            string
+	URL                           string
+	Name                          string
+	Directory                     string
+	Path                          string
+	Status                        Status
+	Total                         int64
+	Completed                     int64
+	Speed                         int64
+	Error                         string
+	Failure                       string
+	OutputName                    string
 }
 type Task struct {
 	record      Record
@@ -275,4 +276,18 @@ func (t Task) ResumeBlocked() bool {
 		return true
 	}
 	return false
+}
+
+const SourceUnavailable = "source_unavailable"
+
+func (t *Task) SetMirrors(mirrors, digest string) {
+	t.record.Mirrors = mirrors
+	t.record.Digest = digest
+}
+func (t *Task) SkipMirror(remaining string) { t.record.Mirrors = remaining }
+func (t *Task) UseMirror(source, remaining string, version SourceVersion) {
+	t.record.MirrorSource = source
+	t.record.Mirrors = remaining
+	t.SetVersion(version)
+	t.Mark(Waiting, "")
 }

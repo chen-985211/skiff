@@ -29,6 +29,7 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
+	mirrorText                                     string
 	importedURL                                    string
 	diskOpen                                       bool
 	cacheText, splitText, allocation               string

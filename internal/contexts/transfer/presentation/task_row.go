@@ -308,7 +308,11 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 			})
 			ui.Column(c).Grow(1).MinHeight(0).Gap(16).Children(func() {
 				ui.Column(c).Gap(6).Children(func() {
-					detailField(c, p, "来源", t.URL)
+					source := t.URL
+					if t.MirrorSource != "" {
+						source = t.MirrorSource
+					}
+					detailField(c, p, "来源", source)
 					target := t.Path
 					if target == "" {
 						target = t.Directory
