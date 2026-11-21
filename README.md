@@ -47,7 +47,7 @@ https://github.com/user-attachments/assets/52e5421b-7dac-4763-a994-52b8a602be83
 
 ### macOS 首次打开
 
-1. 在配备 Apple 芯片（M 系列）的 Mac 上，下载 [Skiff 的 macOS 安装包（DMG）][macos-dmg]，打开后将 **Skiff.app** 拖到「应用程序」。
+1. 在配备 Apple 芯片（M 系列）的 Mac 上，[获取 Skiff 的 macOS 安装包（DMG）][macos-dmg]，打开后将 **Skiff.app** 拖到「应用程序」。
 2. 在「应用程序」中双击 **Skiff**。此版本使用临时签名（ad hoc），尚未经过 Apple 公证。如果 macOS 提示无法验证开发者，请先关闭提示。
 3. 确认应用来自上面的官方 Release 后，进入 **系统设置 → 隐私与安全性**，找到 Skiff，点 **「仍要打开」** 并确认。以后就可以直接双击启动。[Apple 官方说明](https://support.apple.com/zh-cn/102445)
 
@@ -61,7 +61,7 @@ xattr -dr com.apple.quarantine /Applications/Skiff.app && open /Applications/Ski
 
 打开 Skiff，点窗口底部的「新建下载」。如果显示「下载引擎」，点一次即可。Skiff 会按系统和处理器架构下载并校验 aria2c，完成后即可新建下载。macOS、Windows 和 Linux 均支持 x64 和 ARM64，首次下载引擎需要访问 GitHub。[Skiff 使用的 aria2c 发布包](https://github.com/motrixapp/aria2/releases/tag/v1.37.0-motrix.24)
 
-[macos-dmg]: https://github.com/chen-985211/skiff/releases/download/v0.1.1/skiff-0.1.1-macos-arm64.dmg
+[macos-dmg]: https://github.com/chen-985211/skiff/releases/latest
 
 ## 开发运行
 
