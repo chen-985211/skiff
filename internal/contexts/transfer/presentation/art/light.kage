@@ -48,5 +48,9 @@ func Fragment(dst vec4, pos vec2) vec4 {
     sheen = mix(sheen, vec3(.99,.96,.93), .76*exp(-410*left*left))
     base = mix(base, sheen, (.76-.13*y+.06*cos(3*y-Phase))*exp(-54*left*left))
     night := base*base*vec3(.37,.40,.49) + vec3(.015,.019,.028)
-    return vec4(mix(base,night,Dark),1)
+    // Lift the lit faces while retaining the blue and lilac of the folds.
+    luma := dot(base, vec3(.2126,.7152,.0722))
+    lift := (.34*smoothstep(.65,.89,luma)-.06)*(1-luma)
+    day := clamp(vec3(luma+lift) + 1.16*(base-vec3(luma)), 0, 1)
+    return vec4(mix(day,night,Dark),1)
 }

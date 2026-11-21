@@ -124,9 +124,16 @@ func TestRenderWindowLightKeepsBroadTonalFolds(t *testing.T) {
 			withinPatches += patchSquares - patch*patch/size
 			sum, squares, samples = sum+patch, squares+patchSquares, samples+size
 		}
+		if mean := sum / samples; !dark && mean < 207 {
+			t.Errorf("light workspace is too dim: mean luma %.1f/255", mean)
+		}
 		variation := squares - sum*sum/samples
-		if variation < samples*8*8 {
-			t.Errorf("dark=%t: ambient light field has too little contrast", dark)
+		minContrast := 8.0
+		if !dark {
+			minContrast = 17
+		}
+		if contrast := math.Sqrt(variation / samples); contrast < minContrast {
+			t.Errorf("dark=%t: ambient luma deviation %.1f/255, want at least %.0f", dark, contrast, minContrast)
 		} else if withinPatches > .30*variation {
 			t.Errorf("dark=%t: broad folds account for only %.0f%% of the contrast", dark, 100*(1-withinPatches/variation))
 		}
