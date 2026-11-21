@@ -73,7 +73,7 @@ func TestComposeOptionsStayInsideOneSheet(t *testing.T) {
 		if m, ok := tt.AccessByRole(ui.RoleTextField, "备用下载地址"); !ok || m.Value != "https://mirror.test/a.zip" {
 			t.Fatalf("switching discarded mirror draft: present=%v field=%+v", ok, m)
 		}
-		click("高级选项")
+		click("返回链接")
 		if _, ok := tt.AccessByRole(ui.RoleTab, "代理"); ok {
 			t.Fatal("collapsed controls still accessible")
 		}

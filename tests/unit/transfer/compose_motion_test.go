@@ -191,19 +191,19 @@ func TestRenderAdvancedOptionsRetargetSheetHeight(t *testing.T) {
 		}
 		return n.Bounds.H
 	}
-	toggle := func() {
+	toggle := func(label string) {
 		t.Helper()
-		if err := tt.Click("高级选项"); err != nil {
+		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
 		}
 	}
 	tt.Advance(time.Second)
 	closed := height()
-	toggle()
+	toggle("高级选项")
 	tt.Advance(70 * time.Millisecond)
 	tt.Frame()
 	mid := height()
-	toggle()
+	toggle("返回链接")
 	tt.Frame()
 	reverse := height()
 	if math.Abs(float64(reverse-mid)) > 1 {
@@ -213,7 +213,7 @@ func TestRenderAdvancedOptionsRetargetSheetHeight(t *testing.T) {
 	if height() != closed {
 		t.Fatal("hidden options still occupy space")
 	}
-	toggle()
+	toggle("高级选项")
 	tt.Advance(time.Second)
 	open := height()
 	if mid <= closed+1 || mid >= open-1 {
@@ -235,7 +235,11 @@ func TestAdvancedOptionsRespectReducedMotion(t *testing.T) {
 	}
 	before := rect()
 	for _, open := range []bool{true, false} {
-		if err := tt.Click("高级选项"); err != nil {
+		label := "返回链接"
+		if open {
+			label = "高级选项"
+		}
+		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
 		}
 		tt.Frame()

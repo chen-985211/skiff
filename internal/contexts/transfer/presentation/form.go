@@ -43,6 +43,7 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 		// Measure the clipped form at its reading width throughout the transition.
 		form := ui.Column(c.Key("form")).Width(width).Shrink(0).Padding(formInsetY, formInsetX).Gap(formGap).
 			Opacity(fields).IgnoreInput(!v.DialogOpen).AccessHidden(!v.DialogOpen)
+		advanced := form.AnimateTo("advanced", amount(v.advanced), panelSpring)
 		form.Children(func() {
 			// The moving title occupies the leading side of this header.
 			ui.Row(c).FillWidth().Height(formHeaderHeight).Gap(8).AlignItems(ui.Center).Justify(ui.End).Children(func() {
@@ -56,20 +57,27 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 					ui.Textf(c, "已输入 %d 行", count).Transition(pageFade).Margin(0, 82, 0, 0).FontSize(11).TextColor(p.muted).ContentTransition(numberChange)
 				}
 			})
-			advanced := form.AnimateTo("advanced", amount(v.advanced), panelSpring)
 			back.Background(p.canvas.Alpha(.18 * advanced * reveal))
 			v.composeFields(c, p, width-2*formInsetX, advanced)
-			toggle := ui.ButtonBase(c.Key("advanced-toggle")).Transition(controlMotion).Label("高级选项").Expanded(v.advanced).Absolute().Top(14).Right(16).Height(30).PaddingX(8).Radius(cornerSmall).FocusRing(true).Disabled(v.Busy || fields < .5)
+			action := "高级选项"
+			if v.advanced {
+				action = "返回链接"
+			}
+			toggle := ui.ButtonBase(c.Key("advanced-toggle")).Transition(controlMotion).Label(action).Expanded(v.advanced).Absolute().Top(14).Right(16).Height(30).PaddingX(8).Radius(cornerSmall).FocusRing(true).Disabled(v.Busy || fields < .5)
 			turn := toggle.AnimateTo("disclosure", amount(v.advanced), selectionSpring)
 			if toggle.Hovered() {
 				toggle.Background(p.panel.Alpha(.5))
 			}
 			toggle.Row().AlignItems(ui.Center).Gap(5).Children(func() {
-				ui.Text(c, "高级选项").FontSize(12).FontWeight(550).TextColor(p.muted)
-				ui.Icon(c, icons["chevron"]).FontSize(12).TextColor(p.muted).Rotate(180 * turn)
+				composeCaption(c, "高级选项", "返回链接", advanced, 12, 550, p.muted)
+				ui.Icon(c, icons["chevron"]).FontSize(12).TextColor(p.muted).Rotate(90 + 180*(1-turn))
 			})
 			if toggle.Clicked() {
 				v.advanced = !v.advanced
+				v.focusLinks = !v.advanced
+				if v.advanced {
+					toggle.Focus()
+				}
 				c.Invalidate()
 			}
 			if !shown && v.advanced && !back.Clicked() && !v.Busy {
@@ -90,7 +98,7 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 		ink := c.Theme().Text.Mix(c.Theme().AccentText, buttonInk)
 		title.Children(func() {
 			ui.Icon(c, icons["plus"]).Width(15 * closed).Clip().FontSize(15).TextColor(ink.Alpha(closed))
-			ui.Text(c, "新建下载").SingleLine().FontSize(13 + 6*reveal).FontWeight(600).TextColor(ink)
+			composeCaption(c, "新建下载", "下载选项", advanced*reveal, 13+6*reveal, 600, ink)
 		})
 		// Until the inputs are revealed, a second press belongs to the morphing
 		// button. Keep keyboard focus in the editor so a paste is accepted immediately.
@@ -112,35 +120,35 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 	}
 }
 
+// Both captions move with the sheet. A detached exit snapshot would leave
+// the old title behind in window coordinates as the sheet grows upwards.
+func composeCaption(c *ui.Context, first, second string, progress, size float32, weight int, ink ui.Color) {
+	ui.Box(c).AccessHidden(true).Children(func() {
+		ui.Text(c, first).SingleLine().FontSize(size).FontWeight(weight).TextColor(ink).Opacity(max(0, 1-2*progress))
+		ui.Text(c, second).Absolute().Left(0).Top(0).SingleLine().FontSize(size).FontWeight(weight).TextColor(ink).Opacity(max(0, 2*progress-1))
+	})
+}
+
 func (v *View) composeFields(c *ui.Context, p palette, width, advanced float32) {
 	p.muted = p.muted.Mix(c.Theme().Text, .38)
-	ui.Column(c.Key("source-fields")).FillWidth().Children(func() {
-		links := ui.TextAreaBase(c, &v.URLs).Transition(controlMotion).FillWidth().Lines(2, 7).MinHeight(104-40*advanced).Padding(12, 14).FontSize(13).FixedLineHeight(20).
-			Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接或浏览器 cURL").PlaceholderColor(p.muted).
-			Description("支持 HTTP、HTTPS 和 FTP 文件链接").AutoFocus().Disabled(v.Busy)
-		edge, focusEdge := p.border, p.active
-		if !c.Preferences().HighContrast {
-			edge, focusEdge = p.muted.Alpha(.36), p.active.Alpha(.65)
+	_, windowH := c.Size()
+	const chrome = 2*formInsetY + formHeaderHeight + 2*formGap + formFooterHeight + footerInset
+	available := windowH - max(float32(36), c.TitleBar().Bottom+8) - chrome
+	if v.FormError != "" {
+		available -= formErrorMaxHeight + formGap
+	}
+	optionsHeight := min(float32(244), available)
+	ui.Column(c.Key("editor-viewport")).FillWidth().Clip().Children(func() {
+		source := ui.Column(c.Key("source-fields")).FillWidth().Shrink(0).
+			Translate(-width*advanced, 0).IgnoreInput(v.advanced).AccessHidden(v.advanced)
+		source.Children(func() { v.linkEditor(c, p) })
+		// The link editor measures wrapped text at its full width, including
+		// while it is offscreen. Only the difference in page heights is added.
+		linkHeight := max(float32(104), source.LayoutBounds().H)
+		ui.Box(c).Height(max(0, optionsHeight-linkHeight) * advanced).Shrink(0)
+		if advanced > 0 || v.advanced {
+			v.advancedOptions(c, p, width, optionsHeight, advanced)
 		}
-		if links.Focused() {
-			edge = focusEdge
-		}
-		links.Border(1, edge)
-		if links.Changed() {
-			v.FormError = ""
-			if v.importedURL != "" && v.URLs != v.importedURL {
-				v.fields = nil
-				v.importedURL = ""
-			}
-			if request, ok, err := application.ImportCurl(v.URLs); ok && err == nil {
-				v.URLs = request.URL
-				v.importedURL = request.URL
-				v.loadHeaders(request.Headers)
-				c.Invalidate()
-			}
-		}
-
-		v.advancedOptions(c, p, width, links.LayoutBounds().H, advanced)
 	})
 	if v.FormError != "" {
 		ui.Text(c, v.FormError).Transition(pageFade).ContentTransition(textChange).MaxHeight(formErrorMaxHeight).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
@@ -151,6 +159,40 @@ func (v *View) composeFields(c *ui.Context, p palette, width, advanced float32) 
 			v.submit()
 		}
 	})
+}
+
+func (v *View) linkEditor(c *ui.Context, p palette) {
+	links := ui.TextAreaBase(c, &v.URLs).Transition(controlMotion).FillWidth().Lines(2, 7).MinHeight(104).Padding(12, 14).FontSize(13).FixedLineHeight(20).
+		Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接或浏览器 cURL").PlaceholderColor(p.muted).
+		Description("支持 HTTP、HTTPS 和 FTP 文件链接").Disabled(v.Busy)
+	if !v.advanced {
+		links.AutoFocus()
+		if v.focusLinks {
+			links.Focus()
+			v.focusLinks = false
+		}
+	}
+	edge, focusEdge := p.border, p.active
+	if !c.Preferences().HighContrast {
+		edge, focusEdge = p.muted.Alpha(.36), p.active.Alpha(.65)
+	}
+	if links.Focused() {
+		edge = focusEdge
+	}
+	links.Border(1, edge)
+	if links.Changed() {
+		v.FormError = ""
+		if v.importedURL != "" && v.URLs != v.importedURL {
+			v.fields = nil
+			v.importedURL = ""
+		}
+		if request, ok, err := application.ImportCurl(v.URLs); ok && err == nil {
+			v.URLs = request.URL
+			v.importedURL = request.URL
+			v.loadHeaders(request.Headers)
+			c.Invalidate()
+		}
+	}
 }
 
 func (v *View) composeDestination(c *ui.Context, p palette) {

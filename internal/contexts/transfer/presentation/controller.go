@@ -18,6 +18,7 @@ func (v *View) dispatch(fn func()) {
 }
 func (v *View) submit() {
 	if strings.TrimSpace(v.URLs) == "" {
+		v.advanced, v.focusLinks = false, true
 		v.FormError = "请先输入下载链接"
 		return
 	}
@@ -58,6 +59,9 @@ func (v *View) submit() {
 		v.dispatch(func() {
 			v.Busy = false
 			v.Snapshot = snap
+			if result.Invalid > 0 {
+				v.advanced, v.focusLinks = false, true
+			}
 			if err != nil && result.Added == 0 {
 				v.FormError = err.Error()
 				return

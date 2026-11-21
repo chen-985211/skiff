@@ -51,7 +51,7 @@ type View struct {
 	concurrencySave                                preferenceSave[int]
 	concurrencyText                                string
 	concurrencyEdited                              bool
-	advanced                                       bool
+	advanced, focusLinks                           bool
 	connectionLimit                                string
 	themeSave                                      preferenceSave[application.ThemeMode]
 	flowSave                                       preferenceSave[bool]
