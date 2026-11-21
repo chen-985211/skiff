@@ -65,11 +65,12 @@ func (v *View) ftpLogin(c *ui.Context, p palette, stage ui.Element) {
 
 const preferenceWidth = 396
 const preferenceInset = 20
+const preferenceBorder = 1
 
 func preferenceSheet(c *ui.Context, p palette, stage ui.Element, key, title, icon string, open *bool, body func()) {
 	optionDialog(c, p, stage, key, open, func(panel ui.Element) {
 		panel.Label(title).Width(preferenceWidth).Column().Padding(preferenceInset).Gap(16).
-			Radius(cornerSheet).Background(p.panel).Border(1, p.border.Alpha(.5)).Children(func() {
+			Radius(cornerSheet).Background(p.panel).Border(preferenceBorder, p.border.Alpha(.5)).Children(func() {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(9).Children(func() {
 				ui.Box(c).Size(30, 30).Center().Radius(cornerSmall).Background(p.tint.Alpha(.38)).Children(func() {
 					ui.Icon(c, icons[icon]).FontSize(17).TextColor(p.active).AccessHidden(true)

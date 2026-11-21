@@ -41,3 +41,18 @@ func TestCustomRateHasContextAndAnAdjacentUnit(t *testing.T) {
 		t.Fatal("close should discard the draft")
 	}
 }
+
+func TestNetworkSettingsAlignsProxyAndDNSControls(t *testing.T) {
+	tt := downloadPreference(t, "代理与 DNS", "手动代理")
+	panel, named := tt.AccessByRole(ui.RoleDialog, "代理与 DNS")
+	address, found := tt.AccessByRole(ui.RoleTextField, "HTTP 代理地址")
+	dns, ok := tt.AccessByRole(ui.RoleMenuButton, "DNS · 自动")
+	rule, hasRule := tt.AccessByRole(ui.RoleSeparator, "")
+	if !named || !found || !ok || !hasRule || rule.Bounds.Y >= dns.Bounds.Y || rule.Bounds.Y <= address.Bounds.Y ||
+		address.Bounds.X != dns.Bounds.X || address.Bounds.W != dns.Bounds.W || panel.Bounds.W < dns.Bounds.W {
+		t.Fatalf("proxy form and DNS need aligned fields and separate groups: address %v DNS %v separator %v", address.Bounds, dns.Bounds, rule.Bounds)
+	}
+	if err := tt.Click("关闭代理与 DNS"); err != nil {
+		t.Fatal(err)
+	}
+}

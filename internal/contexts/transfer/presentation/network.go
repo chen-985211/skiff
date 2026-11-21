@@ -20,34 +20,32 @@ func normalizedNetwork(n application.NetworkSettings) application.NetworkSetting
 	return n
 }
 func (v *View) networkDialog(c *ui.Context, p palette, stage ui.Element) {
-	optionDialog(c, p, stage, "network", &v.networkOpen, func(panel ui.Element) {
-		panel.Width(396).Column().Padding(18).Gap(12).Radius(cornerSheet).Background(p.panel).Children(func() {
-			ui.Text(c, "代理与 DNS").FontSize(18).FontWeight(600)
-			v.proxyOptions(c, p, &v.networkDraft, false, 360)
-			formRow(c, p, "DNS", func() {
-				label := "自动"
-				if v.networkDraft.DNS == "system" {
-					label = "系统解析"
-				}
-				dropdown(c.Key("dns"), p, "DNS · "+label, label, v.Busy, func(m *ui.Menu) {
-					if m.Item("自动").Checked(v.networkDraft.DNS == "").Chosen() {
-						v.networkDraft.DNS = ""
-					}
-					if m.Item("系统解析").Checked(v.networkDraft.DNS == "system").Chosen() {
-						v.networkDraft.DNS = "system"
-					}
-				}).Grow(1)
-			})
-			inlineError(c, v.networkErr)
-			if primaryAction(c, "保存", "check", v.Busy).AlignSelf(ui.End).Clicked() {
-				value := normalizedNetwork(v.networkDraft)
-				if err := value.Validate(); err != nil {
-					v.networkErr = err
-					return
-				}
-				v.run(func(ctx context.Context) error { return v.API.SetNetwork(ctx, value) }, func(err error) { v.networkErr = err; v.networkOpen = err != nil })
+	preferenceSheet(c, p, stage, "network", "代理与 DNS", "network", &v.networkOpen, func() {
+		v.proxyOptions(c, p, &v.networkDraft, false, preferenceWidth-2*(preferenceInset+preferenceBorder))
+		ui.Box(c).Role(ui.RoleSeparator).FillWidth().Height(1).Background(p.border.Alpha(.55))
+		formRow(c, p, "DNS", func() {
+			label := "自动"
+			if v.networkDraft.DNS == "system" {
+				label = "系统解析"
 			}
+			dropdown(c.Key("dns"), p, "DNS · "+label, label, v.Busy, func(m *ui.Menu) {
+				if m.Item("自动").Checked(v.networkDraft.DNS == "").Chosen() {
+					v.networkDraft.DNS = ""
+				}
+				if m.Item("系统解析").Checked(v.networkDraft.DNS == "system").Chosen() {
+					v.networkDraft.DNS = "system"
+				}
+			}).Grow(1)
 		})
+		inlineError(c, v.networkErr)
+		if primaryAction(c, "保存", "check", v.Busy).AlignSelf(ui.End).Clicked() {
+			value := normalizedNetwork(v.networkDraft)
+			if err := value.Validate(); err != nil {
+				v.networkErr = err
+				return
+			}
+			v.run(func(ctx context.Context) error { return v.API.SetNetwork(ctx, value) }, func(err error) { v.networkErr = err; v.networkOpen = err != nil })
+		}
 	})
 }
 
