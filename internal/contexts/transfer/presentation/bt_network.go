@@ -19,12 +19,14 @@ type btNetworkAPI interface {
 	TorrentDetails(context.Context, string) (application.BTDetails, error)
 }
 type btNetworkPanel struct {
-	open        bool
-	draft       application.BTSettings
-	port, peers string
-	err         error
+	open                        bool
+	draft                       application.BTSettings
+	port, peers, minutes, ratio string
+	err                         error
 }
 type btInspector struct {
+	fileMessage   string
+	fileErr       error
 	peerLimit     string
 	open, pending bool
 	id            string
@@ -36,6 +38,13 @@ type btInspector struct {
 func (v *View) openBTNetwork() {
 	b := &v.btNetwork
 	b.draft = v.Snapshot.Preferences.BT
+	b.minutes, b.ratio = "", ""
+	if b.draft.Seed.Minutes > 0 {
+		b.minutes = strconv.Itoa(b.draft.Seed.Minutes)
+	}
+	if b.draft.Seed.Ratio > 0 {
+		b.ratio = strconv.FormatFloat(b.draft.Seed.Ratio, 'f', -1, 64)
+	}
 	b.port = ""
 	b.peers = ""
 	if b.draft.ListenPort != 0 {
@@ -70,6 +79,9 @@ func (v *View) renderBTNetwork(c *ui.Context, p palette, stage ui.Element) {
 				})
 				formRow(c, p, "监听端口", func() { rowInput(c, p, "监听端口", "自动", &b.port, false) })
 				formRow(c, p, "节点上限", func() { rowInput(c, p, "每种节点上限", "自动", &b.peers, false) })
+				ui.Checkbox(c, &b.draft.Seed.Enabled, "下载完成后继续做种").Transition(controlMotion)
+				preferenceNumber(c, p, "目标分享率", "倍", "不限", "先达到任一条件即停止", &b.ratio)
+				preferenceNumber(c, p, "做种时长", "分钟", "不限", "先达到任一条件即停止", &b.minutes)
 				ui.Text(c, "端口和节点发现重启生效；订阅每 12 小时更新。").FontSize(11).TextColor(p.muted)
 			})
 		})
@@ -83,6 +95,17 @@ func (v *View) renderBTNetwork(c *ui.Context, p palette, stage ui.Element) {
 			}
 			cfg := b.draft
 			cfg.ListenPort, cfg.MaxPeers = port, peers
+			var err error
+			cfg.Seed.Minutes, err = optionalNumber(b.minutes)
+			if err == nil && strings.TrimSpace(b.ratio) != "" {
+				cfg.Seed.Ratio, err = strconv.ParseFloat(strings.TrimSpace(b.ratio), 64)
+			} else {
+				cfg.Seed.Ratio = 0
+			}
+			if err != nil {
+				b.err = errors.New("请输入有效的做种时长和分享率")
+				return
+			}
 			api := v.API.(btNetworkAPI)
 			v.run(func(ctx context.Context) error {
 				if err := api.SetBTSettings(ctx, cfg); err != nil {
@@ -176,6 +199,7 @@ func (v *View) renderBTDetails(c *ui.Context, p palette, stage ui.Element) {
 				}
 			})
 		})
+		v.btFileActions(c, p)
 		inlineError(c, b.err)
 	})
 }

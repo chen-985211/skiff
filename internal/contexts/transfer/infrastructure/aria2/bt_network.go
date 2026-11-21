@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/anacrolix/torrent/metainfo"
 	"io"
 	"net"
 	"net/http"
@@ -44,13 +45,33 @@ func (c *Client) FetchTrackers(ctx context.Context, source string) ([]string, er
 	}
 	return trackers, nil
 }
-func (c *Client) TorrentDetails(ctx context.Context, id string) (application.BTDetails, error) {
+func (c *Client) ReadTorrentDetails(ctx context.Context, id, hash string) (application.BTDetails, error) {
 	var d application.BTDetails
 	var status struct {
 		Bitfield, NumPieces, UploadLength, Seeder, Status string
 		Bittorrent                                        struct{ AnnounceList [][]string }
 	}
 	err := c.call(ctx, "aria2.tellStatus", []any{id, []string{"status", "bitfield", "numPieces", "uploadLength", "seeder", "bittorrent"}}, &status)
+	if missingGID(err, id) {
+		file, e := c.metadataFile(hash)
+		if e != nil {
+			return d, e
+		}
+		m, e := metainfo.LoadFromFile(file)
+		if e != nil {
+			return d, e
+		}
+		if m.HashInfoBytes().HexString() != hash {
+			return d, errors.New("种子指纹已变化")
+		}
+		info, e := m.UnmarshalInfo()
+		if e != nil {
+			return d, e
+		}
+		d.Pieces = info.NumPieces()
+		d.Trackers = m.UpvertedAnnounceList().DistinctValues()
+		return d, nil
+	}
 	if err != nil {
 		return d, err
 	}

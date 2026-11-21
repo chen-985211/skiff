@@ -190,3 +190,121 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 		t.Fatal("lost cached trackers or health", sub)
 	}
 }
+
+func TestBTRelocateVerifiedFilesMoveAndResumeSeeding(t *testing.T) {
+	s, _, dir := btService(t)
+	ctx := t.Context()
+	source, _ := btFixture(t)
+	meta, err := s.PrepareTorrent(ctx, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := s.AddTorrent(ctx, meta.Hash, dir, []int{1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTask(t, s, id, func(t application.TaskDTO) bool { return t.Status == "complete" })
+	wrong := t.TempDir()
+	if err := s.UseTorrentFiles(ctx, id, wrong, false, false); err == nil || s.Snapshot().Tasks[0].Directory != dir {
+		t.Fatal("adopted invalid files")
+	}
+	unrelated := filepath.Join(dir, "set", "notes")
+	if err := os.WriteFile(unrelated, []byte("keep"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dest := t.TempDir()
+	if err = s.UseTorrentFiles(ctx, id, dest, true, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Snapshot().Tasks[0]; got.Directory != dest || got.ID != id || got.Status != "complete" {
+		t.Fatal(got)
+	}
+	if _, err = os.Stat(filepath.Join(dir, "set", "a.txt")); !os.IsNotExist(err) {
+		t.Fatalf("old payload: %v", err)
+	}
+	if _, err = os.Stat(unrelated); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(dest, "set", "a.txt")
+	original, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(file, []byte(strings.Repeat("x", len(original))), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.VerifyTorrentFiles(ctx, id); err == nil {
+		t.Fatal("accepted wrong piece with identical size")
+	}
+	if err = os.WriteFile(file, original, 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := s.Snapshot().Preferences.BT
+	cfg.Seed = application.SeedPolicy{Enabled: true, Minutes: 2, Ratio: 1.5}
+	if err = s.SetBTSettings(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.UseTorrentFiles(ctx, id, dest, false, true); err != nil {
+		t.Fatal(err)
+	}
+	awaitTask(t, s, id, func(task application.TaskDTO) bool { return task.Seeding })
+	if err = s.Execute(ctx, id, application.Pause); err != nil {
+		t.Fatal(err)
+	}
+	awaitTask(t, s, id, func(task application.TaskDTO) bool { return task.Status == "paused" })
+}
+
+func TestBTSeedingStopsAtConfiguredMinute(t *testing.T) {
+	s, _, dir := btService(t)
+	ctx := t.Context()
+	if err := s.SetBTSettings(ctx, application.BTSettings{DisableDHT: true, Seed: application.SeedPolicy{Enabled: true, Minutes: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	file, _ := btFixture(t)
+	meta, err := s.PrepareTorrent(ctx, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := s.AddTorrent(ctx, meta.Hash, dir, []int{1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTask(t, s, id, func(task application.TaskDTO) bool { return task.Seeding })
+	started := time.Now()
+	for time.Since(started) < 85*time.Second {
+		if err = s.Refresh(ctx); err != nil {
+			t.Fatal(err)
+		}
+		got := s.Snapshot().Tasks[0]
+		if got.Status == "complete" {
+			if time.Since(started) < 53*time.Second {
+				t.Fatalf("seeding stopped prematurely after %v", time.Since(started))
+			}
+			return
+		}
+		time.Sleep(time.Second)
+	}
+	t.Fatal("seeding did not stop at configured duration")
+}
+
+func TestBTArchivedTaskKeepsTorrentDetails(t *testing.T) {
+	s, engine, dir := btService(t)
+	file, _ := btFixture(t)
+	ctx := t.Context()
+	meta, err := s.PrepareTorrent(ctx, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := s.AddTorrent(ctx, meta.Hash, dir, []int{1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTask(t, s, id, func(task application.TaskDTO) bool { return task.Status == "complete" })
+	if err = engine.Client.Execute(ctx, id, application.Remove); err != nil {
+		t.Fatal(err)
+	}
+	d, err := s.TorrentDetails(ctx, id)
+	if err != nil || d.Pieces != 2 {
+		t.Fatalf("archived: %+v, %v", d, err)
+	}
+}

@@ -38,7 +38,9 @@ type SourceInfo struct {
 
 type NetworkSettings = domain.NetworkSettings
 type DiskSettings = domain.DiskSettings
+type SeedPolicy = domain.SeedPolicy
 type TransferSpec struct {
+	Seed                       SeedPolicy
 	PeerLimit                  int
 	BT                         BTSettings
 	Trackers                   string
@@ -56,6 +58,7 @@ type TransferSpec struct {
 	Paused                     bool
 }
 type Observation struct {
+	Seeding                       bool
 	LocalRoute                    bool
 	HTTPRejected                  bool
 	NextInQueue                   bool
@@ -112,6 +115,7 @@ type Repository interface {
 	Save(context.Context, State) error
 }
 type TaskDTO struct {
+	Seeding                                       bool
 	PeerLimit                                     int
 	TorrentHash                                   string
 	DownloadLimit                                 int64 `json:",omitempty"`
@@ -168,7 +172,7 @@ func transferSpec(r domain.Record, paused bool) TransferSpec {
 			headers = ""
 		}
 	}
-	return TransferSpec{PeerLimit: r.PeerLimit, TorrentHash: r.TorrentHash, SelectedFiles: r.SelectedFiles, Network: r.Network, DownloadLimit: r.DownloadLimit, Digest: digest, Disk: r.Disk, Headers: headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: source, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
+	return TransferSpec{Seed: r.Seed, PeerLimit: r.PeerLimit, TorrentHash: r.TorrentHash, SelectedFiles: r.SelectedFiles, Network: r.Network, DownloadLimit: r.DownloadLimit, Digest: digest, Disk: r.Disk, Headers: headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: source, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
@@ -583,7 +587,7 @@ func apply(task *domain.Task, o Observation) {
 	if task.Record().TorrentHash != "" {
 		o.Name, o.Path = "", ""
 	}
-	task.Observe(domain.Observation{NextInQueue: o.NextInQueue, Connections: o.Connections, Status: domain.Status(o.Status), Name: o.Name, Path: o.Path, Error: o.Error, Failure: o.Failure, Total: o.Total, Completed: o.Completed, Speed: o.Speed})
+	task.Observe(domain.Observation{Seeding: o.Seeding, NextInQueue: o.NextInQueue, Connections: o.Connections, Status: domain.Status(o.Status), Name: o.Name, Path: o.Path, Error: o.Error, Failure: o.Failure, Total: o.Total, Completed: o.Completed, Speed: o.Speed})
 }
 func (s *Service) Refresh(ctx context.Context) error {
 	s.mu.Lock()
@@ -678,7 +682,7 @@ func (s *Service) Snapshot() Snapshot {
 	snap := Snapshot{BTSubscriptions: s.btSources(), Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
-		dto := TaskDTO{PeerLimit: r.PeerLimit, TorrentHash: r.TorrentHash, DownloadLimit: r.DownloadLimit, MirrorSource: r.MirrorSource, NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
+		dto := TaskDTO{Seeding: task.Seeding(), PeerLimit: r.PeerLimit, TorrentHash: r.TorrentHash, DownloadLimit: r.DownloadLimit, MirrorSource: r.MirrorSource, NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
 		snap.Tasks = append(snap.Tasks, dto)
 		if r.Status == domain.Active {
 			snap.Active++

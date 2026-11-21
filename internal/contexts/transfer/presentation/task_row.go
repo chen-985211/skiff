@@ -230,6 +230,8 @@ func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, col
 				metric, ink = actionError.Error(), c.Theme().Danger
 			} else if t.Error != "" {
 				metric, ink = t.Error, c.Theme().Danger
+			} else if t.Seeding {
+				metric = "做种中"
 			} else if active && t.Speed > 0 {
 				metric = bytesText(t.Speed) + "/s"
 			}

@@ -83,7 +83,7 @@ func (s *Service) AddTorrent(ctx context.Context, hash, dir string, files []int)
 		}
 	}
 	id := s.nextID()
-	rec := domain.Record{ID: id, URL: "magnet:?xt=urn:btih:" + hash, Directory: dir, Path: filepath.Join(dir, meta.Name), Name: meta.Name, TorrentHash: hash, SelectedFiles: strings.Join(parts, ","), Total: size, Status: domain.Waiting}
+	rec := domain.Record{Seed: s.preferences.BT.Seed, ID: id, URL: "magnet:?xt=urn:btih:" + hash, Directory: dir, Path: filepath.Join(dir, meta.Name), Name: meta.Name, TorrentHash: hash, SelectedFiles: strings.Join(parts, ","), Total: size, Status: domain.Waiting}
 	s.tasks = append(s.tasks, domain.Restore(rec))
 	if err = s.persist(ctx); err != nil {
 		s.tasks = s.tasks[:len(s.tasks)-1]

@@ -105,6 +105,7 @@ func (c *Client) Execute(ctx context.Context, id string, cmd application.Command
 }
 
 type ariaTask struct {
+	Seeder      string `json:"seeder"`
 	Connections string `json:"connections"`
 	GID         string `json:"gid"`
 	Status      string `json:"status"`
@@ -121,7 +122,7 @@ type ariaTask struct {
 	} `json:"files"`
 }
 
-var keys = []string{"gid", "status", "connections", "totalLength", "completedLength", "downloadSpeed", "errorMessage", "errorCode", "files"}
+var keys = []string{"seeder", "gid", "status", "connections", "totalLength", "completedLength", "downloadSpeed", "errorMessage", "errorCode", "files"}
 
 func (c *Client) Observe(ctx context.Context) ([]application.Observation, error) {
 	var result []application.Observation
@@ -142,7 +143,7 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 			if t.Status == "complete" || t.Status == "error" || t.Status == "removed" {
 				c.routes.remove(t.GID)
 			}
-			o := application.Observation{ID: t.GID, Status: t.Status, Error: t.Error, HTTPRejected: t.ErrorCode == "22"}
+			o := application.Observation{Seeding: t.Seeder == "true", ID: t.GID, Status: t.Status, Error: t.Error, HTTPRejected: t.ErrorCode == "22"}
 			if req.method == "aria2.tellWaiting" && t.Status == "waiting" && firstWaiting {
 				o.NextInQueue = true
 				firstWaiting = false

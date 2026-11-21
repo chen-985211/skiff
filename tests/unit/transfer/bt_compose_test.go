@@ -35,7 +35,7 @@ func TestBTSettingsOpensFromSettings(t *testing.T) {
 	if err := tt.Click("BT 网络"); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"Tracker 订阅源", "监听端口", "每种节点上限"} {
+	for _, name := range []string{"Tracker 订阅源", "监听端口", "每种节点上限", "做种时长", "目标分享率"} {
 		if _, ok := tt.AccessByRole(ui.RoleTextField, name); !ok {
 			t.Fatal("missing", name)
 		}

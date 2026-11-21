@@ -94,7 +94,7 @@ func StartConfigured(ctx context.Context, dataDir, binary string, prefs applicat
 		"max-connection-per-server=4", "split=4", "min-split-size=4M",
 		"auto-file-renaming=true", "allow-overwrite=false", "file-allocation=none",
 		"follow-torrent=false", "follow-metalink=false", "enable-dht=" + strconv.FormatBool(!prefs.BT.DisableDHT), "enable-dht6=false", "dht-file-path=" + filepath.Join(dataDir, "dht.dat"), "listen-port=" + listen, "dht-listen-port=" + listen,
-		"enable-peer-exchange=true", "bt-enable-lpd=" + strconv.FormatBool(prefs.BT.LocalDiscovery), "seed-time=0",
+		"enable-peer-exchange=true", "bt-enable-lpd=" + strconv.FormatBool(prefs.BT.LocalDiscovery),
 		"console-log-level=error", "summary-interval=0", "download-result=hide", "max-download-result=10000",
 		"stop-with-process=" + strconv.Itoa(os.Getpid()),
 	}, "\n") + "\n"

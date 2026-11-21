@@ -171,6 +171,15 @@ func (c *Client) enqueueTorrent(ctx context.Context, s application.TransferSpec)
 		return errors.New("种子记录与文件不符")
 	}
 	opts := map[string]string{"gid": s.ID, "dir": s.Directory, "select-file": s.SelectedFiles, "pause": fmt.Sprint(s.Paused), "check-integrity": "true", "allow-overwrite": "false", "rpc-save-upload-metadata": "true"}
+	if !s.Seed.Enabled {
+		opts["seed-time"] = "0"
+	} else {
+		opts["bt-hash-check-seed"] = "true"
+		opts["seed-ratio"] = fmt.Sprint(s.Seed.Ratio)
+		if s.Seed.Minutes > 0 {
+			opts["seed-time"] = fmt.Sprint(s.Seed.Minutes)
+		}
+	}
 	if s.Trackers != "" && !meta.Private {
 		opts["bt-tracker"] = s.Trackers
 	}

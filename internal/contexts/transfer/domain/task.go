@@ -60,7 +60,14 @@ const (
 	MinSplitBytes          = 4 << 20
 )
 
+type SeedPolicy struct {
+	Enabled bool
+	Ratio   float64
+	Minutes int
+}
+
 type Record struct {
+	Seed                          SeedPolicy      `json:",omitzero"`
 	PeerLimit                     int             `json:",omitempty"`
 	TorrentHash, SelectedFiles    string          `json:",omitempty"`
 	Network                       NetworkSettings `json:",omitzero"`
@@ -87,12 +94,14 @@ type Record struct {
 	OutputName                    string
 }
 type Task struct {
+	seeding     bool
 	record      Record
 	connections int
 	nextInQueue bool
 }
 
 type Observation struct {
+	Seeding                 bool
 	NextInQueue             bool
 	Connections             int
 	Status                  Status
@@ -114,6 +123,7 @@ func (t *Task) Observe(o Observation) {
 	}
 	t.record.Status, t.record.Error, t.record.Failure = o.Status, o.Error, o.Failure
 	t.record.Total, t.record.Completed, t.record.Speed = max(0, o.Total), max(0, o.Completed), max(0, o.Speed)
+	t.seeding = o.Seeding && o.Status == Active
 	t.nextInQueue = o.Status == Waiting && o.NextInQueue
 	t.connections = max(0, o.Connections)
 	if o.Status != Active {
@@ -133,6 +143,7 @@ func (t *Task) Mark(status Status, detail string) {
 	t.Observe(Observation{Status: status, Total: o.Total, Completed: o.Completed, Name: o.Name, Path: o.Path, Error: detail})
 }
 
+func (t Task) Seeding() bool     { return t.seeding }
 func (t Task) NextInQueue() bool { return t.nextInQueue }
 func (t Task) Connections() int  { return t.connections }
 

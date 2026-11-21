@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"slices"
 	"strings"
@@ -11,6 +12,7 @@ import (
 )
 
 type BTSettings struct {
+	Seed                       SeedPolicy `json:",omitzero"`
 	Sources                    string
 	DisableDHT, LocalDiscovery bool
 	ListenPort, MaxPeers       int
@@ -36,10 +38,13 @@ type BTDetails struct {
 type BTNetwork interface {
 	ChangePeerLimit(context.Context, string, int) error
 	FetchTrackers(context.Context, string) ([]string, error)
-	TorrentDetails(context.Context, string) (BTDetails, error)
+	ReadTorrentDetails(context.Context, string, string) (BTDetails, error)
 }
 
 func (b BTSettings) Validate() error {
+	if b.Seed.Minutes < 0 || b.Seed.Ratio < 0 || math.IsNaN(b.Seed.Ratio) || math.IsInf(b.Seed.Ratio, 0) {
+		return errors.New("分享率和做种时长需要非负数值")
+	}
 	if b.ListenPort < 0 || b.ListenPort > 65535 || b.MaxPeers < 0 || b.MaxPeers > 65535 {
 		return errors.New("端口和节点上限应在 0–65535 之间")
 	}
@@ -150,7 +155,7 @@ func (s *Service) TorrentDetails(ctx context.Context, id string) (BTDetails, err
 	if !ok {
 		return BTDetails{}, errors.New("无法读取 BT 节点")
 	}
-	return api.TorrentDetails(ctx, id)
+	return api.ReadTorrentDetails(ctx, id, hash)
 }
 func (s *Service) enqueue(ctx context.Context, spec TransferSpec) error {
 	if spec.TorrentHash != "" {
