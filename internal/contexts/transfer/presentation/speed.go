@@ -46,9 +46,9 @@ func (v *View) saveRate(id string, rate int64) {
 		v.rateOpen = err != nil
 	})
 }
-func (v *View) rateDialog(c *ui.Context, p palette) {
-	ui.DialogBase(c, &v.rateOpen, func(back, panel ui.Element) {
-		panel.Width(300).Column().Padding(18).Gap(10).Radius(cornerSheet).Background(p.panel).Transition(panelMotion).Children(func() {
+func (v *View) rateDialog(c *ui.Context, p palette, stage ui.Element) {
+	optionDialog(c, p, stage, "rate", &v.rateOpen, func(panel ui.Element) {
+		panel.Width(300).Column().Padding(18).Gap(10).Radius(cornerSheet).Background(p.panel).Children(func() {
 			optionField(c, p, "下载上限（KiB/s，0 为不限速）", &v.rateText, false)
 			inlineError(c, v.rateErr)
 			if primaryAction(c, "应用", "check", v.Busy).AlignSelf(ui.End).Clicked() {

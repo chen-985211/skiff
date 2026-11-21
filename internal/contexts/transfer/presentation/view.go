@@ -150,10 +150,10 @@ func (v *View) Render(c *ui.Context) {
 		search.Opacity(max(0, 1-reveal/.35))
 		v.newDialog(c, p, anchor, reveal)
 	}
-	v.rateDialog(c, p)
-	v.diskDialog(c, p)
-	v.networkDialog(c, p)
-	v.ftpLogin(c, p)
+	v.rateDialog(c, p, stage)
+	v.diskDialog(c, p, stage)
+	v.networkDialog(c, p, stage)
+	v.ftpLogin(c, p, stage)
 	if ui.AlertDialog(c, &v.RestartOpen, "从头重新下载？", "原来的未完成文件会保留，新下载使用不同文件名。", "取消", "重新下载") == 1 {
 		v.command(v.RestartID, application.Restart)
 	}

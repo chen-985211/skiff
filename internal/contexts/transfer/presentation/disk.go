@@ -27,9 +27,9 @@ func optionalNumber(value string) (int, error) {
 	}
 	return strconv.Atoi(strings.TrimSpace(value))
 }
-func (v *View) diskDialog(c *ui.Context, p palette) {
-	ui.DialogBase(c, &v.diskOpen, func(back, panel ui.Element) {
-		panel.Width(340).Column().Padding(18).Gap(10).Radius(cornerSheet).Background(p.panel).Transition(panelMotion).Children(func() {
+func (v *View) diskDialog(c *ui.Context, p palette, stage ui.Element) {
+	optionDialog(c, p, stage, "disk", &v.diskOpen, func(panel ui.Element) {
+		panel.Width(340).Column().Padding(18).Gap(10).Radius(cornerSheet).Background(p.panel).Children(func() {
 			ui.Text(c, "性能与磁盘").FontSize(18).FontWeight(600)
 			optionField(c, p, "磁盘缓存（MiB，重启生效）", &v.cacheText, false)
 			optionField(c, p, "最小分段（MiB，新任务生效）", &v.splitText, false)

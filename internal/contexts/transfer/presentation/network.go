@@ -19,9 +19,9 @@ func normalizedNetwork(n application.NetworkSettings) application.NetworkSetting
 	}
 	return n
 }
-func (v *View) networkDialog(c *ui.Context, p palette) {
-	ui.DialogBase(c, &v.networkOpen, func(back, panel ui.Element) {
-		panel.Width(396).Column().Padding(18).Gap(12).Radius(cornerSheet).Background(p.panel).Transition(panelMotion).Children(func() {
+func (v *View) networkDialog(c *ui.Context, p palette, stage ui.Element) {
+	optionDialog(c, p, stage, "network", &v.networkOpen, func(panel ui.Element) {
+		panel.Width(396).Column().Padding(18).Gap(12).Radius(cornerSheet).Background(p.panel).Children(func() {
 			ui.Text(c, "代理与 DNS").FontSize(18).FontWeight(600)
 			v.proxyOptions(c, p, &v.networkDraft, false, 360)
 			formRow(c, p, "DNS", func() {
@@ -66,52 +66,63 @@ func (v *View) proxyOptions(c *ui.Context, p palette, n *application.NetworkSett
 			index = i
 		}
 	}
-	parts := ui.SegmentedBase(c, &index, len(choices))
-	cell := (width - 4) / float32(len(choices))
-	track := parts.Track.Label("代理模式").Width(width).Height(32).Shrink(0).Padding(2).Radius(cornerCompact).Background(p.haze.Alpha(.22))
-	x := track.AnimateTo("selection", float32(index)*cell, selectionSpring)
-	track.Draw(func(painter *ui.Painter, r ui.Rect) {
-		painter.Fill(ui.Rect{X: r.X + 2 + x, Y: r.Y + 2, W: cell, H: 28}, p.panel, cornerSmall)
-	})
-	track.Children(func() {
-		for i, choice := range choices {
-			item := parts.Segment(i).ZIndex(1).Transition(controlMotion).Size(cell, 28).Label(choice.label).Radius(cornerSmall).FocusRing(true)
-			item.Children(func() { ui.Text(c, choice.label).SingleLine().TextColor(c.Theme().Text).FontSize(12).FontWeight(560) })
-			if item.Changed() {
-				n.Mode = choice.mode
-				v.networkErr = nil
-				v.FormError = ""
-				c.Invalidate()
-			}
-		}
-	})
-	manual := n.Mode == "manual"
-	visible := track.AnimateTo("manual-fields", amount(manual), panelSpring)
-	// Four fields, with the optional login on one row. Keep the visible page and
-	// its action anchored as the detail area opens or reverses.
-	if manual || visible > 0 {
-		ui.Column(c.Key("proxy-credentials")).Transition(controlMotion).FillWidth().Shrink(0).Height(117*visible).Clip().Opacity(visible).IgnoreInput(!manual).AccessHidden(!manual).Disabled(!manual).Gap(7).Padding(3, 0, 0).Children(func() {
-			formRow(c, p, "地址", func() {
-				if rowInput(c, p, "HTTP 代理地址", "http://proxy:8080", &n.Proxy, false).Changed() {
+	ui.Column(c.Key("proxy-options")).Width(width).Shrink(0).Children(func() {
+		parts := ui.SegmentedBase(c, &index, len(choices))
+		cell := (width - 4) / float32(len(choices))
+		track := parts.Track.Label("代理模式").Width(width).Height(32).Shrink(0).Padding(2).Radius(cornerCompact).Background(p.haze.Alpha(.22))
+		x := track.AnimateTo("selection", float32(index)*cell, selectionSpring)
+		track.Draw(func(painter *ui.Painter, r ui.Rect) {
+			painter.Fill(ui.Rect{X: r.X + 2 + x, Y: r.Y + 2, W: cell, H: 28}, p.panel, cornerSmall)
+		})
+		track.Children(func() {
+			for i, choice := range choices {
+				item := parts.Segment(i).ZIndex(1).Transition(controlMotion).Size(cell, 28).Label(choice.label).Radius(cornerSmall).FocusRing(true)
+				item.Children(func() { ui.Text(c, choice.label).SingleLine().TextColor(c.Theme().Text).FontSize(12).FontWeight(560) })
+				if item.Changed() {
+					n.Mode = choice.mode
 					v.networkErr = nil
 					v.FormError = ""
+					c.Invalidate()
 				}
-			})
-			formRow(c, p, "身份验证", func() {
-				rowInput(c, p, "代理账号", "账号", &n.User, false)
-				rowInput(c, p, "代理密码", "密码", &n.Password, true)
-			})
-			formRow(c, p, "绕过代理", func() { rowInput(c, p, "绕过代理", "域名或网段，逗号分隔", &n.Bypass, false) })
+			}
 		})
-	}
-	if task && n.Mode == "" {
-		label := "跟随系统"
-		switch v.Snapshot.Preferences.Network.Mode {
-		case "direct":
-			label = "直连"
-		case "manual":
-			label = v.Snapshot.Preferences.Network.Proxy
+		manual := n.Mode == "manual"
+		visible := track.AnimateTo("manual-fields", amount(manual), panelSpring)
+		inherits := task && n.Mode == ""
+		hint := track.AnimateTo("inheritance", amount(inherits), panelSpring)
+		line := ui.Box(c.Key("inherited-proxy")).FillWidth().Height(26 * hint).Clip().Opacity(hint).AccessHidden(!inherits)
+		if inherits || hint > 0 {
+			label := "跟随系统"
+			switch v.Snapshot.Preferences.Network.Mode {
+			case "direct":
+				label = "直连"
+			case "manual":
+				label = v.Snapshot.Preferences.Network.Proxy
+			}
+			line.Children(func() {
+				ui.Text(c, "当前全局设置 · "+label).Absolute().Top(7).SingleLine().FontSize(12).TextColor(p.muted)
+			})
 		}
-		ui.Text(c.Key("inherited-proxy"), "当前全局设置 · "+label).Transition(pageFade).ContentTransition(textChange).SingleLine().FontSize(12).TextColor(p.muted)
-	}
+		// Include the gap above the fields in the reveal. An outer layout gap
+		// would appear in full on the very first frame of a zero-height editor.
+		details := ui.Box(c.Key("proxy-credentials")).FillWidth().Height(117 * visible).Shrink(0).Clip().
+			Opacity(visible).IgnoreInput(!manual).AccessHidden(!manual)
+		if manual || visible > 0 {
+			details.Children(func() {
+				ui.Column(c).Absolute().Top(7).Left(0).Right(0).Gap(7).Children(func() {
+					formRow(c, p, "地址", func() {
+						if rowInput(c, p, "HTTP 代理地址", "http://proxy:8080", &n.Proxy, false).Changed() {
+							v.networkErr = nil
+							v.FormError = ""
+						}
+					})
+					formRow(c, p, "身份验证", func() {
+						rowInput(c, p, "代理账号", "账号", &n.User, false)
+						rowInput(c, p, "代理密码", "密码", &n.Password, true)
+					})
+					formRow(c, p, "绕过代理", func() { rowInput(c, p, "绕过代理", "域名或网段，逗号分隔", &n.Bypass, false) })
+				})
+			})
+		}
+	})
 }
