@@ -51,6 +51,14 @@ func editorOpacity(weight float32) float32 {
 	return max(0, 2*weight-1)
 }
 
+// progress runs from the first page to the second page.
+func pageWeight(page int, progress float32) float32 {
+	if page == 0 {
+		return 1 - progress
+	}
+	return progress
+}
+
 func amount(on bool) float32 {
 	if on {
 		return 1

@@ -103,6 +103,7 @@ func (v *View) FinishEngineStartup(api API, snapshot application.Snapshot, err e
 func (v *View) OpenNew() {
 	if v.Ready && !v.Busy && !v.DialogOpen && !v.RestartOpen && !v.networkOpen && !v.diskOpen && !v.rateOpen && !v.ftpOpen && !v.btNetwork.open && !v.btInfo.open {
 		v.DialogOpen = true
+		v.focusLinks = v.bt.tab == 0 && !v.advanced
 		if v.URLs == "" && (v.Directory == "" || v.Directory == v.lastDefault) {
 			v.Directory = v.Snapshot.Directory
 			v.lastDefault = v.Directory

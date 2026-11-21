@@ -107,7 +107,7 @@ func primaryAction(c *ui.Context, title, icon string, disabled bool) ui.Element 
 	return b.Background(fill).Children(func() {
 		ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(7).Children(func() {
 			ui.Icon(c, icons[icon]).FontSize(15).TextColor(t.AccentText)
-			ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(t.AccentText)
+			ui.Text(c, title).SingleLine().FontSize(13).FontWeight(600).TextColor(t.AccentText).ContentTransition(textChange)
 		})
 	})
 }

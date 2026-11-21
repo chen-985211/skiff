@@ -129,16 +129,33 @@ func (v *View) lookupTorrent(source string) {
 		})
 	}()
 }
-func (v *View) btWait(c *ui.Context, p palette) {
-	b := &v.bt
-	if b.creator.open {
-		if secondaryAction(c, "返回下载").Disabled(v.Busy).Clicked() {
-			b.creator.open = false
-			v.FormError = ""
-			c.Invalidate()
+func (v *View) torrentTools(c *ui.Context, p palette) {
+	tools := ui.Box(c.Key("torrent-tools")).Size(composeToolWidth, formHeaderHeight)
+	ink := tools.AnimateTo("creator", amount(v.bt.creator.open), colorFade)
+	tools.Children(func() {
+		for i, render := range []func(*ui.Context, palette){v.torrentOptions, v.returnToTorrent} {
+			active := (i == 1) == v.bt.creator.open
+			weight := pageWeight(i, ink)
+			if !active && weight == 0 {
+				continue
+			}
+			tool := ui.Box(c.Key(i)).Absolute().Right(0).Top(0).Bottom(0).
+				Opacity(editorOpacity(weight)).IgnoreInput(!active).AccessHidden(!active)
+			tool.Children(func() { render(c, p) })
 		}
-		return
+	})
+}
+
+func (v *View) returnToTorrent(c *ui.Context, p palette) {
+	if secondaryAction(c, "返回下载").Disabled(v.Busy).Clicked() {
+		v.bt.creator.open = false
+		v.FormError = ""
+		c.Invalidate()
 	}
+}
+
+func (v *View) torrentOptions(c *ui.Context, p palette) {
+	b := &v.bt
 	dropdown(c.Key("bt-options"), p, "BT 选项", "BT 选项", v.Busy, func(m *ui.Menu) {
 		if _, ok := v.API.(torrentCreateAPI); ok {
 			if m.Item("创建种子…").Chosen() {
@@ -162,22 +179,39 @@ func (v *View) btWait(c *ui.Context, p palette) {
 				}
 			}
 		}
-	})
+	}).Width(composeToolWidth)
 }
+
 func (v *View) torrentEditor(c *ui.Context, p palette) {
+	viewport := ui.Column(c.Key("torrent-editor")).FillWidth().MinHeight(sourceMinHeight)
+	ink := viewport.AnimateTo("creator", amount(v.bt.creator.open), colorFade)
+	sourceEditors(c, viewport, v.bt.creator.open, ink,
+		func() { v.torrentDownloadEditor(c, p) }, func() { v.createEditor(c, p) })
+}
+
+func (v *View) torrentDownloadEditor(c *ui.Context, p palette) {
 	b := &v.bt
-	ui.Column(c.Key("torrent-editor")).Transition(panelMotion).FillWidth().Gap(8).Children(func() {
-		if b.creator.open {
-			v.createEditor(c, p)
-			return
-		}
+	ui.Column(c.Key("torrent-download")).FillWidth().Gap(8).Children(func() {
 		if b.creator.saved != "" {
 			ui.Text(c, "已保存 "+b.creator.saved).Transition(pageFade).SingleLine().TruncateMiddle().Tooltip(b.creator.saved).FontSize(12).TextColor(p.muted)
 		}
 		if b.meta.Hash == "" {
-			ui.Row(c).Transition(pageFade).FillWidth().Gap(8).Children(func() {
-				rowInput(c, p, "磁力链接", "粘贴 magnet 链接", &b.source, false).Disabled(b.cancel != nil)
-				if secondaryAction(c, "打开种子").Disabled(v.Actions.PickTorrent == nil || b.cancel != nil).Clicked() {
+			magnet := ui.TextAreaBase(c.Key("magnet"), &b.source).Transition(controlMotion).
+				Label("磁力链接").Placeholder("粘贴磁力链接").PlaceholderColor(p.muted).FillWidth().Height(64).
+				Padding(12, 14).FontSize(13).FixedLineHeight(20).Radius(cornerField).Disabled(b.cancel != nil || v.Busy)
+			styleSourceField(c, magnet, p)
+			ui.Row(c.Key("torrent-source-actions")).Transition(pageFade).FillWidth().Height(32).AlignItems(ui.Center).Gap(10).Children(func() {
+				pick := ui.ButtonBase(c.Key("open-torrent")).Transition(controlMotion).Label("打开种子").Tooltip("打开本地 .torrent 文件").
+					Row().Height(32).PaddingX(10).AlignItems(ui.Center).Gap(6).Radius(cornerSmall).FocusRing(true).
+					Disabled(v.Actions.PickTorrent == nil || b.cancel != nil || v.Busy)
+				if pick.Hovered() || pick.Pressed() {
+					pick.Background(p.panel.Alpha(.5))
+				}
+				pick.Children(func() {
+					ui.Icon(c, icons["folder"]).Size(15, 15).TextColor(p.muted)
+					ui.Text(c, "打开种子…").SingleLine().FontSize(12).FontWeight(560).TextColor(p.muted)
+				})
+				if pick.Clicked() {
 					v.Actions.PickTorrent(func(file string, err error) {
 						if err != nil {
 							v.FormError = err.Error()
@@ -186,10 +220,10 @@ func (v *View) torrentEditor(c *ui.Context, p palette) {
 						}
 					})
 				}
+				if b.cancel != nil {
+					ui.Text(c, "正在获取文件列表…").Transition(pageFade).SingleLine().FontSize(12).TextColor(p.muted)
+				}
 			})
-			if b.cancel != nil {
-				ui.Text(c, "正在获取文件列表…").Transition(pageFade).FontSize(12).TextColor(p.muted)
-			}
 			return
 		}
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
@@ -218,7 +252,7 @@ func (v *View) torrentEditor(c *ui.Context, p palette) {
 				ui.Text(c, bytesText(b.meta.Files[r.index].Size)).FontSize(11).TextColor(p.muted)
 			})
 		}).FillWidth().Height(120).Label("种子文件树")
-		if !b.deadline.IsZero() && v.DialogOpen {
+		if !b.deadline.IsZero() && v.DialogOpen && b.tab == 1 && !b.creator.open {
 			left := time.Until(b.deadline)
 			if left <= 0 {
 				b.deadline = time.Time{}

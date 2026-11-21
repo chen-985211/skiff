@@ -9,12 +9,15 @@ import (
 )
 
 const (
-	formInsetX         = 20
-	formInsetY         = 14
-	formGap            = 10
-	formHeaderHeight   = 32
-	formFooterHeight   = 36
-	formErrorMaxHeight = 68
+	formInsetX          = 20
+	formInsetY          = 14
+	formGap             = 10
+	formHeaderHeight    = 32
+	formFooterHeight    = 36
+	formErrorMaxHeight  = 68
+	sourceMinHeight     = 104
+	composePrimaryWidth = 132
+	composeToolWidth    = 100
 )
 
 func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float32) {
@@ -50,10 +53,11 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 			Opacity(fields).IgnoreInput(!v.DialogOpen).AccessHidden(!v.DialogOpen)
 		advanced := form.AnimateTo("advanced", amount(v.advanced), panelSpring)
 		ink := form.AnimateTo("editor-ink", amount(v.advanced), colorFade)
+		btInk := form.AnimateTo("bt-source-ink", amount(v.bt.tab == 1), colorFade)
 		form.Children(func() {
-			toggle := v.composeTools(c, p, width-2*formInsetX, ink, v.Busy || fields < .5)
+			toggle := v.composeTools(c, p, width-2*formInsetX, ink, btInk, v.Busy || fields < .5)
 			back.Background(p.canvas.Alpha(.18 * advanced * reveal))
-			v.composeFields(c, p, width-2*formInsetX, advanced, ink)
+			v.composeFields(c, p, width-2*formInsetX, advanced, ink, btInk)
 			if toggle.Clicked() {
 				v.advanced = !v.advanced
 				v.focusLinks = !v.advanced
@@ -102,7 +106,7 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 	}
 }
 
-func (v *View) composeTools(c *ui.Context, p palette, width, ink float32, disabled bool) ui.Element {
+func (v *View) composeTools(c *ui.Context, p palette, width, ink, btInk float32, disabled bool) ui.Element {
 	const actionWidth = 64
 	const gap = 12
 	header := ui.Row(c.Key("compose-tools")).FillWidth().Height(formHeaderHeight).AlignItems(ui.Center).Gap(gap)
@@ -114,7 +118,7 @@ func (v *View) composeTools(c *ui.Context, p palette, width, ink float32, disabl
 				v.sourceTabs(c, p, ink)
 			}
 			if v.advanced || ink > 0 {
-				v.optionToolbar(c, p, min(264, width-actionWidth-gap), ink)
+				v.optionToolbar(c, p, min(264, width-composeToolWidth-gap), ink)
 			}
 			count := 0
 			for line := range strings.Lines(v.URLs) {
@@ -122,31 +126,42 @@ func (v *View) composeTools(c *ui.Context, p palette, width, ink float32, disabl
 					count++
 				}
 			}
-			if count > 1 && v.bt.tab == 0 {
+			if count > 1 && btInk < 1 {
 				ui.Textf(c, "已输入 %d 行", count).Transition(pageFade).Absolute().Right(0).Top(8).
-					Opacity(editorOpacity(1 - ink)).AccessHidden(v.advanced).FontSize(11).TextColor(p.muted).ContentTransition(numberChange)
+					Opacity(editorOpacity(1-ink) * editorOpacity(1-btInk)).AccessHidden(v.advanced || v.bt.tab == 1).IgnoreInput(true).FontSize(11).TextColor(p.muted).ContentTransition(numberChange)
 			}
 		})
-		if v.bt.tab == 1 {
-			v.btWait(c, p)
-			return
-		}
-		action := "高级选项"
-		if v.advanced {
-			action = "返回链接"
-		}
-		toggle = ui.ButtonBase(c.Key("advanced-toggle")).Transition(controlMotion).Label(action).Tooltip(action).Expanded(v.advanced).
-			Width(actionWidth).FillHeight().Radius(cornerSmall).FocusRing(true).Disabled(disabled)
-		if toggle.Hovered() {
-			toggle.Background(p.panel.Alpha(.5))
-		}
-		toggle.Row().Center().Gap(6).Children(func() {
-			ui.Box(c).Size(15, 15).Center().AccessHidden(true).Children(func() {
-				ui.Icon(c, icons["settings"]).FontSize(15).TextColor(p.muted).Opacity(editorOpacity(1 - ink))
-				ui.Icon(c, icons["chevron"]).Absolute().Left(0).Top(0).FontSize(15).Rotate(90).TextColor(p.muted).Opacity(editorOpacity(ink))
-			})
-			composeCaption(c, "高级", "返回", ink, 12, 550, p.muted)
+		tools := ui.Box(c.Key("source-tools")).Width(composeToolWidth).FillHeight()
+		tools.Children(func() {
+			link := ui.Box(c.Key("link-tools")).Absolute().Right(0).Top(0).Bottom(0).
+				Opacity(editorOpacity(1 - btInk)).IgnoreInput(v.bt.tab == 1).AccessHidden(v.bt.tab == 1)
+			link.Children(func() { toggle = v.advancedToggle(c, p, actionWidth, ink, disabled) })
+			if v.bt.tab == 1 || btInk > 0 {
+				bt := ui.Box(c.Key("bt-tools")).Absolute().Right(0).Top(0).Bottom(0).
+					Opacity(editorOpacity(btInk)).IgnoreInput(v.bt.tab != 1).AccessHidden(v.bt.tab != 1)
+				bt.Children(func() { v.torrentTools(c, p) })
+			}
 		})
+	})
+	return toggle
+}
+
+func (v *View) advancedToggle(c *ui.Context, p palette, actionWidth, ink float32, disabled bool) ui.Element {
+	action := "高级选项"
+	if v.advanced {
+		action = "返回链接"
+	}
+	toggle := ui.ButtonBase(c.Key("advanced-toggle")).Transition(controlMotion).Label(action).Tooltip(action).Expanded(v.advanced).
+		Width(actionWidth).FillHeight().Radius(cornerSmall).FocusRing(true).Disabled(disabled)
+	if toggle.Hovered() {
+		toggle.Background(p.panel.Alpha(.5))
+	}
+	toggle.Row().Center().Gap(6).Children(func() {
+		ui.Box(c).Size(15, 15).Center().AccessHidden(true).Children(func() {
+			ui.Icon(c, icons["settings"]).FontSize(15).TextColor(p.muted).Opacity(editorOpacity(1 - ink))
+			ui.Icon(c, icons["chevron"]).Absolute().Left(0).Top(0).FontSize(15).Rotate(90).TextColor(p.muted).Opacity(editorOpacity(ink))
+		})
+		composeCaption(c, "高级", "返回", ink, 12, 550, p.muted)
 	})
 	return toggle
 }
@@ -159,7 +174,32 @@ func composeCaption(c *ui.Context, first, second string, progress, size float32,
 	})
 }
 
-func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink float32) {
+// Measure pages at their reading width and interpolate the shared viewport.
+// Keep the outgoing page available to paint while only the selected page takes input.
+func sourceEditors(c *ui.Context, viewport ui.Element, second bool, ink float32, firstPage, secondPage func()) {
+	size := viewport.AnimateTo("page-height", amount(second), panelSpring)
+	viewport.Children(func() {
+		var heights [2]float32
+		for i, render := range []func(){firstPage, secondPage} {
+			active := (i == 1) == second
+			weight, extent := pageWeight(i, ink), pageWeight(i, size)
+			if !active && weight == 0 && extent == 0 {
+				continue
+			}
+			page := ui.Column(c.Key(i)).FillWidth().Shrink(0).Opacity(editorOpacity(weight)).IgnoreInput(!active).AccessHidden(!active)
+			if !active {
+				page.Absolute().Top(0).Left(0).Right(0)
+			}
+			page.Children(render)
+			heights[i] = max(float32(sourceMinHeight), page.LayoutBounds().H)
+		}
+		if size != amount(second) {
+			viewport.Height(heights[0] + (heights[1]-heights[0])*size)
+		}
+	})
+}
+
+func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink, btInk float32) {
 	p.muted = p.muted.Mix(c.Theme().Text, .38)
 	_, windowH := c.Size()
 	const chrome = 2*formInsetY + formHeaderHeight + 2*formGap + formFooterHeight + footerInset
@@ -171,16 +211,11 @@ func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink floa
 	ui.Column(c.Key("editor-viewport")).Width(width + optionGutter).Clip().Children(func() {
 		source := ui.Column(c.Key("source-fields")).Width(width).Shrink(0).
 			Opacity(editorOpacity(1 - ink)).IgnoreInput(v.advanced).AccessHidden(v.advanced)
-		source.Children(func() {
-			if v.bt.tab == 1 {
-				v.torrentEditor(c, p)
-			} else {
-				v.linkEditor(c, p)
-			}
-		})
+		sourceEditors(c, source, v.bt.tab == 1, btInk,
+			func() { v.linkEditor(c, p) }, func() { v.torrentEditor(c, p) })
 		// The link editor measures wrapped text at its full width, including
 		// while it is offscreen. Only the difference in page heights is added.
-		linkHeight := max(float32(104), source.LayoutBounds().H)
+		linkHeight := max(float32(sourceMinHeight), source.LayoutBounds().H)
 		ui.Box(c).Height(max(0, optionsHeight-linkHeight) * advanced).Shrink(0)
 		if ink > 0 || v.advanced {
 			v.advancedOptions(c, p, width, optionsHeight, ink)
@@ -189,44 +224,50 @@ func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink floa
 	if v.FormError != "" {
 		ui.Text(c, v.FormError).Transition(pageFade).ContentTransition(textChange).MaxHeight(formErrorMaxHeight).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
 	}
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
-		if v.bt.tab == 1 && v.bt.creator.open {
-			v.createFooter(c, p)
-			return
-		}
-		v.composeDestination(c, p)
-		caption := "开始下载"
-		if v.bt.tab == 1 && v.bt.meta.Hash == "" {
-			caption = "读取文件列表"
-			if v.bt.cancel != nil {
-				caption = "取消获取"
+	v.composeFooter(c, p)
+}
+
+func (v *View) composeFooter(c *ui.Context, p palette) {
+	footer := ui.Box(c.Key("compose-footer")).FillWidth().Height(formFooterHeight)
+	creating := v.bt.tab == 1 && v.bt.creator.open
+	ink := footer.AnimateTo("creator", amount(creating), colorFade)
+	footer.Children(func() {
+		for i, render := range []func(*ui.Context, palette){v.downloadFooter, v.createFooter} {
+			active := (i == 1) == creating
+			weight := pageWeight(i, ink)
+			if !active && weight == 0 {
+				continue
 			}
-		}
-		if primaryAction(c, caption, "download", v.Busy).Width(106).Shrink(0).FocusRing(true).Clicked() {
-			v.submit()
+			row := ui.Row(c.Key(i)).Absolute().Left(0).Right(0).Top(0).Bottom(0).AlignItems(ui.Center).Gap(12).
+				Opacity(editorOpacity(weight)).IgnoreInput(!active).AccessHidden(!active)
+			row.Children(func() { render(c, p) })
 		}
 	})
 }
 
-func (v *View) linkEditor(c *ui.Context, p palette) {
-	links := ui.TextAreaBase(c, &v.URLs).Transition(controlMotion).FillWidth().Lines(2, 7).MinHeight(104).Padding(12, 14).FontSize(13).FixedLineHeight(20).
-		Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接或 cURL").PlaceholderColor(p.muted).
-		Description("支持 HTTP、HTTPS 和 FTP 文件链接").Disabled(v.Busy)
-	if !v.advanced {
-		links.AutoFocus()
-		if v.focusLinks {
-			links.Focus()
-			v.focusLinks = false
+func (v *View) downloadFooter(c *ui.Context, p palette) {
+	v.composeDestination(c, p)
+	caption := "开始下载"
+	if v.bt.tab == 1 && v.bt.meta.Hash == "" {
+		caption = "读取文件列表"
+		if v.bt.cancel != nil {
+			caption = "取消获取"
 		}
 	}
-	edge, focusEdge := p.border, p.active
-	if !c.Preferences().HighContrast {
-		edge, focusEdge = p.muted.Alpha(.36), p.active.Alpha(.65)
+	if primaryAction(c, caption, "download", v.Busy).Width(composePrimaryWidth).Shrink(0).FocusRing(true).Clicked() {
+		v.submit()
 	}
-	if links.Focused() {
-		edge = focusEdge
+}
+
+func (v *View) linkEditor(c *ui.Context, p palette) {
+	links := ui.TextAreaBase(c, &v.URLs).Transition(controlMotion).FillWidth().Lines(2, 7).MinHeight(sourceMinHeight).Padding(12, 14).FontSize(13).FixedLineHeight(20).
+		Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接或 cURL").PlaceholderColor(p.muted).
+		Description("支持 HTTP、HTTPS 和 FTP 文件链接").Disabled(v.Busy)
+	if v.focusLinks && !v.advanced && v.bt.tab == 0 {
+		links.Focus()
+		v.focusLinks = false
 	}
-	links.Border(1, edge)
+	styleSourceField(c, links, p)
 	if links.Changed() {
 		v.FormError = ""
 		if v.importedURL != "" && v.URLs != v.importedURL {
@@ -240,6 +281,17 @@ func (v *View) linkEditor(c *ui.Context, p palette) {
 			c.Invalidate()
 		}
 	}
+}
+
+func styleSourceField(c *ui.Context, field ui.Element, p palette) {
+	edge, focusEdge := p.border, p.active
+	if !c.Preferences().HighContrast {
+		edge, focusEdge = p.muted.Alpha(.36), p.active.Alpha(.65)
+	}
+	if field.Focused() {
+		edge = focusEdge
+	}
+	field.Border(1, edge)
 }
 
 func (v *View) composeDestination(c *ui.Context, p palette) {

@@ -22,7 +22,7 @@ type torrentCreator struct {
 
 func (v *View) createEditor(c *ui.Context, p palette) {
 	b := &v.bt.creator
-	ui.Column(c.Key("torrent-create")).Transition(pageFade).FillWidth().Gap(8).Children(func() {
+	ui.Column(c.Key("torrent-create")).FillWidth().Gap(8).Children(func() {
 		ui.Row(c).FillWidth().Gap(8).Children(func() {
 			rowInput(c, p, "制种来源", "选择文件或文件夹", &b.source, false).Disabled(v.Busy)
 			dropdown(c.Key("pick-source"), p, "选择制种来源", "选择", v.Busy || v.Actions.PickSource == nil, func(m *ui.Menu) {
@@ -50,12 +50,12 @@ func (v *View) createFooter(c *ui.Context, p palette) {
 	b := &v.bt.creator
 	ui.Checkbox(c, &b.seed, "用原文件做种").Transition(controlMotion).Grow(1).Disabled(v.Busy)
 	if b.cancel != nil {
-		if secondaryAction(c, "取消生成").Clicked() {
+		if secondaryAction(c, "取消生成").Width(composePrimaryWidth).Shrink(0).Clicked() {
 			b.cancel()
 		}
 		return
 	}
-	if !primaryAction(c, "保存种子…", "file", v.Busy || strings.TrimSpace(b.source) == "" || v.Actions.SaveTorrent == nil).Clicked() {
+	if !primaryAction(c, "保存种子…", "file", v.Busy || strings.TrimSpace(b.source) == "" || v.Actions.SaveTorrent == nil).Width(composePrimaryWidth).Shrink(0).Clicked() {
 		return
 	}
 	source, trackers, seed := filepath.Clean(strings.TrimSpace(b.source)), strings.Fields(b.trackers), b.seed
