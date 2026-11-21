@@ -37,7 +37,7 @@ func (v *View) diskDialog(c *ui.Context, p palette, stage ui.Element) {
 		}
 		formRow(c, p, "文件预分配", func() {
 			label := map[string]string{"": "自动", "prealloc": "预分配", "none": "关闭"}[v.allocation]
-			dropdown(c.Key("allocation"), p, "文件预分配 · "+label, label, v.Busy, func(m *ui.Menu) {
+			dropdown(c.Key("allocation"), p, fieldDropdown, "文件预分配 · "+label, label, v.Busy, func(m *ui.Menu) {
 				for _, item := range [][2]string{{"自动", ""}, {"预分配", "prealloc"}, {"关闭", "none"}} {
 					if m.Item(item[0]).Checked(v.allocation == item[1]).Chosen() {
 						v.allocation = item[1]

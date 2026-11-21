@@ -2,11 +2,14 @@ package transfer_test
 
 import (
 	"image"
+	"image/color"
 	"math"
 	"testing"
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/presentation"
 )
 
@@ -128,5 +131,56 @@ func TestRecentDirectoryMenuFitsAboveComposerAndUpdatesDraft(t *testing.T) {
 	}
 	if v.Directory != b || !v.DialogOpen {
 		t.Fatal("choosing a recent directory lost the download draft")
+	}
+}
+
+func TestRenderTaskRateDropdownUsesCardMaterial(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		dark  bool
+		prefs ui.Preferences
+	}{
+		{name: "light"}, {name: "dark", dark: true},
+		{name: "opaque", prefs: ui.Preferences{ReduceTransparency: true}},
+		{name: "high contrast", dark: true, prefs: ui.Preferences{HighContrast: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var faces [2][]color.RGBA
+			for i, id := range []string{"first", "other-task"} {
+				v := presentation.New(nil, presentation.Actions{})
+				v.Ready = true
+				v.Snapshot.Preferences.StaticBackground = true
+				v.Snapshot.Tasks = []application.TaskDTO{{ID: id, Name: "one.zip", Status: "paused"}}
+				tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Dark: tc.dark, Preferences: tc.prefs})
+				if err := tt.Click("查看详情 one.zip"); err != nil {
+					t.Fatal(err)
+				}
+				tt.Move(2, 2)
+				tt.Advance(time.Second)
+				r := sourceBounds(t, tt, ui.RoleMenuButton, "任务限速 · 不限速")
+				// The straight top edge and the strip just inside it contain no glyphs.
+				stripe := func(inset int) []color.RGBA {
+					im := tt.Image()
+					var row []color.RGBA
+					for x := int(r.X) + 20; x < int(r.X+r.W)-20; x += 3 {
+						row = append(row, im.RGBAAt(x, int(math.Ceil(float64(r.Y)))+inset))
+					}
+					return row
+				}
+				faces[i] = stripe(4)
+				if !tc.prefs.ReduceTransparency && !tc.prefs.HighContrast && changedFraction(stripe(0), faces[i], 10) > .3 {
+					t.Error("idle trigger has a hard contrasting outline")
+				}
+				tt.Move(r.X+r.W/2, r.Y+r.H/2)
+				tt.Advance(time.Second)
+				if changedFraction(faces[i], stripe(4), 3) < .5 {
+					t.Error("hover should change the trigger surface")
+				}
+			}
+			translucent := !tc.prefs.ReduceTransparency && !tc.prefs.HighContrast
+			if change := changedFraction(faces[0], faces[1], 2); translucent && change < .25 || !translucent && change > 0 {
+				t.Errorf("fraction of trigger surface reflecting the card: %.2f", change)
+			}
+		})
 	}
 }

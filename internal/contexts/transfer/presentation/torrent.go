@@ -156,7 +156,7 @@ func (v *View) returnToTorrent(c *ui.Context, p palette) {
 
 func (v *View) torrentOptions(c *ui.Context, p palette) {
 	b := &v.bt
-	dropdown(c.Key("bt-options"), p, "BT 选项", "BT 选项", v.Busy, func(m *ui.Menu) {
+	dropdown(c.Key("bt-options"), p, fieldDropdown, "BT 选项", "BT 选项", v.Busy, func(m *ui.Menu) {
 		if _, ok := v.API.(torrentCreateAPI); ok {
 			if m.Item("创建种子…").Chosen() {
 				b.stopLookup()

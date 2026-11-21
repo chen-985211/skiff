@@ -29,11 +29,11 @@ func rateScope(id string) string {
 
 func (v *View) speedSelector(c *ui.Context, p palette, id string, current int64) {
 	label, display := rateScope(id), rateLabel(current)
-	title := display
+	title, style := display, fieldDropdown
 	if id != "" {
-		title = label + " · " + display
+		title, style = label+" · "+display, cardDropdown
 	}
-	dropdown(c.Key(label), p, label+" · "+display, title, !v.Ready || v.Busy, func(m *ui.Menu) {
+	dropdown(c.Key(label), p, style, label+" · "+display, title, !v.Ready || v.Busy, func(m *ui.Menu) {
 		for _, rate := range []int64{0, 512 << 10, 1 << 20, 2 << 20, 5 << 20, 10 << 20} {
 			if m.Item(rateLabel(rate)).Checked(rate == current).Chosen() {
 				v.saveRate(id, rate)
