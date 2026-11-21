@@ -184,3 +184,80 @@ func TestRenderTaskRateDropdownUsesCardMaterial(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderDropdownsShareTriggerAndMenuFeedback(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		var hoveredTriggers []color.RGBA
+		for _, task := range []bool{false, true} {
+			v := presentation.New(nil, presentation.Actions{})
+			v.Ready = true
+			v.Snapshot.Preferences.StaticBackground = true
+			v.Snapshot.Tasks = []application.TaskDTO{{ID: "one", Name: "one.zip", Status: "paused"}}
+			tt := ui.NewTesterWith(v.Render, 1020, 680, ui.TesterOptions{Dark: dark, Preferences: ui.Preferences{ReduceTransparency: true}})
+			page, label := "设置", "全局限速 · 不限速"
+			if task {
+				page, label = "查看详情 one.zip", "任务限速 · 不限速"
+			}
+			if err := tt.Click(page); err != nil {
+				t.Fatal(err)
+			}
+			tt.Move(2, 2)
+			tt.Advance(time.Second)
+			trigger := sourceBounds(t, tt, ui.RoleMenuButton, label)
+			triggerFace := func() color.RGBA {
+				return tt.Image().RGBAAt(int(trigger.X+trigger.W/2), int(trigger.Y+5))
+			}
+			idle := triggerFace()
+			tt.Move(trigger.X+trigger.W/2, trigger.Y+trigger.H/2)
+			tt.Advance(time.Second)
+			hoveredTriggers = append(hoveredTriggers, triggerFace())
+			if idle == triggerFace() {
+				t.Errorf("%s dark=%v: hovering leaves the trigger unchanged", label, dark)
+			}
+			if err := tt.Click(label); err != nil {
+				t.Fatal(err)
+			}
+			tt.Advance(time.Second)
+			checked := sourceBounds(t, tt, ui.RoleMenuItemCheckBox, "不限速")
+			other := sourceBounds(t, tt, ui.RoleMenuItemCheckBox, "512 KiB/s")
+			face := func(b ui.Rect) color.RGBA {
+				return tt.Image().RGBAAt(int(b.X+b.W-18), int(b.Y+b.H/2))
+			}
+			base := face(other)
+			tt.Move(other.X+other.W/2, other.Y+other.H/2)
+			tt.Advance(time.Second)
+			hover := face(other)
+			tt.Key(0, ui.KeyHome)
+			tt.Advance(time.Second)
+			key := face(checked)
+			// The selected row keeps a legible check mark and caption on the highlight.
+			im := tt.Image()
+			for _, span := range [][2]int{{12, 25}, {36, 73}} {
+				var ink int
+				for y := int(checked.Y + 4); y < int(checked.Y+checked.H-4); y++ {
+					for x := int(checked.X) + span[0]; x < int(checked.X)+span[1]; x++ {
+						diff := int(key.R) - int(im.RGBAAt(x, y).R)
+						if dark {
+							diff = -diff
+						}
+						if diff > 75 {
+							ink++
+						}
+					}
+				}
+				if ink < 4 {
+					t.Errorf("%s dark=%v: missing legible ink in row columns %v", label, dark, span)
+				}
+			}
+			// Keyboard and pointer use the same highlight. Its shade should
+			// be distinct from an idle row without reversing the menu's polarity.
+			delta := math.Abs(float64(hover.R) - float64(base.R))
+			if hover != key || delta < 10 || delta > 85 || face(other) != base {
+				t.Errorf("%s dark=%v: idle %v, hovered %v, keyboard %v, previous row %v", label, dark, base, hover, key, face(other))
+			}
+		}
+		if hoveredTriggers[0] != hoveredTriggers[1] {
+			t.Errorf("dark=%v: settings and task triggers have different hover colors: %v", dark, hoveredTriggers)
+		}
+	}
+}

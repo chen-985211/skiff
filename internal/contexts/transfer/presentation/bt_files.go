@@ -48,7 +48,7 @@ func (v *View) btFileActions(c *ui.Context, p palette) {
 				}
 			})
 		}
-		dropdown(c.Key("bt-file-actions"), p, fieldDropdown, "BT 文件操作", "文件操作", v.Busy, func(m *ui.Menu) {
+		dropdown(c.Key("bt-file-actions"), p, "BT 文件操作", "文件操作", v.Busy, func(m *ui.Menu) {
 			if m.Item("校验文件").Chosen() {
 				run(func(ctx context.Context) error { return api.VerifyTorrentFiles(ctx, id) }, "全部分片校验通过")
 			}

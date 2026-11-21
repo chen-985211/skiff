@@ -25,7 +25,7 @@ func (v *View) createEditor(c *ui.Context, p palette) {
 	ui.Column(c.Key("torrent-create")).FillWidth().Gap(8).Children(func() {
 		ui.Row(c).FillWidth().Gap(8).Children(func() {
 			rowInput(c, p, "制种来源", "选择文件或文件夹", &b.source, false).Disabled(v.Busy)
-			dropdown(c.Key("pick-source"), p, fieldDropdown, "选择制种来源", "选择", v.Busy || v.Actions.PickSource == nil, func(m *ui.Menu) {
+			dropdown(c.Key("pick-source"), p, "选择制种来源", "选择", v.Busy || v.Actions.PickSource == nil, func(m *ui.Menu) {
 				for i, name := range []string{"文件…", "文件夹…"} {
 					if m.Item(name).Chosen() {
 						v.Actions.PickSource(i == 1, func(path string, err error) {

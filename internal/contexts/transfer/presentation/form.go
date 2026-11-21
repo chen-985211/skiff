@@ -306,7 +306,7 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 			})
 		}
 		if v.Snapshot.Preferences.RecentDirectories[0] != "" {
-			dropdown(c.Key("recent-destinations"), p, fieldDropdown, "选择保存目录", "", v.Busy, func(m *ui.Menu) {
+			dropdown(c.Key("recent-destinations"), p, "选择保存目录", "", v.Busy, func(m *ui.Menu) {
 				w, _ := c.Size()
 				m.MaxWidth(min(400, w-24))
 				if v.Actions.PickDirectory != nil && m.Item("选择文件夹…").Chosen() {
