@@ -11,6 +11,7 @@ import (
 type API interface {
 	RetryFTP(context.Context, string, string, string) error
 	SetConcurrency(context.Context, int) error
+	SetDiskSettings(context.Context, application.DiskSettings) error
 	SetTheme(context.Context, application.ThemeMode) error
 	SetDefaultDirectory(context.Context, string) error
 	SetStaticBackground(context.Context, bool) error
@@ -29,6 +30,9 @@ type Actions struct {
 }
 type View struct {
 	importedURL                                    string
+	diskOpen                                       bool
+	cacheText, splitText, allocation               string
+	diskErr                                        error
 	headerErr                                      error
 	requestOpen                                    bool
 	fields                                         []requestField
@@ -137,6 +141,7 @@ func (v *View) Render(c *ui.Context) {
 		search.Opacity(max(0, 1-reveal/.35))
 		v.newDialog(c, p, anchor, reveal)
 	}
+	v.diskDialog(c, p)
 	v.requestDialog(c, p)
 	v.ftpLogin(c, p)
 	if ui.AlertDialog(c, &v.RestartOpen, "从头重新下载？", "原来的未完成文件会保留，新下载使用不同文件名。", "取消", "重新下载") == 1 {

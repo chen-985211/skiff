@@ -54,7 +54,7 @@ func (c *Client) InspectRequest(ctx context.Context, s application.TransferSpec,
 		return application.SourceInfo{}, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	info := responseInfo(resp)
-	if ranges && resp.ContentLength >= 2*domain.MinSplitBytes && resp.Header.Get("Accept-Ranges") != "none" {
+	if ranges && resp.ContentLength >= 2*s.Disk.SplitBytes() && resp.Header.Get("Accept-Ranges") != "none" {
 		return inspectRange(client, req, true, info)
 	}
 	return info, nil

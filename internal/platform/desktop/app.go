@@ -141,11 +141,16 @@ func Run() error {
 				win.Update(func() { view.OfferEngineDownload(reason) })
 			})
 			ctx, cancel := context.WithTimeout(pollCtx, 12*time.Second)
+			repo := persistence.Repository{Path: filepath.Join(dataDir, "tasks.json")}
 			if err == nil {
-				process, err = aria2.Start(ctx, dataDir, binary)
+				var state application.State
+				state, err = repo.Load(ctx)
+				if err == nil {
+					process, err = aria2.StartConfigured(ctx, dataDir, binary, state.Preferences)
+				}
 			}
 			if err == nil {
-				service = application.New(process.Client, persistence.Repository{Path: filepath.Join(dataDir, "tasks.json")}, defaultDirectory, newID)
+				service = application.New(process.Client, repo, defaultDirectory, newID)
 				err = service.Open(ctx)
 				if err != nil {
 					// Quit must never flush a partially restored queue.

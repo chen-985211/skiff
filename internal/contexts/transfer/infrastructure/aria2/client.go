@@ -16,6 +16,10 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 		return err
 	}
 	options := map[string]string{"gid": s.ID, "dir": s.Directory, "pause": strconv.FormatBool(s.Paused)}
+	options["min-split-size"] = strconv.FormatInt(s.Disk.SplitBytes(), 10)
+	if s.Disk.Allocation != "" {
+		options["file-allocation"] = s.Disk.Allocation
+	}
 	if strings.HasPrefix(s.URL, "ftp://") {
 		options["ftp-pasv"] = "true"
 		if s.FTPUser != "" {

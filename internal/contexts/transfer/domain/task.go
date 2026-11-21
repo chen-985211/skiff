@@ -60,11 +60,12 @@ const (
 )
 
 type Record struct {
-	Headers              string `json:",omitempty"`
-	FTPUser              string `json:",omitempty"`
-	FTPPassword          string `json:",omitempty"`
-	RequestedConnections int    `json:",omitempty"`
-	ConnectionLimit      int    `json:",omitempty"`
+	Disk                 DiskSettings `json:",omitzero"`
+	Headers              string       `json:",omitempty"`
+	FTPUser              string       `json:",omitempty"`
+	FTPPassword          string       `json:",omitempty"`
+	RequestedConnections int          `json:",omitempty"`
+	ConnectionLimit      int          `json:",omitempty"`
 	Version              SourceVersion
 	ID                   string
 	URL                  string
@@ -135,7 +136,7 @@ func (t *Task) PlanConnections(requested int, rangeBytes int64) {
 		limit = DefaultConnectionLimit
 	}
 	t.record.RequestedConnections = requested
-	t.record.ConnectionLimit = int(max(1, min(int64(limit), rangeBytes/MinSplitBytes)))
+	t.record.ConnectionLimit = int(max(1, min(int64(limit), rangeBytes/t.record.Disk.SplitBytes())))
 }
 
 func (t *Task) SetOutputName(name string) { t.record.OutputName = name; t.record.Name = name }

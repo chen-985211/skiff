@@ -53,6 +53,12 @@ func FindBinary() (string, error) {
 	return "", application.ErrEngineMissing
 }
 func Start(ctx context.Context, dataDir, binary string) (*Process, error) {
+	return StartConfigured(ctx, dataDir, binary, application.Preferences{})
+}
+func StartConfigured(ctx context.Context, dataDir, binary string, prefs application.Preferences) (*Process, error) {
+	if err := prefs.Disk.Validate(); err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(dataDir, 0700); err != nil {
 		return nil, err
 	}
@@ -74,7 +80,7 @@ func Start(ctx context.Context, dataDir, binary string) (*Process, error) {
 	}
 	f.Close()
 	config := strings.Join([]string{
-		"enable-rpc=true", "rpc-listen-all=false", "rpc-allow-origin-all=false",
+		"disk-cache=" + strconv.FormatInt(prefs.Disk.CacheBytes(), 10), "enable-rpc=true", "rpc-listen-all=false", "rpc-allow-origin-all=false",
 		"rpc-listen-port=" + strconv.Itoa(port), "rpc-secret=" + secret,
 		"save-session=" + session, "input-file=" + session, "save-session-interval=5",
 		"force-save=true", "continue=false", "pause=true", "max-concurrent-downloads=" + strconv.Itoa(application.DefaultConcurrency),

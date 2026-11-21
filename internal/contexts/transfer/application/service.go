@@ -35,7 +35,9 @@ type SourceInfo struct {
 	RangeBytes int64
 }
 
+type DiskSettings = domain.DiskSettings
 type TransferSpec struct {
+	Disk                 DiskSettings
 	Headers              string
 	FTPUser, FTPPassword string
 	ConnectionLimit      int
@@ -76,9 +78,10 @@ func (mode ThemeMode) valid() bool {
 }
 
 type Preferences struct {
-	RecentDirectories [5]string `json:",omitempty"`
-	Concurrency       int       `json:",omitempty"`
-	Theme             ThemeMode `json:",omitempty"`
+	Disk              DiskSettings `json:",omitzero"`
+	RecentDirectories [5]string    `json:",omitempty"`
+	Concurrency       int          `json:",omitempty"`
+	Theme             ThemeMode    `json:",omitempty"`
 	DefaultDirectory  string
 	StaticBackground  bool
 }
@@ -134,7 +137,7 @@ func transferSpec(r domain.Record, paused bool) TransferSpec {
 	if r.Path != "" && filepath.Clean(filepath.Dir(r.Path)) == filepath.Clean(r.Directory) {
 		name = filepath.Base(r.Path)
 	}
-	return TransferSpec{Headers: r.Headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
+	return TransferSpec{Disk: r.Disk, Headers: r.Headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
@@ -267,6 +270,9 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 	if err != nil {
 		return BatchResult{}, err
 	}
+	s.mu.Lock()
+	disk := s.preferences.Disk
+	s.mu.Unlock()
 	requests := make([]TransferSpec, len(batch.Sources))
 	origin := ""
 	for i, source := range batch.Sources {
@@ -278,7 +284,7 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 			}
 			origin = current
 		}
-		requests[i] = TransferSpec{URL: source, Headers: headers}
+		requests[i] = TransferSpec{URL: source, Headers: headers, Disk: disk}
 	}
 	sources := s.inspectBatch(ctx, requests, limit != 1)
 	if err := ctx.Err(); err != nil {
@@ -302,6 +308,7 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 			continue
 		}
 		task = domain.NewTask(s.nextID(), source, directory)
+		task.SetDisk(disk)
 		task.SetHeaders(headers)
 		pending[task.Record().URL] = true
 		if name != "" {
@@ -711,3 +718,14 @@ func (s *Service) RetryFTP(ctx context.Context, id, user, password string) error
 }
 
 func ImportHeaders(text string) (string, error) { return domain.NormalizeHeaders(text) }
+
+func (s *Service) SetDiskSettings(ctx context.Context, d DiskSettings) error {
+	if err := d.Validate(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.preferences
+	next.Disk = d
+	return s.savePreferences(ctx, next)
+}
