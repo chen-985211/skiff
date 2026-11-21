@@ -314,11 +314,12 @@ func TestBTArchivedTaskKeepsTorrentDetails(t *testing.T) {
 }
 
 func TestBTCreateV1FileAndDirectoryAndSeedOriginal(t *testing.T) {
-	s, _, _ := btService(t)
-	ctx := t.Context()
 	for _, folder := range []bool{false, true} {
 		t.Run(fmt.Sprintf("directory=%v", folder), func(t *testing.T) {
+			// The seeder must exit before TempDir removes its open payload.
 			parent := t.TempDir()
+			s, _, _ := btService(t)
+			ctx := t.Context()
 			source := filepath.Join(parent, "sample.bin")
 			a := []byte(strings.Repeat("a", 175001))
 			b := []byte(strings.Repeat("b", 65003))

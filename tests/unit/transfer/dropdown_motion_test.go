@@ -44,6 +44,9 @@ func TestRenderDropdownHighlightFollowsAndReversesBetweenRows(t *testing.T) {
 		tt.Move(b.X+b.W/2, b.Y+b.H/2)
 		first, _ := band()
 		tt.Advance(55 * time.Millisecond)
+		// Advance can stop between refreshes. Render at the timestamp of
+		// the next input so the comparison measures retargeting alone.
+		tt.Frame()
 		mid, midHeight := band()
 		tt.Key(0, ui.KeyHome)
 		reverse, _ := band()

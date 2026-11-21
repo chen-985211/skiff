@@ -258,7 +258,8 @@ func TestRenderDropdownsShareTriggerAndMenuFeedback(t *testing.T) {
 				t.Errorf("%s dark=%v: idle %v, hovered %v, keyboard %v, previous row %v", label, dark, base, hover, key, face(other))
 			}
 		}
-		if hoveredTriggers[0] != hoveredTriggers[1] {
+		// The two surfaces may round a composited channel to adjacent 8-bit values.
+		if changedFraction(hoveredTriggers[:1], hoveredTriggers[1:], 2) > 0 {
 			t.Errorf("dark=%v: settings and task triggers have different hover colors: %v", dark, hoveredTriggers)
 		}
 	}
