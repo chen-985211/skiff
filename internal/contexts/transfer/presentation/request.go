@@ -3,6 +3,7 @@ package presentation
 import (
 	"github.com/egoist/mygo/ui"
 	"skiff/internal/contexts/transfer/application"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -42,53 +43,51 @@ func (v *View) loadHeaders(block string) {
 		}
 	}
 }
-func (v *View) requestDialog(c *ui.Context, p palette) {
-	ui.DialogBase(c, &v.requestOpen, func(back, panel ui.Element) {
-		panel.Width(360).Column().Padding(18).Gap(10).Radius(cornerSheet).Background(p.panel).Transition(panelMotion).Children(func() {
-			ui.Text(c, "请求选项").FontSize(18).FontWeight(600)
-			if v.fields == nil {
-				v.loadHeaders("")
+func (v *View) headerOptions(c *ui.Context, p palette) {
+	if v.fields == nil {
+		v.loadHeaders("")
+	}
+	added := false
+	ui.Row(c).FillWidth().Height(28).Shrink(0).AlignItems(ui.Center).Gap(8).Children(func() {
+		count := 0
+		for _, h := range v.fields {
+			if h.Value != "" {
+				count++
 			}
-			_, height := c.Size()
-			ui.Scroll(c).FillWidth().Height(min(320, height-160)).Children(func() {
-				ui.Column(c).FillWidth().Gap(8).Children(func() {
-					if secondaryAction(c, "单任务代理").Clicked() {
-						v.openNetwork(true)
-					}
-					ui.Text(c, "备用下载地址").FontSize(12).TextColor(p.muted)
-					ui.TextAreaBase(c, &v.mirrorText).Transition(controlMotion).FillWidth().Lines(2, 3).Padding(8).Radius(cornerSmall).Border(1, p.border).Label("备用下载地址").Placeholder("同一文件，每行一个备用地址")
-					for i := range v.fields {
-						h := &v.fields[i]
-						if i < 4 {
-							optionField(c, p, h.Name, &h.Value, i < 2)
-						} else {
-							ui.Row(c.Key(strconv.Itoa(i))).Transition(pageFade).Gap(5).FillWidth().Children(func() {
-								for j, value := range []*string{&h.Name, &h.Value} {
-									label := []string{"请求头名称", "请求头值"}[j]
-									field := ui.TextInputBase(c, value).Transition(controlMotion).Grow(1).Height(30).PaddingX(6).Radius(cornerSmall).Border(1, p.border).Label(label).Placeholder(label)
-									if j == 1 {
-										field.Password()
-									}
-								}
-							})
-						}
-					}
-					inlineError(c, v.headerErr)
-					if secondaryAction(c, "从剪贴板导入请求头").Clicked() {
-						block, err := application.ImportHeaders(c.ReadClipboard())
-						v.headerErr = err
-						if err == nil && block != "" {
-							v.loadHeaders(block)
-						}
-					}
-					if secondaryAction(c, "添加自定义请求头").Clicked() {
-						v.fields = append(v.fields, requestField{})
-					}
-				})
-			})
-			if primaryAction(c, "完成", "check", false).AlignSelf(ui.End).Clicked() {
-				v.requestOpen = false
+		}
+		ui.Textf(c, "已设置 %d 项", count).ContentTransition(numberChange).Grow(1).FontSize(13).FontWeight(580)
+		if secondaryAction(c, "从剪贴板导入").Height(26).Label("从剪贴板导入请求头").Clicked() {
+			block, err := application.ImportHeaders(c.ReadClipboard())
+			v.headerErr = err
+			if err == nil && block != "" {
+				v.loadHeaders(block)
+			}
+		}
+		if secondaryAction(c, "添加请求头").Height(26).Label("添加自定义请求头").Clicked() {
+			v.fields = append(v.fields, requestField{})
+			added = true
+		}
+	})
+	inlineError(c, v.headerErr)
+	remove := -1
+	for i := range v.fields {
+		h := &v.fields[i]
+		if i < 4 {
+			formRow(c, p, h.Name, func() { rowInput(c, p, h.Name, "", &h.Value, i < 2) })
+			continue
+		}
+		ui.Row(c.Key("custom-" + strconv.Itoa(i))).Transition(pageFade).FillWidth().Height(32).Shrink(0).Gap(6).AlignItems(ui.Center).Children(func() {
+			name := rowInput(c, p, "请求头名称", "名称", &h.Name, false).Grow(0).Basis(82).MinWidth(82)
+			if added && i == len(v.fields)-1 {
+				name.Focus().ScrollIntoView()
+			}
+			rowInput(c, p, "请求头值", "值", &h.Value, true)
+			if iconButton(c, "close", "移除自定义请求头 "+strconv.Itoa(i-3), false) {
+				remove = i
 			}
 		})
-	})
+	}
+	if remove >= 0 {
+		v.fields = slices.Delete(v.fields, remove, remove+1)
+	}
 }

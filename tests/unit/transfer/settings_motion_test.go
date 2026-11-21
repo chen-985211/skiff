@@ -323,7 +323,18 @@ func TestRenderSettingsThemeHasNoAbruptBrightnessStep(t *testing.T) {
 	}
 	tt.Advance(time.Second)
 	for _, label := range []string{"深色", "浅色"} {
-		brightness := func() int { return int(tt.Image().RGBAAt(620, 420).G) }
+		// Sample the canvas and settings surface away from the sliding theme
+		// selector. A pixel under its moving thumb measures a different motion.
+		theme, ok := tt.AccessByRole(ui.RoleRadioGroup, "主题")
+		dir, hasDir := tt.AccessByRole(ui.RoleButton, "更改默认保存目录")
+		if !ok || !hasDir {
+			t.Fatal("missing settings controls")
+		}
+		brightness := func() [2]int {
+			im := tt.Image()
+			y := int(theme.Bounds.Y + theme.Bounds.H/2)
+			return [2]int{int(im.RGBAAt(int(dir.Bounds.X)-12, y).G), int(im.RGBAAt(int(theme.Bounds.X)-22, y).G)}
+		}
 		start := brightness()
 		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
@@ -334,16 +345,20 @@ func TestRenderSettingsThemeHasNoAbruptBrightnessStep(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("theme was not saved")
 		}
-		prev, largest := start, 0
+		prev, largest := start, [2]int{}
 		for range 26 {
 			tt.Advance(time.Second / 60)
 			level := brightness()
-			largest = max(largest, level-prev, prev-level)
+			for i := range level {
+				largest[i] = max(largest[i], level[i]-prev[i], prev[i]-level[i])
+			}
 			prev = level
 		}
-		span := max(start-prev, prev-start)
-		if span < 60 || largest*7 > span {
-			t.Errorf("%s: one frame changed by %d of a %d-level theme transition", label, largest, span)
+		for i, area := range []string{"canvas", "settings surface"} {
+			span := max(start[i]-prev[i], prev[i]-start[i])
+			if span < 60 || largest[i]*7 > span {
+				t.Errorf("%s %s: one frame changed by %d of a %d-level theme transition", label, area, largest[i], span)
+			}
 		}
 	}
 }

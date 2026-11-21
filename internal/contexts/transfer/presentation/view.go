@@ -33,7 +33,7 @@ type Actions struct {
 type View struct {
 	mirrorText                                     string
 	importedURL                                    string
-	networkOpen, networkTask                       bool
+	networkOpen                                    bool
 	networkDraft, taskNetwork                      application.NetworkSettings
 	networkErr                                     error
 	rateOpen                                       bool
@@ -43,7 +43,7 @@ type View struct {
 	cacheText, splitText, allocation               string
 	diskErr                                        error
 	headerErr                                      error
-	requestOpen                                    bool
+	optionTab                                      int
 	fields                                         []requestField
 	outputName                                     string
 	ftpOpen                                        bool
@@ -95,7 +95,7 @@ func (v *View) FinishEngineStartup(api API, snapshot application.Snapshot, err e
 }
 
 func (v *View) OpenNew() {
-	if v.Ready && !v.Busy && !v.DialogOpen && !v.RestartOpen {
+	if v.Ready && !v.Busy && !v.DialogOpen && !v.RestartOpen && !v.networkOpen && !v.diskOpen && !v.rateOpen && !v.ftpOpen {
 		v.DialogOpen = true
 		if v.URLs == "" && (v.Directory == "" || v.Directory == v.lastDefault) {
 			v.Directory = v.Snapshot.Directory
@@ -152,7 +152,6 @@ func (v *View) Render(c *ui.Context) {
 	}
 	v.rateDialog(c, p)
 	v.diskDialog(c, p)
-	v.requestDialog(c, p)
 	v.networkDialog(c, p)
 	v.ftpLogin(c, p)
 	if ui.AlertDialog(c, &v.RestartOpen, "从头重新下载？", "原来的未完成文件会保留，新下载使用不同文件名。", "取消", "重新下载") == 1 {

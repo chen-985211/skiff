@@ -25,6 +25,13 @@ func (v *View) submit() {
 		v.FormError = "请选择保存目录"
 		return
 	}
+	network := normalizedNetwork(v.taskNetwork)
+	if err := network.Validate(); err != nil {
+		v.optionTab = proxyTab
+		v.advanced = true
+		v.FormError = err.Error()
+		return
+	}
 	if v.API == nil {
 		return
 	}
@@ -34,6 +41,7 @@ func (v *View) submit() {
 		limit, err = strconv.Atoi(value)
 		if err != nil || limit < 1 || limit > application.MaxConnectionLimit {
 			v.FormError = fmt.Sprintf("连接上限应为 1 到 %d，留空使用自动设置", application.MaxConnectionLimit)
+			v.optionTab = fileTab
 			v.advanced = true
 			return
 		}
@@ -41,7 +49,7 @@ func (v *View) submit() {
 	v.Busy = true
 	v.FormError = ""
 	text, dir := v.URLs, v.Directory
-	opts := application.AddOptions{ConnectionLimit: limit, Network: v.taskNetwork, Mirrors: v.mirrorText, Headers: v.headerBlock(), OutputName: v.outputName}
+	opts := application.AddOptions{ConnectionLimit: limit, Network: network, Mirrors: v.mirrorText, Headers: v.headerBlock(), OutputName: v.outputName}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -76,6 +84,8 @@ func (v *View) submit() {
 				v.DialogOpen = false
 				v.Directory = ""
 				v.advanced = false
+				v.optionTab = fileTab
+				v.headerErr = nil
 				v.connectionLimit = ""
 				v.outputName = ""
 				v.fields = nil

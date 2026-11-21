@@ -7,6 +7,15 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+const (
+	formInsetX         = 20
+	formInsetY         = 16
+	formGap            = 12
+	formHeaderHeight   = 26
+	formFooterHeight   = 36
+	formErrorMaxHeight = 68
+)
+
 func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float32) {
 	windowW, windowH := c.Size()
 	const left = sidebarWidth + workspaceInset
@@ -32,11 +41,11 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 			Background(p.accent.Alpha(buttonInk)).IgnoreInput(true)
 		fields := min(max((reveal-.48)/.42, 0), 1)
 		// Measure the clipped form at its reading width throughout the transition.
-		form := ui.Column(c.Key("form")).Width(width).Shrink(0).Padding(16, 20).Gap(12).
+		form := ui.Column(c.Key("form")).Width(width).Shrink(0).Padding(formInsetY, formInsetX).Gap(formGap).
 			Opacity(fields).IgnoreInput(!v.DialogOpen).AccessHidden(!v.DialogOpen)
 		form.Children(func() {
 			// The moving title occupies the leading side of this header.
-			ui.Row(c).FillWidth().Height(26).Gap(8).AlignItems(ui.Center).Justify(ui.End).Children(func() {
+			ui.Row(c).FillWidth().Height(formHeaderHeight).Gap(8).AlignItems(ui.Center).Justify(ui.End).Children(func() {
 				count := 0
 				for line := range strings.Lines(v.URLs) {
 					if strings.TrimSpace(line) != "" {
@@ -47,9 +56,26 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 					ui.Textf(c, "已输入 %d 行", count).Transition(pageFade).Margin(0, 82, 0, 0).FontSize(11).TextColor(p.muted).ContentTransition(numberChange)
 				}
 			})
-			v.composeFields(c, p, form.AnimateTo("advanced", amount(v.advanced), panelSpring))
-			if secondaryAction(c, "高级选项").Expanded(v.advanced).Absolute().Top(16).Right(20).Height(26).Disabled(v.Busy || fields < .5).Clicked() {
+			advanced := form.AnimateTo("advanced", amount(v.advanced), panelSpring)
+			back.Background(p.canvas.Alpha(.18 * advanced * reveal))
+			v.composeFields(c, p, width-2*formInsetX, advanced)
+			toggle := ui.ButtonBase(c.Key("advanced-toggle")).Transition(controlMotion).Label("高级选项").Expanded(v.advanced).Absolute().Top(14).Right(16).Height(30).PaddingX(8).Radius(cornerSmall).FocusRing(true).Disabled(v.Busy || fields < .5)
+			turn := toggle.AnimateTo("disclosure", amount(v.advanced), selectionSpring)
+			if toggle.Hovered() {
+				toggle.Background(p.panel.Alpha(.5))
+			}
+			toggle.Row().AlignItems(ui.Center).Gap(5).Children(func() {
+				ui.Text(c, "高级选项").FontSize(12).FontWeight(550).TextColor(p.muted)
+				ui.Icon(c, icons["chevron"]).FontSize(12).TextColor(p.muted).Rotate(180 * turn)
+			})
+			if toggle.Clicked() {
 				v.advanced = !v.advanced
+				c.Invalidate()
+			}
+			if !shown && v.advanced && !back.Clicked() && !v.Busy {
+				shown = true
+				v.advanced = false
+				toggle.Focus()
 				c.Invalidate()
 			}
 		})
@@ -86,10 +112,10 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 	}
 }
 
-func (v *View) composeFields(c *ui.Context, p palette, advanced float32) {
+func (v *View) composeFields(c *ui.Context, p palette, width, advanced float32) {
 	p.muted = p.muted.Mix(c.Theme().Text, .38)
 	ui.Column(c.Key("source-fields")).FillWidth().Children(func() {
-		links := ui.TextAreaBase(c, &v.URLs).Transition(controlMotion).FillWidth().Lines(4, 7).Padding(12, 14).FontSize(13).FixedLineHeight(20).
+		links := ui.TextAreaBase(c, &v.URLs).Transition(controlMotion).FillWidth().Lines(2, 7).MinHeight(104-40*advanced).Padding(12, 14).FontSize(13).FixedLineHeight(20).
 			Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接或浏览器 cURL").PlaceholderColor(p.muted).
 			Description("支持 HTTP、HTTPS 和 FTP 文件链接").AutoFocus().Disabled(v.Busy)
 		edge, focusEdge := p.border, p.active
@@ -114,40 +140,10 @@ func (v *View) composeFields(c *ui.Context, p palette, advanced float32) {
 			}
 		}
 
-		ui.Box(c.Key("advanced-slot")).FillWidth().Height(84 * advanced).Clip().Opacity(advanced).IgnoreInput(!v.advanced).AccessHidden(!v.advanced).Children(func() {
-			if advanced == 0 && !v.advanced {
-				return
-			}
-			ui.Row(c).Absolute().Left(0).Right(0).Top(7).Height(30).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "文件名").FontSize(13).TextColor(p.muted)
-				ui.TextInputBase(c, &v.outputName).Transition(controlMotion).Grow(1).Height(30).PaddingX(8).Border(1, p.border).Radius(cornerInline).Label("单文件另存为").Placeholder("使用原文件名").Disabled(v.Busy || !v.advanced)
-				if v.Snapshot.Preferences.RecentDirectories[0] != "" {
-					ui.MenuButton(c, "最近目录", func(m *ui.Menu) {
-						for _, dir := range v.Snapshot.Preferences.RecentDirectories {
-							if dir != "" && m.Item(dir).Chosen() {
-								v.Directory = dir
-							}
-						}
-					}).Transition(controlMotion)
-				}
-			})
-			ui.Row(c).Absolute().Left(0).Right(0).Bottom(0).Height(30).AlignItems(ui.Center).Gap(8).Children(func() {
-				if secondaryAction(c, "请求选项").Clicked() {
-					v.requestOpen = true
-				}
-				ui.Text(c, "单文件连接上限").Grow(1).FontSize(13).TextColor(p.muted)
-				field := ui.TextInputBase(c, &v.connectionLimit).Transition(controlMotion).Width(80).Height(30).PaddingX(8).Label("单文件连接上限").Placeholder("自动").Description("1 到 16，留空为自动").Border(1, p.border).Radius(cornerInline).Disabled(v.Busy || !v.advanced)
-				if field.Focused() {
-					field.Border(1, p.active)
-				}
-				if field.Changed() {
-					v.FormError = ""
-				}
-			})
-		})
+		v.advancedOptions(c, p, width, links.LayoutBounds().H, advanced)
 	})
 	if v.FormError != "" {
-		ui.Text(c, v.FormError).Transition(pageFade).ContentTransition(textChange).MaxHeight(68).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
+		ui.Text(c, v.FormError).Transition(pageFade).ContentTransition(textChange).MaxHeight(formErrorMaxHeight).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
 	}
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
 		v.composeDestination(c, p)
@@ -158,25 +154,9 @@ func (v *View) composeFields(c *ui.Context, p palette, advanced float32) {
 }
 
 func (v *View) composeDestination(c *ui.Context, p palette) {
-	ui.Row(c).Grow(1).MinWidth(0).Height(36).AlignItems(ui.Center).Gap(8).Children(func() {
-		var label ui.Element
-		if v.Actions.PickDirectory != nil {
-			label = ui.ButtonBase(c.Key("pick-directory")).Transition(controlMotion).Label("选择保存目录").Tooltip("选择保存目录").
-				Radius(cornerInline).FocusRing(true).Disabled(v.Busy)
-		} else {
-			label = ui.Row(c)
-		}
-		if v.Actions.PickDirectory != nil && label.Hovered() {
-			label.Background(p.panel.Alpha(.45))
-		}
-		label.Row().Shrink(0).FillHeight().AlignItems(ui.Center).Gap(5).Children(func() {
-			ui.Icon(c, icons["folder"]).FontSize(15).TextColor(p.muted)
-			ui.Text(c, "保存到").FontSize(12).TextColor(p.muted)
-			if v.Actions.PickDirectory != nil {
-				ui.Icon(c, icons["chevron"]).FontSize(12).TextColor(p.muted)
-			}
-		})
-		if v.Actions.PickDirectory != nil && label.Clicked() {
+	ui.Row(c).Grow(1).MinWidth(0).Height(formFooterHeight).AlignItems(ui.Center).Gap(8).Children(func() {
+
+		pick := func() {
 			v.Actions.PickDirectory(v.Directory, func(path string, err error) {
 				if err != nil {
 					v.FormError = err.Error()
@@ -184,6 +164,39 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 					v.Directory, v.FormError = path, ""
 				}
 			})
+		}
+		if v.Snapshot.Preferences.RecentDirectories[0] != "" {
+			ui.MenuButton(c.Key("recent-destinations"), "保存到", func(m *ui.Menu) {
+				if v.Actions.PickDirectory != nil && m.Item("选择文件夹…").Chosen() {
+					pick()
+				}
+				for _, dir := range v.Snapshot.Preferences.RecentDirectories {
+					if dir != "" && m.Item(dir).Checked(dir == v.Directory).Chosen() {
+						v.Directory, v.FormError = dir, ""
+					}
+				}
+			}).Transition(controlMotion).Label("选择保存目录").Tooltip("选择文件夹或最近位置").Height(30).PaddingX(6).Radius(cornerInline).Background(ui.Transparent).Disabled(v.Busy)
+		} else {
+			var label ui.Element
+			if v.Actions.PickDirectory != nil {
+				label = ui.ButtonBase(c.Key("pick-directory")).Transition(controlMotion).Label("选择保存目录").Tooltip("选择保存目录").
+					Radius(cornerInline).FocusRing(true).Disabled(v.Busy)
+			} else {
+				label = ui.Row(c)
+			}
+			if v.Actions.PickDirectory != nil && label.Hovered() {
+				label.Background(p.panel.Alpha(.45))
+			}
+			label.Row().Shrink(0).FillHeight().AlignItems(ui.Center).Gap(5).Children(func() {
+				ui.Icon(c, icons["folder"]).FontSize(15).TextColor(p.muted)
+				ui.Text(c, "保存到").FontSize(12).TextColor(p.muted)
+				if v.Actions.PickDirectory != nil {
+					ui.Icon(c, icons["chevron"]).FontSize(12).TextColor(p.muted)
+				}
+			})
+			if v.Actions.PickDirectory != nil && label.Clicked() {
+				pick()
+			}
 		}
 		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Justify(ui.Center).Children(func() {
 			dir := ui.TextInputBase(c, &v.Directory).Transition(controlMotion).Absolute().Left(0).Right(0).Top(0).Bottom(0).PaddingX(6).

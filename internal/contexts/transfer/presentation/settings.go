@@ -12,30 +12,22 @@ import (
 )
 
 func (v *View) settingsPage(c *ui.Context, p palette) {
-	ui.Column(c.Key("settings-page")).Grow(1).MinHeight(0).Padding(32, 8).Transition(pageFade).Children(func() {
-		list := ui.Column(c).MaxWidth(820).FillWidth().AlignSelf(ui.Center)
+	ui.Scroll(c.Key("settings-page")).Grow(1).MinHeight(0).Transition(pageFade).Children(func() {
+		list := ui.Column(c).MaxWidth(820).FillWidth().AlignSelf(ui.Center).Padding(16, 8)
 		list.Children(func() {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Margin(0, 0, 20).Gap(8).Children(func() {
-				ui.Text(c, "设置").Grow(1).FontSize(28).FontWeight(650)
-				if secondaryAction(c, "代理与 DNS").Disabled(!v.Ready || v.Busy).Clicked() {
-					v.openNetwork(false)
+			ui.Text(c, "设置").FontSize(28).FontWeight(650).Margin(0, 0, 10)
+			section := func(label string, body func()) {
+				ui.Text(c, label).Margin(8, 4, 5).FontSize(12).FontWeight(610).TextColor(p.muted)
+				block := ui.Column(c).FillWidth().Radius(cornerPrimary)
+				if c.Preferences().ReduceTransparency || c.Preferences().HighContrast {
+					block.Background(p.panel)
+				} else {
+					block.LinearGradient(ui.LinearGradient{Angle: 117, Stops: []ui.GradientStop{{At: 0, Color: p.ice.Mix(p.panel, .67).Alpha(.64)}, {At: .39, Color: p.panel.Alpha(.67)}, {At: 1, Color: p.lilac.Mix(p.panel, .65).Alpha(.53)}}})
 				}
-				v.speedSelector(c, "", v.Snapshot.Preferences.DownloadLimit)
-				if secondaryAction(c, "性能与磁盘").Disabled(!v.Ready || v.Busy).Clicked() {
-					v.openDisk(v.Snapshot.Preferences.Disk)
-				}
-			})
-			block := ui.Column(c).FillWidth().Radius(cornerPrimary)
-			if c.Preferences().ReduceTransparency || c.Preferences().HighContrast {
-				block.Background(p.panel)
-			} else {
-				block.LinearGradient(ui.LinearGradient{Angle: 117, Stops: []ui.GradientStop{
-					{At: 0, Color: p.ice.Mix(p.panel, .67).Alpha(.64)},
-					{At: .39, Color: p.panel.Alpha(.67)},
-					{At: 1, Color: p.lilac.Mix(p.panel, .65).Alpha(.53)},
-				}})
+				block.Children(body)
 			}
-			block.Children(func() {
+
+			section("下载", func() {
 				row := ui.ButtonBase(c.Key("directory-setting")).Label("更改默认保存目录").Description(v.Snapshot.Directory).Tooltip(v.Snapshot.Directory).Disabled(v.Busy || !v.Ready || v.Actions.PickDirectory == nil).Radius(cornerAction).Transition(controlMotion)
 				if row.Hovered() {
 					row.Background(p.panel.Alpha(.30))
@@ -50,6 +42,29 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 				settingsDivider(c, p)
 				settingsRow(c, ui.Row(c), "download", "同时下载数", fmt.Sprintf("1–%d 项，超出后排队", application.MaxConcurrency), v.concurrencySave.err, p, func(ui.Element) { v.concurrencySetting(c, p) })
 				settingsDivider(c, p)
+				settingsRow(c, ui.Row(c), "clock", "全局限速", "", nil, p, func(ui.Element) { v.speedSelector(c, "", v.Snapshot.Preferences.DownloadLimit) })
+				settingsDivider(c, p)
+				network := v.Snapshot.Preferences.Network
+				proxy := "系统代理"
+				switch network.Mode {
+				case "direct":
+					proxy = "直连"
+				case "manual":
+					proxy = "手动代理"
+				}
+				if v.settingsLink(c, p, "network", "代理与 DNS", proxy) {
+					v.openNetwork()
+				}
+				settingsDivider(c, p)
+				disk := "自动"
+				if v.Snapshot.Preferences.Disk != (application.DiskSettings{}) {
+					disk = "自定义"
+				}
+				if v.settingsLink(c, p, "tray", "性能与磁盘", disk) {
+					v.openDisk(v.Snapshot.Preferences.Disk)
+				}
+			})
+			section("外观", func() {
 				settingsRow(c, ui.Row(c), "theme", "主题", "", v.themeSave.err, p, func(ui.Element) { v.themeSelector(c, p) })
 				settingsDivider(c, p)
 				settingsRow(c, ui.Row(c), "light", "背景流光", "", v.flowSave.err, p, func(label ui.Element) { v.lightSwitch(c, p, label) })
@@ -58,8 +73,20 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 	})
 }
 
+func (v *View) settingsLink(c *ui.Context, p palette, icon, label, value string) bool {
+	row := ui.ButtonBase(c.Key(label)).Label(label).Description(value).Disabled(!v.Ready || v.Busy).Radius(cornerAction).FocusRing(true).Transition(controlMotion)
+	if row.Hovered() {
+		row.Background(p.panel.Alpha(.30))
+	}
+	settingsRow(c, row, icon, label, "", nil, p, func(ui.Element) {
+		ui.Text(c, value).FontSize(13).TextColor(p.muted).ContentTransition(textChange)
+		ui.Icon(c, icons["chevron"]).Rotate(-90).FontSize(14).TextColor(p.muted)
+	})
+	return row.Clicked()
+}
 func settingsRow(c *ui.Context, row ui.Element, icon, name, hint string, err error, p palette, control func(ui.Element)) {
-	row.Row().FillWidth().Height(70).AlignItems(ui.Center).Justify(ui.Start).PaddingX(18).Gap(12).Children(func() {
+	_, h := c.Size()
+	row.Row().FillWidth().Height(min(64, max(50, (h-198)/7))).AlignItems(ui.Center).Justify(ui.Start).PaddingX(18).Gap(12).Children(func() {
 		ui.Box(c).Size(32, 32).Center().Radius(cornerSettingsIcon).Gradient(p.panel.Alpha(.74), p.tint.Alpha(.48), 135).Children(func() {
 			ui.Icon(c, icons[icon]).FontSize(18).TextColor(p.muted)
 		})

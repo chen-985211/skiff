@@ -16,7 +16,11 @@ func (v *View) speedSelector(c *ui.Context, id string, current int64) {
 	if current > 0 {
 		display = bytesText(current) + "/s"
 	}
-	ui.MenuButton(c, label+" · "+display, func(m *ui.Menu) {
+	title := display
+	if id != "" {
+		title = label + " · " + display
+	}
+	ui.MenuButton(c, title, func(m *ui.Menu) {
 		for _, rate := range []int64{0, 512 << 10, 1 << 20, 2 << 20, 5 << 20, 10 << 20} {
 			name := "不限速"
 			if rate > 0 {
@@ -32,7 +36,7 @@ func (v *View) speedSelector(c *ui.Context, id string, current int64) {
 			v.rateErr = nil
 			v.rateOpen = true
 		}
-	}).Transition(controlMotion).Disabled(!v.Ready || v.Busy)
+	}).Label(label + " · " + display).Transition(controlMotion).Disabled(!v.Ready || v.Busy)
 }
 func (v *View) saveRate(id string, rate int64) {
 	v.run(func(ctx context.Context) error { return v.API.SetDownloadLimit(ctx, id, rate) }, func(err error) {
