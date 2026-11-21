@@ -4,7 +4,7 @@
 
 <h1 align="center">Skiff</h1>
 
-<p align="center">使用 MyGo 原生界面和 aria2 引擎的桌面下载工具，支持文件直链、磁力链接和种子文件。</p>
+<p align="center">基于 MyGo 构建的桌面下载工具，采用 Go 原生 UI 和 GPU 渲染，支持文件直链、磁力链接和种子文件。</p>
 
 <p align="center">
   <a href="https://github.com/chen-985211/skiff/releases/latest"><img src="https://img.shields.io/github/v/release/chen-985211/skiff?label=version&amp;color=blue" alt="Skiff 最新正式版"></a>
