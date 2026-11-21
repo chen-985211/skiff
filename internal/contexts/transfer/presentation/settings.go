@@ -11,13 +11,26 @@ import (
 	"skiff/internal/contexts/transfer/application"
 )
 
+// Keep the draggable track outside the aligned settings surfaces.
+const settingsScrollGutter = 16
+
+func settingsScroll(c *ui.Context, p palette) ui.Element {
+	thumb := p.muted.Alpha(.40)
+	if c.Preferences().HighContrast {
+		thumb = p.muted
+	}
+	return ui.Scroll(c).ScrollbarStyle(ui.ScrollbarStyle{
+		TrackWidth: 12, ThumbWidth: 4, Thumb: thumb, Hover: p.muted.Alpha(.78), Active: p.muted,
+	})
+}
+
 func (v *View) settingsPage(c *ui.Context, p palette) {
-	ui.Scroll(c.Key("settings-page")).Grow(1).MinHeight(0).Transition(pageFade).Children(func() {
-		list := ui.Column(c).MaxWidth(820).FillWidth().AlignSelf(ui.Center).Padding(16, 8)
+	settingsScroll(c.Key("settings-page"), p).Grow(1).MinHeight(0).Transition(pageFade).Children(func() {
+		list := ui.Column(c).MaxWidth(820).FillWidth().AlignSelf(ui.Center).Padding(12, settingsScrollGutter, 12, 8)
 		list.Children(func() {
-			ui.Text(c, "设置").FontSize(28).FontWeight(650).Margin(0, 0, 10)
+			ui.Text(c, "设置").FontSize(28).FontWeight(650).Margin(0, 0, 4)
 			section := func(label string, body func()) {
-				ui.Text(c, label).Margin(8, 4, 5).FontSize(12).FontWeight(610).TextColor(p.muted)
+				ui.Text(c, label).Margin(9, 3, 5).FontSize(12).FontWeight(610).TextColor(p.muted)
 				block := ui.Column(c).FillWidth().Radius(cornerPrimary)
 				if c.Preferences().ReduceTransparency || c.Preferences().HighContrast {
 					block.Background(p.panel)
@@ -33,7 +46,7 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 					row.Background(p.panel.Alpha(.30))
 				}
 				settingsRow(c, row, "folder", "默认保存目录", "", v.directoryError, p, func(ui.Element) {
-					ui.Text(c, v.Snapshot.Directory).Grow(1).MinWidth(0).SingleLine().TextAlign(ui.End).FontSize(13).TextColor(p.muted).ContentTransition(textChange)
+					ui.Text(c, v.Snapshot.Directory).Grow(1).MinWidth(0).SingleLine().TruncateMiddle().TextAlign(ui.End).FontSize(13).TextColor(p.muted).ContentTransition(textChange)
 					ui.Icon(c, icons["chevron"]).Rotate(-90).FontSize(14).TextColor(p.muted)
 				})
 				if row.Clicked() {
@@ -44,6 +57,15 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 				settingsDivider(c, p)
 				settingsRow(c, ui.Row(c), "clock", "全局限速", "", nil, p, func(ui.Element) { v.speedSelector(c, p, "", v.Snapshot.Preferences.DownloadLimit) })
 				settingsDivider(c, p)
+				disk := "自动"
+				if v.Snapshot.Preferences.Disk != (application.DiskSettings{}) {
+					disk = "自定义"
+				}
+				if v.settingsLink(c, p, "tray", "性能与磁盘", disk) {
+					v.openDisk(v.Snapshot.Preferences.Disk)
+				}
+			})
+			section("网络", func() {
 				network := v.Snapshot.Preferences.Network
 				proxy := "系统代理"
 				switch network.Mode {
@@ -55,22 +77,13 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 				if v.settingsLink(c, p, "network", "代理与 DNS", proxy) {
 					v.openNetwork()
 				}
-				settingsDivider(c, p)
-				disk := "自动"
-				if v.Snapshot.Preferences.Disk != (application.DiskSettings{}) {
-					disk = "自定义"
-				}
-				if v.settingsLink(c, p, "tray", "性能与磁盘", disk) {
-					v.openDisk(v.Snapshot.Preferences.Disk)
-				}
-			})
-			if _, ok := v.API.(btNetworkAPI); ok {
-				section("BitTorrent", func() {
-					if v.settingsLink(c, p, "network", "BT 网络", "Tracker 与节点") {
+				if _, ok := v.API.(btNetworkAPI); ok {
+					settingsDivider(c, p)
+					if v.settingsLink(c, p, "network", "BT 网络", "节点、Tracker 与做种") {
 						v.openBTNetwork()
 					}
-				})
-			}
+				}
+			})
 			section("外观", func() {
 				settingsRow(c, ui.Row(c), "theme", "主题", "", v.themeSave.err, p, func(ui.Element) { v.themeSelector(c, p) })
 				settingsDivider(c, p)
@@ -93,7 +106,7 @@ func (v *View) settingsLink(c *ui.Context, p palette, icon, label, value string)
 }
 func settingsRow(c *ui.Context, row ui.Element, icon, name, hint string, err error, p palette, control func(ui.Element)) {
 	_, h := c.Size()
-	row.Row().FillWidth().Height(min(64, max(50, (h-198)/7))).AlignItems(ui.Center).Justify(ui.Start).PaddingX(18).Gap(12).Children(func() {
+	row.Row().FillWidth().Height(min(60, max(44, (h-218)/8))).AlignItems(ui.Center).Justify(ui.Start).PaddingX(18).Gap(12).Children(func() {
 		ui.Box(c).Size(32, 32).Center().Radius(cornerSettingsIcon).Gradient(p.panel.Alpha(.74), p.tint.Alpha(.48), 135).Children(func() {
 			ui.Icon(c, icons[icon]).FontSize(18).TextColor(p.muted)
 		})
