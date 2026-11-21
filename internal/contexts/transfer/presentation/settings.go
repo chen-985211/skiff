@@ -14,18 +14,18 @@ import (
 // Keep the draggable track outside the aligned settings surfaces.
 const settingsScrollGutter = 16
 
-func settingsScroll(c *ui.Context, p palette) ui.Element {
+func settingsScrollbar(c *ui.Context, p palette) ui.ScrollbarStyle {
 	thumb := p.muted.Alpha(.40)
 	if c.Preferences().HighContrast {
 		thumb = p.muted
 	}
-	return ui.Scroll(c).ScrollbarStyle(ui.ScrollbarStyle{
+	return ui.ScrollbarStyle{
 		TrackWidth: 12, ThumbWidth: 4, Thumb: thumb, Hover: p.muted.Alpha(.78), Active: p.muted,
-	})
+	}
 }
 
 func (v *View) settingsPage(c *ui.Context, p palette) {
-	settingsScroll(c.Key("settings-page"), p).Grow(1).MinHeight(0).Transition(pageFade).Children(func() {
+	ui.Scroll(c.Key("settings-page")).ScrollbarStyle(settingsScrollbar(c, p)).Grow(1).MinHeight(0).Transition(pageFade).Children(func() {
 		list := ui.Column(c).MaxWidth(820).FillWidth().AlignSelf(ui.Center).Padding(12, settingsScrollGutter, 12, 8)
 		list.Children(func() {
 			ui.Text(c, "设置").FontSize(28).FontWeight(650).Margin(0, 0, 4)

@@ -18,6 +18,8 @@ func init() {
 		"light":    "M2 14c4 1 6-2 10-6s7-4 10-2c-4-1-6 3-10 7s-7 5-10 1z M4 18c6 2 11-8 16-8",
 		"settings": "M3 7h8m4 0h6M3 17h3m4 0h11 M13 4l3 3-3 3-3-3z M8 14l3 3-3 3-3-3z",
 		"clock":    "M8 3h8l5 5v8l-5 5H8l-5-5V8z M12 6v6l4 2",
+		"list":     "M4 6h2m3 0h11M4 12h2m3 0h11M4 18h2m3 0h11",
+		"upload":   "M12 16V3m-5 5 5-5 5 5M3 16v5h18v-5",
 		"headers":  "M6 4H4v6l-2 2 2 2v6h2m12-16h2v6l2 2-2 2v6h-2 M9 9h6m-6 6h6",
 		"paste":    "M8 5H5v16h14V5h-3 M9 3h6v4H9z M8 12h8m-8 4h6",
 		"file":     "M6 3h8l4 5v13H6z M14 3v6h4",

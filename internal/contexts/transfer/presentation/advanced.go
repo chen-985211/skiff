@@ -8,7 +8,9 @@ const (
 	proxyTab
 )
 
-var optionTabs = [...]struct{ name, caption, icon string }{
+type optionTabItem struct{ name, caption, icon string }
+
+var optionTabs = [...]optionTabItem{
 	{"文件与连接", "文件", "file"},
 	{"请求头", "请求头", "headers"},
 	{"代理", "代理", "network"},
@@ -21,22 +23,26 @@ const (
 )
 
 func (v *View) optionToolbar(c *ui.Context, p palette, width, ink float32) {
+	optionTabBar(c, p, "高级下载选项", &v.optionTab, optionTabs[:], width).
+		Opacity(editorOpacity(ink)).IgnoreInput(!v.advanced).AccessHidden(!v.advanced).Disabled(v.Busy)
+}
+
+func optionTabBar(c *ui.Context, p palette, label string, selected *int, choices []optionTabItem, width float32) ui.Element {
 	const inset = 3
-	cell := (width - 2*inset) / float32(len(optionTabs))
-	tabs := ui.TabsBase(c, &v.optionTab, len(optionTabs))
-	rail := tabs.List.Label("高级下载选项").Width(width).Height(formHeaderHeight).Padding(inset).
-		Radius(cornerCompact).Background(p.haze.Alpha(.25)).Opacity(editorOpacity(ink)).
-		IgnoreInput(!v.advanced).AccessHidden(!v.advanced).Disabled(v.Busy)
-	x := rail.AnimateTo("active-tab", float32(v.optionTab)*cell, selectionSpring)
+	cell := (width - 2*inset) / float32(len(choices))
+	tabs := ui.TabsBase(c, selected, len(choices))
+	rail := tabs.List.Label(label).Width(width).Height(formHeaderHeight).Padding(inset).
+		Radius(cornerCompact).Background(p.haze.Alpha(.25))
+	x := rail.AnimateTo("active-tab", float32(*selected)*cell, selectionSpring)
 	rail.Draw(func(painter *ui.Painter, r ui.Rect) {
 		painter.Fill(ui.Rect{X: r.X + inset + x, Y: r.Y + inset, W: cell, H: r.H - 2*inset}, p.panel, cornerSmall)
 	})
 	rail.Children(func() {
-		for i, option := range optionTabs {
+		for i, option := range choices {
 			tab := tabs.Tab(i).ZIndex(1).Transition(controlMotion).Label(option.name).Tooltip(option.name).Width(cell).FillHeight().
 				Center().Gap(5).Radius(cornerSmall).FocusRing(true).FocusRingOffset(-2)
-			selected := tab.AnimateTo("selection-ink", amount(i == v.optionTab), colorFade)
-			color := p.muted.Mix(p.active, selected)
+			tint := tab.AnimateTo("selection-ink", amount(i == *selected), colorFade)
+			color := p.muted.Mix(p.active, tint)
 			if tab.Hovered() {
 				color = c.Theme().Text
 			}
@@ -46,6 +52,7 @@ func (v *View) optionToolbar(c *ui.Context, p palette, width, ink float32) {
 			})
 		}
 	})
+	return rail
 }
 
 func (v *View) advancedOptions(c *ui.Context, p palette, width, height, reveal float32) {

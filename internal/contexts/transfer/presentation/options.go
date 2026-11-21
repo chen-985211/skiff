@@ -96,15 +96,21 @@ func preferenceSheet(c *ui.Context, p palette, stage ui.Element, key, title, ico
 func preferenceNumber(c *ui.Context, p palette, label, unit, placeholder, hint string, value *string) ui.Element {
 	var field ui.Element
 	ui.Column(c.Key(label)).FillWidth().Gap(4).Children(func() {
-		formRow(c, p, label, func() {
-			ui.Row(c).Grow(1).MinWidth(0).Height(32).AlignItems(ui.Center).Children(func() {
-				field = rowInput(c, p, label, placeholder, value, false).Padding(0, 50, 0, 9).Description(unit + "。" + hint)
-				ui.Box(c).Absolute().Right(10).Top(0).Bottom(0).Center().AccessHidden(true).IgnoreInput(true).Children(func() {
-					ui.Text(c, unit).FontSize(12).TextColor(p.muted)
-				})
+		field = numberWithUnit(c, p, label, unit, placeholder, value).Description(unit + "。" + hint)
+		ui.Text(c, hint).Margin(0, 0, 0, optionLabelWidth+optionGap).FontSize(12).TextColor(p.muted)
+	})
+	return field
+}
+
+func numberWithUnit(c *ui.Context, p palette, label, unit, placeholder string, value *string) ui.Element {
+	var field ui.Element
+	formRow(c, p, label, func() {
+		ui.Row(c).Grow(1).MinWidth(0).Height(32).AlignItems(ui.Center).Children(func() {
+			field = rowInput(c, p, label, placeholder, value, false).Padding(0, 50, 0, 9).Description(unit)
+			ui.Box(c).Absolute().Right(10).Top(0).Bottom(0).Center().AccessHidden(true).IgnoreInput(true).Children(func() {
+				ui.Text(c, unit).FontSize(12).TextColor(p.muted)
 			})
 		})
-		ui.Text(c, hint).Margin(0, 0, 0, optionLabelWidth+optionGap).FontSize(12).TextColor(p.muted)
 	})
 	return field
 }

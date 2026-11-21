@@ -38,10 +38,15 @@ func TestBTSettingsOpensFromSettings(t *testing.T) {
 	if err := tt.Click("BT 网络"); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"Tracker 订阅源", "监听端口", "每种节点上限", "做种时长", "目标分享率"} {
-		if _, ok := tt.AccessByRole(ui.RoleTextField, name); !ok {
-			t.Fatal("missing", name)
-		}
+	for _, name := range []string{"监听端口", "每种节点上限"} {
+		sourceBounds(t, tt, ui.RoleTextField, name)
+	}
+	chooseSource(t, tt, "Tracker")
+	sourceBounds(t, tt, ui.RoleTextField, "Tracker 订阅源")
+	chooseSource(t, tt, "做种")
+	chooseSource(t, tt, "下载完成后继续做种")
+	for _, name := range []string{"做种时长", "目标分享率"} {
+		sourceBounds(t, tt, ui.RoleTextField, name)
 	}
 }
 
