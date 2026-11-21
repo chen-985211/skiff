@@ -42,7 +42,7 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 				settingsDivider(c, p)
 				settingsRow(c, ui.Row(c), "download", "同时下载数", fmt.Sprintf("1–%d 项，超出后排队", application.MaxConcurrency), v.concurrencySave.err, p, func(ui.Element) { v.concurrencySetting(c, p) })
 				settingsDivider(c, p)
-				settingsRow(c, ui.Row(c), "clock", "全局限速", "", nil, p, func(ui.Element) { v.speedSelector(c, "", v.Snapshot.Preferences.DownloadLimit) })
+				settingsRow(c, ui.Row(c), "clock", "全局限速", "", nil, p, func(ui.Element) { v.speedSelector(c, p, "", v.Snapshot.Preferences.DownloadLimit) })
 				settingsDivider(c, p)
 				network := v.Snapshot.Preferences.Network
 				proxy := "系统代理"

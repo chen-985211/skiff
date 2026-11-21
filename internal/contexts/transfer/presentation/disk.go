@@ -36,13 +36,13 @@ func (v *View) diskDialog(c *ui.Context, p palette, stage ui.Element) {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
 				ui.Text(c, "文件预分配").Grow(1)
 				label := map[string]string{"": "自动", "prealloc": "预分配", "none": "关闭"}[v.allocation]
-				ui.MenuButton(c, label, func(m *ui.Menu) {
+				dropdown(c.Key("allocation"), p, "文件预分配 · "+label, label, v.Busy, func(m *ui.Menu) {
 					for _, item := range [][2]string{{"自动", ""}, {"预分配", "prealloc"}, {"关闭", "none"}} {
 						if m.Item(item[0]).Checked(v.allocation == item[1]).Chosen() {
 							v.allocation = item[1]
 						}
 					}
-				}).Transition(controlMotion)
+				})
 			})
 			inlineError(c, v.diskErr)
 			ui.Row(c).FillWidth().Justify(ui.End).Gap(8).Children(func() {

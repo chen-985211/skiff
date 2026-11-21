@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-func (v *View) speedSelector(c *ui.Context, id string, current int64) {
+func (v *View) speedSelector(c *ui.Context, p palette, id string, current int64) {
 	label := "全局限速"
 	if id != "" {
 		label = "任务限速"
@@ -20,7 +20,7 @@ func (v *View) speedSelector(c *ui.Context, id string, current int64) {
 	if id != "" {
 		title = label + " · " + display
 	}
-	ui.MenuButton(c, title, func(m *ui.Menu) {
+	dropdown(c.Key(label), p, label+" · "+display, title, !v.Ready || v.Busy, func(m *ui.Menu) {
 		for _, rate := range []int64{0, 512 << 10, 1 << 20, 2 << 20, 5 << 20, 10 << 20} {
 			name := "不限速"
 			if rate > 0 {
@@ -36,7 +36,7 @@ func (v *View) speedSelector(c *ui.Context, id string, current int64) {
 			v.rateErr = nil
 			v.rateOpen = true
 		}
-	}).Label(label + " · " + display).Transition(controlMotion).Disabled(!v.Ready || v.Busy)
+	})
 }
 func (v *View) saveRate(id string, rate int64) {
 	v.run(func(ctx context.Context) error { return v.API.SetDownloadLimit(ctx, id, rate) }, func(err error) {

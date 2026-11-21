@@ -29,14 +29,14 @@ func (v *View) networkDialog(c *ui.Context, p palette, stage ui.Element) {
 				if v.networkDraft.DNS == "system" {
 					label = "系统解析"
 				}
-				ui.MenuButton(c, label, func(m *ui.Menu) {
+				dropdown(c.Key("dns"), p, "DNS · "+label, label, v.Busy, func(m *ui.Menu) {
 					if m.Item("自动").Checked(v.networkDraft.DNS == "").Chosen() {
 						v.networkDraft.DNS = ""
 					}
 					if m.Item("系统解析").Checked(v.networkDraft.DNS == "system").Chosen() {
 						v.networkDraft.DNS = "system"
 					}
-				}).Grow(1).Transition(controlMotion)
+				}).Grow(1)
 			})
 			inlineError(c, v.networkErr)
 			if primaryAction(c, "保存", "check", v.Busy).AlignSelf(ui.End).Clicked() {

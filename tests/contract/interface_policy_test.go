@@ -14,6 +14,7 @@ import (
 	"testing"
 )
 
+const dropdownOwner = "internal/contexts/transfer/presentation/dropdown.go"
 const paletteOwner = "internal/contexts/transfer/presentation/theme.go"
 const motionOwner = "internal/contexts/transfer/presentation/motion.go"
 
@@ -64,6 +65,9 @@ func interfaceFindings(path string, src any) ([]string, error) {
 		default:
 			return true
 		}
+		if inst, ok := expr.(*ast.IndexExpr); ok {
+			expr = inst.X
+		}
 		sel, ok := expr.(*ast.SelectorExpr)
 		if !ok {
 			return true
@@ -71,6 +75,10 @@ func interfaceFindings(path string, src any) ([]string, error) {
 		owner, named := sel.X.(*ast.Ident)
 		if named && owner.Name == uiName {
 			switch sel.Sel.Name {
+			case "MenuButton", "PopoverMenuButton", "MenuBase", "Combobox", "ComboboxBase", "Select", "SelectBase", "SelectBaseOpen":
+				if path != dropdownOwner {
+					report(sel.Pos(), "use the shared dropdown component in dropdown.go")
+				}
 			case "RGB", "RGBA", "Hex", "Color":
 				if path != paletteOwner {
 					report(sel.Pos(), "use a semantic color from theme.go")
@@ -86,6 +94,8 @@ func interfaceFindings(path string, src any) ([]string, error) {
 			case "Switch", "Button":
 				report(sel.Pos(), "use the themed control built on SwitchBase or ButtonBase")
 			}
+		} else if path != dropdownOwner && (sel.Sel.Name == "PopoverMenuButton" || sel.Sel.Name == "Menu") {
+			report(sel.Pos(), "use the shared dropdown component in dropdown.go")
 		} else if path != motionOwner && (sel.Sel.Name == "Animate" || sel.Sel.Name == "AnimateWith" || sel.Sel.Name == "Spring") {
 			report(sel.Sel.Pos(), "use AnimateTo with the component curve from motion.go")
 		}
@@ -97,7 +107,7 @@ func interfaceFindings(path string, src any) ([]string, error) {
 func TestInterfacePolicy(t *testing.T) {
 	_, source, _, _ := runtime.Caller(0)
 	root := filepath.Clean(filepath.Join(filepath.Dir(source), "../.."))
-	err := filepath.WalkDir(filepath.Join(root, "internal/contexts"), func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -106,7 +116,10 @@ func TestInterfacePolicy(t *testing.T) {
 			return err
 		}
 		rel = filepath.ToSlash(rel)
-		if d.IsDir() || !strings.Contains(rel, "/presentation/") || !strings.HasSuffix(rel, ".go") || strings.HasSuffix(rel, "_test.go") {
+		if d.IsDir() && filepath.Dir(rel) == "." && rel != "." && rel != "cmd" && rel != "internal" {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(rel, ".go") || strings.HasSuffix(rel, "_test.go") {
 			return nil
 		}
 		data, err := os.ReadFile(path)
@@ -133,6 +146,18 @@ func TestInterfacePolicyRecognizesAliasesAndExceptions(t *testing.T) {
 		found, err := interfaceFindings(path, source)
 		if err != nil || len(found) != want {
 			t.Fatalf("%s: %v, %v", path, found, err)
+		}
+	}
+}
+
+func TestInterfacePolicyRoutesDropdownsThroughOneComponent(t *testing.T) {
+	for _, constructor := range []string{"kit.MenuButton(c, name, build)", "kit.PopoverMenuButton(c, name, build)", "button.PopoverMenuButton(build)", "button.Menu(build)", "kit.MenuBase(c, open)", "kit.Select(c, value, options)", "kit.SelectBase(c, value)", "kit.SelectBase[string](c, value)", "kit.SelectBaseOpen(c, value, open)", "kit.ComboboxBase(c, value, open)"} {
+		src := "package sample\nimport kit \"github.com/egoist/mygo/ui\"\nfunc draw(){" + constructor + "}"
+		for _, path := range []string{"view.go", "internal/contexts/transfer/presentation/dropdown.go"} {
+			found, err := interfaceFindings(path, src)
+			if err != nil || (len(found) > 0) != (path == "view.go") {
+				t.Errorf("%s in %s: %v, %v", constructor, path, found, err)
+			}
 		}
 	}
 }

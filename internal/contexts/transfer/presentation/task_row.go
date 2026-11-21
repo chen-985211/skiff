@@ -302,7 +302,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 			ui.Row(c).Height(44).FillWidth().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
 				fileHeading(c, p, t, 18, 2)
 				if t.Status != "complete" {
-					v.speedSelector(c, t.ID, t.DownloadLimit)
+					v.speedSelector(c, p, t.ID, t.DownloadLimit)
 				}
 				if secondaryAction(c, "返回").Label("返回任务列表").Clicked() {
 					v.detailID = ""

@@ -230,16 +230,18 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 			})
 		}
 		if v.Snapshot.Preferences.RecentDirectories[0] != "" {
-			ui.MenuButton(c.Key("recent-destinations"), "保存到", func(m *ui.Menu) {
+			dropdown(c.Key("recent-destinations"), p, "选择保存目录", "保存到", v.Busy, func(m *ui.Menu) {
+				w, _ := c.Size()
+				m.MaxWidth(min(400, w-24))
 				if v.Actions.PickDirectory != nil && m.Item("选择文件夹…").Chosen() {
 					pick()
 				}
 				for _, dir := range v.Snapshot.Preferences.RecentDirectories {
-					if dir != "" && m.Item(dir).Checked(dir == v.Directory).Chosen() {
+					if dir != "" && m.Item(dir).Tooltip(dir).Checked(dir == v.Directory).Chosen() {
 						v.Directory, v.FormError = dir, ""
 					}
 				}
-			}).Transition(controlMotion).Label("选择保存目录").Tooltip("选择文件夹或最近位置").Height(30).PaddingX(6).Radius(cornerInline).Background(ui.Transparent).Disabled(v.Busy)
+			}).Tooltip("选择文件夹或最近位置")
 		} else {
 			var label ui.Element
 			if v.Actions.PickDirectory != nil {
@@ -254,9 +256,6 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 			label.Row().Shrink(0).FillHeight().AlignItems(ui.Center).Gap(5).Children(func() {
 				ui.Icon(c, icons["folder"]).FontSize(15).TextColor(p.muted)
 				ui.Text(c, "保存到").FontSize(12).TextColor(p.muted)
-				if v.Actions.PickDirectory != nil {
-					ui.Icon(c, icons["chevron"]).FontSize(12).TextColor(p.muted)
-				}
 			})
 			if v.Actions.PickDirectory != nil && label.Clicked() {
 				pick()
