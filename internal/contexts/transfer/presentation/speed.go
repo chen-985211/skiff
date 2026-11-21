@@ -33,8 +33,10 @@ func (v *View) speedSelector(c *ui.Context, p palette, id string, current int64)
 	}
 	label, display := rateScope(id), rateLabel(current)
 	title := display
+	width := float32(112)
 	if id != "" {
 		title = label + " · " + display
+		width = 176
 	}
 	dropdown(c.Key(label), p, label+" · "+display, title, !v.Ready || v.Busy, func(m *ui.Menu) {
 		for _, rate := range []int64{0, 512 << 10, 1 << 20, 2 << 20, 5 << 20, 10 << 20} {
@@ -49,7 +51,7 @@ func (v *View) speedSelector(c *ui.Context, p palette, id string, current int64)
 			v.rateErr = nil
 			v.rateOpen = true
 		}
-	})
+	}).Width(width).Tooltip(title)
 }
 
 // Resolve the field by task ID at completion: a refresh can replace or reorder

@@ -23,12 +23,16 @@ var (
 	completionFade  = ui.Animation{Duration: 450 * time.Millisecond, Ease: ui.EaseInOut, Oklab: true}
 
 	controlMotion  = ui.ElementTransition{Animation: &pressSpring, Colors: true}
-	dropdownMotion = ui.ElementTransition{Animation: &panelSpring, Enter: &ui.Motion{Scale: .98}, Exit: &ui.Motion{Scale: .98}}
-	pageFade       = ui.ElementTransition{Animation: &colorFade, Enter: &ui.Motion{}, Exit: &ui.Motion{}}
-	panelMotion    = ui.ElementTransition{Animation: &panelSpring, Enter: &ui.Motion{Y: 7}, Exit: &ui.Motion{Y: -5}}
-	dockMotion     = ui.ElementTransition{Animation: &panelSpring, Enter: &ui.Motion{Y: 12}, Exit: &ui.Motion{Y: 12}}
-	textChange     = ui.ContentTransition{Animation: &colorFade}
-	numberChange   = ui.ContentTransition{Numeric: true, Animation: &colorFade}
+	dropdownReveal = ui.Animation{Duration: 175 * time.Millisecond, Ease: ui.CubicBezier(.2, .62, .26, 1)}
+	dropdownMotion = ui.ElementTransition{
+		Animation: &dropdownReveal, Enter: &ui.Motion{Y: -4, Scale: .985, Flip: true},
+		ExitDuration: 130 * time.Millisecond, ExitEase: ui.EaseInOut, Exit: &ui.Motion{Y: -3, Scale: .985, Flip: true},
+	}
+	pageFade     = ui.ElementTransition{Animation: &colorFade, Enter: &ui.Motion{}, Exit: &ui.Motion{}}
+	panelMotion  = ui.ElementTransition{Animation: &panelSpring, Enter: &ui.Motion{Y: 7}, Exit: &ui.Motion{Y: -5}}
+	dockMotion   = ui.ElementTransition{Animation: &panelSpring, Enter: &ui.Motion{Y: 12}, Exit: &ui.Motion{Y: 12}}
+	textChange   = ui.ContentTransition{Animation: &colorFade}
+	numberChange = ui.ContentTransition{Numeric: true, Animation: &colorFade}
 )
 
 // Keep the badge and card tint in step with the outgoing full progress bar.

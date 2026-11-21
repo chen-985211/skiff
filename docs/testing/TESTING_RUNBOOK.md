@@ -31,3 +31,7 @@
 3. 在 macOS 开发版复跑，用临时任务目录取证。若本机保存快到难以观察，可在测试夹具中延迟写入，再用相同操作录制修复前后画面。涉及背景流光时也用动态背景走一遍。
 
 复跑 `go test -count=1 ./tests/unit/transfer -run 'TestRenderChangingDownloadLimitKeepsUnrelatedControlsStable|TestRateSelectionsKeepLatestValueAndRollbackInPlace'`。两个用例已包含在 `make check-ui` 中。
+
+如果只有菜单内的高亮在换行时断开，先在两行之间快速往返，再用方向键反向。旧实现给每行单独淡入淡出，中途两行的高亮都会变浅。共享底板应经过中间位置，反向时从当前位置接续。系统开启「减少动态效果」时应直接定位。在全局限速和任务限速两个入口各从「不限速」切至「512 KiB/s」，检查按钮边界是否稳定。
+
+复跑 `go test -count=1 ./tests/unit/transfer -run 'TestRenderDropdownHighlightFollowsAndReversesBetweenRows|TestRatePresetSelectionKeepsTriggerInPlace'`。
