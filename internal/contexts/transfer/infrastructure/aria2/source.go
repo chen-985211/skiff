@@ -19,6 +19,10 @@ import (
 )
 
 func (c *Client) InspectSource(ctx context.Context, source string, ranges bool) (application.SourceInfo, error) {
+	return c.InspectRequest(ctx, application.TransferSpec{URL: source}, ranges)
+}
+func (c *Client) InspectRequest(ctx context.Context, s application.TransferSpec, ranges bool) (application.SourceInfo, error) {
+	source := s.URL
 	if strings.HasPrefix(source, "ftp://") {
 		return application.SourceInfo{}, nil
 	}
@@ -29,7 +33,9 @@ func (c *Client) InspectSource(ctx context.Context, source string, ranges bool) 
 		return application.SourceInfo{}, err
 	}
 	req.Header.Set("Accept-Encoding", "identity")
-	resp, err := http.DefaultClient.Do(req)
+	client := sourceClient(s)
+	applyHeaders(req, s.Headers)
+	resp, err := client.Do(req)
 	if err != nil {
 		var requestErr *url.Error
 		if errors.As(err, &requestErr) {
@@ -40,7 +46,7 @@ func (c *Client) InspectSource(ctx context.Context, source string, ranges bool) 
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case http.StatusNotImplemented, http.StatusMethodNotAllowed, http.StatusForbidden:
-		return inspectRange(req, ranges, application.SourceInfo{})
+		return inspectRange(client, req, ranges, application.SourceInfo{})
 	case http.StatusNotFound, http.StatusGone, http.StatusUnauthorized:
 		return application.SourceInfo{}, nil
 	}
@@ -49,7 +55,7 @@ func (c *Client) InspectSource(ctx context.Context, source string, ranges bool) 
 	}
 	info := responseInfo(resp)
 	if ranges && resp.ContentLength >= 2*domain.MinSplitBytes && resp.Header.Get("Accept-Ranges") != "none" {
-		return inspectRange(req, true, info)
+		return inspectRange(client, req, true, info)
 	}
 	return info, nil
 }
@@ -65,11 +71,11 @@ func responseInfo(resp *http.Response) application.SourceInfo {
 	return info
 }
 
-func inspectRange(head *http.Request, ranges bool, info application.SourceInfo) (application.SourceInfo, error) {
+func inspectRange(client *http.Client, head *http.Request, ranges bool, info application.SourceInfo) (application.SourceInfo, error) {
 	probe := head.Clone(head.Context())
 	probe.Method = http.MethodGet
 	probe.Header.Set("Range", "bytes=0-0")
-	resp, err := http.DefaultClient.Do(probe)
+	resp, err := client.Do(probe)
 	if err != nil {
 		return info, nil
 	}

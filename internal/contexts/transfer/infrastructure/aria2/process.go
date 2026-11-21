@@ -134,6 +134,7 @@ func (p *Process) Close(ctx context.Context) error {
 	}
 	p.closed = true
 	defer p.Client.http.CloseIdleConnections()
+	defer p.Client.routes.close()
 	select {
 	case <-p.done:
 		return errors.New("下载引擎已意外退出")

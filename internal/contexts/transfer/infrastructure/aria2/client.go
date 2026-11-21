@@ -40,7 +40,21 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 		options["allow-overwrite"] = "false"
 		options["auto-file-renaming"] = "true"
 	}
-	return c.call(ctx, "aria2.addUri", []any{[]string{s.URL}, options}, nil)
+	source := s.URL
+	if s.Headers != "" {
+		var err error
+		source, err = c.routes.register(s)
+		if err != nil {
+			return err
+		}
+		options["no-proxy"] = "127.0.0.1"
+		options["all-proxy"] = ""
+	}
+	err := c.call(ctx, "aria2.addUri", []any{[]string{source}, options}, nil)
+	if err != nil {
+		c.routes.remove(s.ID)
+	}
+	return err
 }
 func (c *Client) Execute(ctx context.Context, id string, cmd application.Command) error {
 	switch cmd {
@@ -51,6 +65,7 @@ func (c *Client) Execute(ctx context.Context, id string, cmd application.Command
 	case application.Resume:
 		return c.call(ctx, "aria2.unpause", []any{id}, nil)
 	case application.Remove, application.Retry, application.Restart:
+		c.routes.remove(id)
 		var status struct {
 			Status string `json:"status"`
 		}
@@ -106,6 +121,9 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 		}
 		firstWaiting := true
 		for _, t := range tasks {
+			if t.Status == "complete" || t.Status == "error" || t.Status == "removed" {
+				c.routes.remove(t.GID)
+			}
 			o := application.Observation{ID: t.GID, Status: t.Status, Error: t.Error, HTTPRejected: t.ErrorCode == "22"}
 			if req.method == "aria2.tellWaiting" && t.Status == "waiting" && firstWaiting {
 				o.NextInQueue = true

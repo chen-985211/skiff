@@ -60,6 +60,7 @@ const (
 )
 
 type Record struct {
+	Headers              string `json:",omitempty"`
 	FTPUser              string `json:",omitempty"`
 	FTPPassword          string `json:",omitempty"`
 	RequestedConnections int    `json:",omitempty"`

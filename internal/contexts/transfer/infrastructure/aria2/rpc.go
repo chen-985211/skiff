@@ -12,6 +12,7 @@ import (
 )
 
 type Client struct {
+	routes           downloadRoutes
 	endpoint, secret string
 	http             *http.Client
 	sequence         atomic.Uint64

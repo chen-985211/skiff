@@ -121,6 +121,9 @@ func (v *View) composeFields(c *ui.Context, p palette, advanced float32) {
 				}
 			})
 			ui.Row(c).Absolute().Left(0).Right(0).Bottom(0).Height(30).AlignItems(ui.Center).Gap(8).Children(func() {
+				if secondaryAction(c, "请求选项").Clicked() {
+					v.requestOpen = true
+				}
 				ui.Text(c, "单文件连接上限").Grow(1).FontSize(13).TextColor(p.muted)
 				field := ui.TextInputBase(c, &v.connectionLimit).Transition(controlMotion).Width(80).Height(30).PaddingX(8).Label("单文件连接上限").Placeholder("自动").Description("1 到 16，留空为自动").Border(1, p.border).Radius(cornerInline).Disabled(v.Busy || !v.advanced)
 				if field.Focused() {

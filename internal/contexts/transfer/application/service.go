@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"skiff/internal/contexts/transfer/domain"
 	"slices"
@@ -35,6 +36,7 @@ type SourceInfo struct {
 }
 
 type TransferSpec struct {
+	Headers              string
 	FTPUser, FTPPassword string
 	ConnectionLimit      int
 	Version              domain.SourceVersion
@@ -56,7 +58,7 @@ type Engine interface {
 	ProtectCheckpoints(context.Context, string, []OutputCandidate) (map[string]string, error)
 	SetConcurrency(context.Context, int) error
 	HasPartial(context.Context, domain.Record) (bool, error)
-	InspectSource(context.Context, string, bool) (SourceInfo, error)
+	InspectRequest(context.Context, TransferSpec, bool) (SourceInfo, error)
 	Enqueue(context.Context, TransferSpec) error
 	Execute(context.Context, string, Command) error
 	Observe(context.Context) ([]Observation, error)
@@ -132,7 +134,7 @@ func transferSpec(r domain.Record, paused bool) TransferSpec {
 	if r.Path != "" && filepath.Clean(filepath.Dir(r.Path)) == filepath.Clean(r.Directory) {
 		name = filepath.Base(r.Path)
 	}
-	return TransferSpec{FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
+	return TransferSpec{Headers: r.Headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: r.URL, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
@@ -180,6 +182,13 @@ func (s *Service) Open(ctx context.Context) error {
 			}
 			continue
 		}
+		if _, ok := found[r.ID]; ok && r.Headers != "" {
+			// Loopback credential routes have fresh capabilities each launch.
+			if err := s.engine.Execute(ctx, r.ID, Remove); err != nil {
+				return err
+			}
+			delete(found, r.ID)
+		}
 		if o, ok := found[r.ID]; ok {
 			apply(task, o)
 			if task.Allows(domain.Pause) {
@@ -221,6 +230,7 @@ func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory s
 }
 
 type AddOptions struct {
+	Headers         string
 	OutputName      string
 	ConnectionLimit int
 }
@@ -246,7 +256,24 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 	if len(batch.Sources) == 0 {
 		return result, nil
 	}
-	sources := s.inspectBatch(ctx, batch.Sources, limit != 1)
+	headers, err := domain.NormalizeHeaders(opts.Headers)
+	if err != nil {
+		return BatchResult{}, err
+	}
+	requests := make([]TransferSpec, len(batch.Sources))
+	origin := ""
+	for i, source := range batch.Sources {
+		if headers != "" {
+			u, _ := url.Parse(source)
+			current := strings.ToLower(u.Scheme + "://" + u.Host)
+			if u.Scheme == "ftp" || origin != "" && current != origin {
+				return BatchResult{}, errors.New("同一组请求头只能用于同一来源的 HTTP 下载")
+			}
+			origin = current
+		}
+		requests[i] = TransferSpec{URL: source, Headers: headers}
+	}
+	sources := s.inspectBatch(ctx, requests, limit != 1)
 	if err := ctx.Err(); err != nil {
 		return BatchResult{}, err
 	}
@@ -268,6 +295,7 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 			continue
 		}
 		task = domain.NewTask(s.nextID(), source, directory)
+		task.SetHeaders(headers)
 		pending[task.Record().URL] = true
 		if name != "" {
 			task.SetOutputName(name)
@@ -330,7 +358,7 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 
 // Bound metadata latency for an entire paste. Sources that do not answer HEAD
 // can still download; their partial files require an explicit fresh start.
-func (s *Service) inspectBatch(ctx context.Context, sources []string, ranges bool) []SourceInfo {
+func (s *Service) inspectBatch(ctx context.Context, sources []TransferSpec, ranges bool) []SourceInfo {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	versions := make([]SourceInfo, len(sources))
@@ -346,7 +374,7 @@ func (s *Service) inspectBatch(ctx context.Context, sources []string, ranges boo
 				if ctx.Err() != nil {
 					return
 				}
-				versions[i], _ = s.engine.InspectSource(ctx, sources[i], ranges)
+				versions[i], _ = s.engine.InspectRequest(ctx, sources[i], ranges)
 			}
 		})
 	}
@@ -414,7 +442,7 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 			return err
 		}
 		if !partial {
-			info, _ := s.engine.InspectSource(ctx, r.URL, r.RequestedConnections != 1)
+			info, _ := s.engine.InspectRequest(ctx, transferSpec(r, false), r.RequestedConnections != 1)
 			previous := *task
 			task.SetVersion(info.SourceVersion)
 			task.PlanConnections(r.RequestedConnections, info.RangeBytes)
@@ -429,7 +457,7 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 		name := filepath.Base(r.Name)
 		ext := filepath.Ext(name)
 		outputName := strings.TrimSuffix(name, ext) + ".restart-" + s.nextID() + ext
-		version, _ := s.engine.InspectSource(ctx, r.URL, false)
+		version, _ := s.engine.InspectRequest(ctx, transferSpec(r, false), false)
 		task.RestartAs(outputName)
 		task.SetVersion(version.SourceVersion)
 		// Commit the new target before any external effect. The previous partial
@@ -486,9 +514,9 @@ func (s *Service) Refresh(ctx context.Context) error {
 	}
 	// aria2 can collapse a conditional HTTP rejection to "No URI available".
 	// Diagnose only failed transfers, outside the queue lock.
-	urls := make([]string, len(rejected))
+	urls := make([]TransferSpec, len(rejected))
 	for i, r := range rejected {
-		urls[i] = r.URL
+		urls[i] = transferSpec(r, false)
 	}
 	sources := s.inspectBatch(ctx, urls, false)
 	s.mu.Lock()
@@ -674,3 +702,5 @@ func (s *Service) RetryFTP(ctx context.Context, id, user, password string) error
 	}
 	return s.execute(ctx, i, Retry)
 }
+
+func ImportHeaders(text string) (string, error) { return domain.NormalizeHeaders(text) }
