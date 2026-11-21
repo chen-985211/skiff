@@ -11,6 +11,33 @@ permissions:
   contents: read
 
 jobs:
+  engine-install:
+    name: Engine install / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, asset: linux-x64.tar.gz }
+          - { os: ubuntu-24.04-arm, asset: linux-arm64.tar.gz }
+          - { os: windows-2025, asset: win32-x64.zip }
+          - { os: windows-11-arm, asset: win32-arm64.zip }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Install the native engine and download a file
+        shell: bash
+        env:
+          ASSET: aria2c-1.37.0-motrix.24-${{ matrix.asset }}
+        run: |
+          export SKIFF_TEST_ENGINE_ARCHIVE="$RUNNER_TEMP/$ASSET"
+          curl --fail --location --retry 3 --output "$SKIFF_TEST_ENGINE_ARCHIVE" \
+            "https://github.com/motrixapp/aria2/releases/download/v1.37.0-motrix.24/$ASSET"
+          go test -count=1 -tags 'integration,engine_release' ./tests/integration/transfer -run '^TestNativeEngineReleaseDownloadsFile$' -v
+
   test:
     name: Test / ${{ matrix.os }}
     strategy:
@@ -92,7 +119,7 @@ jobs:
   release:
     name: Publish GitHub Release
     if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: [test, package]
+    needs: [test, package, engine-install]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

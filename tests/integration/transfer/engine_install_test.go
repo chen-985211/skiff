@@ -4,6 +4,7 @@ package transfer_test
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -24,6 +25,20 @@ import (
 func engineArchive(t *testing.T, name string, data []byte) []byte {
 	t.Helper()
 	var b bytes.Buffer
+	if filepath.Ext(name) == ".exe" {
+		z := zip.NewWriter(&b)
+		f, err := z.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = f.Write(data); err != nil {
+			t.Fatal(err)
+		}
+		if err = z.Close(); err != nil {
+			t.Fatal(err)
+		}
+		return b.Bytes()
+	}
 	gz := gzip.NewWriter(&b)
 	tr := tar.NewWriter(gz)
 	if err := tr.WriteHeader(&tar.Header{Name: name, Mode: 0755, Size: int64(len(data))}); err != nil {
@@ -43,55 +58,51 @@ func engineArchive(t *testing.T, name string, data []byte) []byte {
 
 func TestEngineUsesSystemOrVerifiedInstallation(t *testing.T) {
 	t.Setenv("SKIFF_ARIA2_BINARY", "")
-	dir := t.TempDir()
-	setup := aria2.NewInstallation(dir)
-	if runtime.GOOS != "darwin" {
-		if setup.Release.URL != "" {
-			t.Fatal("unexpected engine release for this platform")
-		}
-		system, err := aria2.FindBinary()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got, err := setup.Find(); err != nil || got != system {
+	if system, err := aria2.FindBinary(); err == nil {
+		if got, err := aria2.NewInstallation(t.TempDir()).Find(); err != nil || got != system {
 			t.Fatalf("expected system engine %q, got %q: %v", system, got, err)
 		}
-		if _, err := setup.Install(t.Context()); err == nil {
-			t.Fatal("installed without a platform release")
-		}
-		return
 	}
-	payload := []byte("engine fixture")
-	archive := engineArchive(t, "aria2c", payload)
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(archive) }))
-	defer server.Close()
-	setup.Client = server.Client()
-	setup.Release = aria2.EngineRelease{URL: server.URL, ArchiveSHA256: fmt.Sprintf("%x", sha256.Sum256(archive)), BinarySHA256: fmt.Sprintf("%x", sha256.Sum256(payload))}
-	path, err := setup.Install(t.Context())
-	if err != nil || path != filepath.Join(dir, "engine", "aria2c") {
-		t.Fatalf("installed %q: %v", path, err)
-	}
-	server.Close()
-	if got, err := setup.Find(); err != nil || got != path {
-		t.Fatalf("restart found %q: %v", got, err)
-	}
-	info, err := os.Stat(path)
-	if err != nil || info.Mode().Perm()&0100 == 0 {
-		t.Fatalf("not executable: %v, %v", info, err)
-	}
-	b, err := os.ReadFile(path)
-	if err != nil || !bytes.Equal(b, payload) {
-		t.Fatal("wrong installed binary", err)
-	}
-	if err := os.WriteFile(path, []byte("corrupt cached binary"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if got, _ := setup.Find(); got == path {
-		t.Fatal("reused a damaged engine")
-	}
-	t.Setenv("SKIFF_ARIA2_BINARY", filepath.Join(dir, "explicit-missing"))
-	if _, err := setup.Find(); err == nil {
-		t.Fatal("ignored explicit engine override")
+	for _, artifact := range []struct{ binary, archive string }{
+		{"aria2c", "engine.tar.gz"},
+		{"aria2c.exe", "engine.zip"},
+	} {
+		t.Run(artifact.archive, func(t *testing.T) {
+			dir := t.TempDir()
+			setup := aria2.NewInstallation(dir)
+			payload := []byte("engine fixture")
+			archive := engineArchive(t, artifact.binary, payload)
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(archive) }))
+			defer server.Close()
+			setup.Client = server.Client()
+			setup.Release = aria2.EngineRelease{URL: server.URL + "/" + artifact.archive, ArchiveSHA256: fmt.Sprintf("%x", sha256.Sum256(archive)), BinarySHA256: fmt.Sprintf("%x", sha256.Sum256(payload))}
+			path, err := setup.Install(t.Context())
+			if err != nil || path != filepath.Join(dir, "engine", artifact.binary) {
+				t.Fatalf("installed %q: %v", path, err)
+			}
+			server.Close()
+			if got, err := setup.Find(); err != nil || got != path {
+				t.Fatalf("restart found %q: %v", got, err)
+			}
+			info, err := os.Stat(path)
+			if err != nil || runtime.GOOS != "windows" && info.Mode().Perm()&0100 == 0 {
+				t.Fatalf("not executable: %v, %v", info, err)
+			}
+			b, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(b, payload) {
+				t.Fatal("wrong installed binary", err)
+			}
+			if err := os.WriteFile(path, []byte("corrupt cached binary"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := setup.Find(); got == path {
+				t.Fatal("reused a damaged engine")
+			}
+			t.Setenv("SKIFF_ARIA2_BINARY", filepath.Join(dir, "explicit-missing"))
+			if _, err := setup.Find(); err == nil {
+				t.Fatal("ignored explicit engine override")
+			}
+		})
 	}
 }
 
@@ -108,6 +119,8 @@ func TestEngineRejectsIncompleteOrUnexpectedArtifacts(t *testing.T) {
 		{"short response", valid[:len(valid)/2], valid, 200},
 		{"wrong executable", engineArchive(t, "aria2c", []byte("other")), nil, 200},
 		{"wrong member", engineArchive(t, "../aria2c", payload), nil, 200},
+		{"wrong zip member", engineArchive(t, "../aria2c.exe", payload), nil, 200},
+		{"damaged exe", engineArchive(t, "aria2c.exe", []byte("other")), nil, 200},
 		{"http error", valid, valid, 503},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -119,7 +132,11 @@ func TestEngineRejectsIncompleteOrUnexpectedArtifacts(t *testing.T) {
 			dir := t.TempDir()
 			setup := aria2.NewInstallation(dir)
 			setup.Client = server.Client()
-			setup.Release = aria2.EngineRelease{URL: server.URL, ArchiveSHA256: fmt.Sprintf("%x", sha256.Sum256(tc.digest)), BinarySHA256: fmt.Sprintf("%x", sha256.Sum256(payload))}
+			suffix := ".tar.gz"
+			if bytes.HasPrefix(tc.body, []byte("PK")) {
+				suffix = ".zip"
+			}
+			setup.Release = aria2.EngineRelease{URL: server.URL + "/engine" + suffix, ArchiveSHA256: fmt.Sprintf("%x", sha256.Sum256(tc.digest)), BinarySHA256: fmt.Sprintf("%x", sha256.Sum256(payload))}
 			if _, err := setup.Install(t.Context()); err == nil {
 				t.Fatal("accepted invalid release")
 			}
@@ -142,7 +159,11 @@ func TestEngineInterruptedDownloadPreservesInstalledFile(t *testing.T) {
 	defer server.Close()
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "engine", "aria2c")
+	name := "aria2c"
+	if runtime.GOOS == "windows" {
+		name = "aria2c.exe"
+	}
+	path := filepath.Join(dir, "engine", name)
 	if err := os.Mkdir(filepath.Dir(path), 0700); err != nil {
 		t.Fatal(err)
 	}

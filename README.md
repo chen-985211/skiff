@@ -59,9 +59,7 @@ xattr -dr com.apple.quarantine /Applications/Skiff.app && open /Applications/Ski
 
 ### 开始下载
 
-打开 Skiff，点窗口底部的「新建下载」。如果 macOS 上显示「下载引擎」，点一次即可按芯片架构下载并校验 aria2c，完成后按钮会变为「新建下载」。内置安装入口支持 Apple Silicon 和 Intel，首次安装需要访问 GitHub。[Skiff 使用的 aria2c 发布包](https://github.com/motrixapp/aria2/releases/tag/v1.37.0-motrix.24)
-
-Windows 和 Linux 用户可先安装 aria2，让 Skiff 能从 `PATH` 找到 `aria2c`，也可用 `SKIFF_ARIA2_BINARY` 指定可执行文件路径。
+打开 Skiff，点窗口底部的「新建下载」。如果显示「下载引擎」，点一次即可。Skiff 会按系统和处理器架构下载并校验 aria2c，完成后即可新建下载。macOS、Windows 和 Linux 均支持 x64 和 ARM64，首次下载引擎需要访问 GitHub。[Skiff 使用的 aria2c 发布包](https://github.com/motrixapp/aria2/releases/tag/v1.37.0-motrix.24)
 
 [macos-dmg]: https://github.com/chen-985211/skiff/releases/download/v0.1.0/skiff-0.1.0-macos-arm64.dmg
 
