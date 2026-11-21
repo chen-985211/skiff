@@ -17,6 +17,10 @@ func (v *View) dispatch(fn func()) {
 	}
 }
 func (v *View) submit() {
+	if v.bt.tab == 1 {
+		v.submitTorrent()
+		return
+	}
 	if strings.TrimSpace(v.URLs) == "" {
 		v.advanced, v.focusLinks = false, true
 		v.FormError = "请先输入下载链接"

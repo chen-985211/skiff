@@ -23,6 +23,7 @@ type API interface {
 	Snapshot() application.Snapshot
 }
 type Actions struct {
+	PickTorrent    func(func(string, error))
 	Context        context.Context
 	DownloadEngine func()
 	OpenDirectory  func(string, func(error))
@@ -31,6 +32,7 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
+	bt                                             torrentDraft
 	mirrorText                                     string
 	importedURL                                    string
 	networkOpen                                    bool
@@ -106,6 +108,9 @@ func (v *View) OpenNew() {
 }
 func (v *View) Render(c *ui.Context) {
 	defer v.forgetHiddenTransfers()
+	if !v.DialogOpen {
+		v.bt.stopLookup()
+	}
 	stage := ui.Row(c).Fill().AlignItems(ui.Stretch)
 	mode := v.selectedTheme()
 	dark := mode == application.ThemeDark || mode == application.ThemeSystem && c.Theme().Dark

@@ -39,17 +39,18 @@ type SourceInfo struct {
 type NetworkSettings = domain.NetworkSettings
 type DiskSettings = domain.DiskSettings
 type TransferSpec struct {
-	Network              NetworkSettings `json:",omitzero"`
-	DownloadLimit        int64           `json:",omitempty"`
-	Digest               string
-	Disk                 DiskSettings
-	Headers              string
-	FTPUser, FTPPassword string
-	ConnectionLimit      int
-	Version              domain.SourceVersion
-	ID, URL, Directory   string
-	OutputName           string
-	Paused               bool
+	TorrentHash, SelectedFiles string
+	Network                    NetworkSettings `json:",omitzero"`
+	DownloadLimit              int64           `json:",omitempty"`
+	Digest                     string
+	Disk                       DiskSettings
+	Headers                    string
+	FTPUser, FTPPassword       string
+	ConnectionLimit            int
+	Version                    domain.SourceVersion
+	ID, URL, Directory         string
+	OutputName                 string
+	Paused                     bool
 }
 type Observation struct {
 	LocalRoute                    bool
@@ -106,6 +107,7 @@ type Repository interface {
 	Save(context.Context, State) error
 }
 type TaskDTO struct {
+	TorrentHash                                   string
 	DownloadLimit                                 int64 `json:",omitempty"`
 	MirrorSource                                  string
 	NeedsFTPLogin                                 bool
@@ -157,7 +159,7 @@ func transferSpec(r domain.Record, paused bool) TransferSpec {
 			headers = ""
 		}
 	}
-	return TransferSpec{Network: r.Network, DownloadLimit: r.DownloadLimit, Digest: digest, Disk: r.Disk, Headers: headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: source, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
+	return TransferSpec{TorrentHash: r.TorrentHash, SelectedFiles: r.SelectedFiles, Network: r.Network, DownloadLimit: r.DownloadLimit, Digest: digest, Disk: r.Disk, Headers: headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: source, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
@@ -498,7 +500,7 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 	}
 	// A paused task already owns an aria2 checkpoint. Resume it in place.
 	// A failed task with no bytes can adopt the source's current version on retry.
-	if command == Retry && r.Completed == 0 {
+	if command == Retry && r.TorrentHash == "" && r.Completed == 0 {
 		partial, err := s.engine.HasPartial(ctx, r)
 		if err != nil {
 			return err
@@ -565,6 +567,9 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 }
 
 func apply(task *domain.Task, o Observation) {
+	if task.Record().TorrentHash != "" {
+		o.Name, o.Path = "", ""
+	}
 	task.Observe(domain.Observation{NextInQueue: o.NextInQueue, Connections: o.Connections, Status: domain.Status(o.Status), Name: o.Name, Path: o.Path, Error: o.Error, Failure: o.Failure, Total: o.Total, Completed: o.Completed, Speed: o.Speed})
 }
 func (s *Service) Refresh(ctx context.Context) error {
@@ -660,7 +665,7 @@ func (s *Service) Snapshot() Snapshot {
 	snap := Snapshot{Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
-		dto := TaskDTO{DownloadLimit: r.DownloadLimit, MirrorSource: r.MirrorSource, NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
+		dto := TaskDTO{TorrentHash: r.TorrentHash, DownloadLimit: r.DownloadLimit, MirrorSource: r.MirrorSource, NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
 		snap.Tasks = append(snap.Tasks, dto)
 		if r.Status == domain.Active {
 			snap.Active++

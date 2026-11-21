@@ -12,6 +12,7 @@ import (
 )
 
 type Client struct {
+	metadataDir      string
 	routes           downloadRoutes
 	endpoint, secret string
 	http             *http.Client

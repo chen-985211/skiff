@@ -13,6 +13,9 @@ import (
 )
 
 func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error {
+	if s.TorrentHash != "" {
+		return c.enqueueTorrent(ctx, s)
+	}
 	if err := os.MkdirAll(s.Directory, 0755); err != nil {
 		return err
 	}

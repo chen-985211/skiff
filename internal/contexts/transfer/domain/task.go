@@ -61,6 +61,7 @@ const (
 )
 
 type Record struct {
+	TorrentHash, SelectedFiles    string          `json:",omitempty"`
 	Network                       NetworkSettings `json:",omitzero"`
 	DownloadLimit                 int64           `json:",omitempty"`
 	Mirrors, MirrorSource, Digest string          `json:",omitempty"`
@@ -224,7 +225,7 @@ func (t Task) Allows(command Command) bool {
 	case Retry:
 		return t.record.Status == Failed && !t.ResumeBlocked()
 	case Restart:
-		return t.record.Status == Failed
+		return t.record.Status == Failed && t.record.TorrentHash == ""
 	}
 	return false
 }

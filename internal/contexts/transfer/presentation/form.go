@@ -110,6 +110,9 @@ func (v *View) composeTools(c *ui.Context, p palette, width, ink float32, disabl
 	header.Children(func() {
 		leading := ui.Box(c).Grow(1).MinWidth(0).FillHeight()
 		leading.Children(func() {
+			if _, ok := v.API.(torrentAPI); ok && (!v.advanced || ink < 1) {
+				v.sourceTabs(c, p, ink)
+			}
 			if v.advanced || ink > 0 {
 				v.optionToolbar(c, p, min(264, width-actionWidth-gap), ink)
 			}
@@ -119,11 +122,15 @@ func (v *View) composeTools(c *ui.Context, p palette, width, ink float32, disabl
 					count++
 				}
 			}
-			if count > 1 {
+			if count > 1 && v.bt.tab == 0 {
 				ui.Textf(c, "已输入 %d 行", count).Transition(pageFade).Absolute().Right(0).Top(8).
 					Opacity(editorOpacity(1 - ink)).AccessHidden(v.advanced).FontSize(11).TextColor(p.muted).ContentTransition(numberChange)
 			}
 		})
+		if v.bt.tab == 1 {
+			v.btWait(c, p)
+			return
+		}
 		action := "高级选项"
 		if v.advanced {
 			action = "返回链接"
@@ -164,7 +171,13 @@ func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink floa
 	ui.Column(c.Key("editor-viewport")).Width(width + optionGutter).Clip().Children(func() {
 		source := ui.Column(c.Key("source-fields")).Width(width).Shrink(0).
 			Opacity(editorOpacity(1 - ink)).IgnoreInput(v.advanced).AccessHidden(v.advanced)
-		source.Children(func() { v.linkEditor(c, p) })
+		source.Children(func() {
+			if v.bt.tab == 1 {
+				v.torrentEditor(c, p)
+			} else {
+				v.linkEditor(c, p)
+			}
+		})
 		// The link editor measures wrapped text at its full width, including
 		// while it is offscreen. Only the difference in page heights is added.
 		linkHeight := max(float32(104), source.LayoutBounds().H)
@@ -178,7 +191,14 @@ func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink floa
 	}
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
 		v.composeDestination(c, p)
-		if primaryAction(c, "开始下载", "download", v.Busy).Width(106).Shrink(0).FocusRing(true).Clicked() {
+		caption := "开始下载"
+		if v.bt.tab == 1 && v.bt.meta.Hash == "" {
+			caption = "读取文件列表"
+			if v.bt.cancel != nil {
+				caption = "取消获取"
+			}
+		}
+		if primaryAction(c, caption, "download", v.Busy).Width(106).Shrink(0).FocusRing(true).Clicked() {
 			v.submit()
 		}
 	})

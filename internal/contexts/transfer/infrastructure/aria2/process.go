@@ -80,7 +80,7 @@ func StartConfigured(ctx context.Context, dataDir, binary string, prefs applicat
 	}
 	f.Close()
 	config := strings.Join([]string{
-		"disk-cache=" + strconv.FormatInt(prefs.Disk.CacheBytes(), 10), "enable-rpc=true", "rpc-listen-all=false", "rpc-allow-origin-all=false",
+		"disk-cache=" + strconv.FormatInt(prefs.Disk.CacheBytes(), 10), "rpc-max-request-size=32M", "enable-rpc=true", "rpc-listen-all=false", "rpc-allow-origin-all=false",
 		"rpc-listen-port=" + strconv.Itoa(port), "rpc-secret=" + secret,
 		"save-session=" + session, "input-file=" + session, "save-session-interval=5",
 		"force-save=true", "continue=false", "pause=true", "max-concurrent-downloads=" + strconv.Itoa(application.DefaultConcurrency),
@@ -117,6 +117,7 @@ func StartConfigured(ctx context.Context, dataDir, binary string, prefs applicat
 	}
 	go func() { _ = p.cmd.Wait(); logFile.Close(); close(p.done) }()
 	p.Client = NewClient(fmt.Sprintf("http://127.0.0.1:%d/jsonrpc", port), secret)
+	p.Client.metadataDir = filepath.Join(dataDir, "torrents")
 	timer := time.NewTimer(8 * time.Second)
 	defer timer.Stop()
 	ticker := time.NewTicker(50 * time.Millisecond)

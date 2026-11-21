@@ -81,7 +81,19 @@ func Run() error {
 		defaultDirectory := filepath.Join(downloads, "Skiff")
 		installRequests := make(chan struct{}, 1)
 		actions := presentation.Actions{
-			Context:        pollCtx,
+			Context: pollCtx,
+			PickTorrent: func(done func(string, error)) {
+				go func() {
+					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "打开种子", Filters: []mygo.FileFilter{{Name: "BitTorrent 种子", Extensions: []string{"torrent"}}}})
+					win.Update(func() {
+						if err != nil {
+							done("", err)
+						} else if len(paths) > 0 {
+							done(paths[0], nil)
+						}
+					})
+				}()
+			},
 			DownloadEngine: func() { installRequests <- struct{}{} },
 			OpenDirectory: func(path string, done func(error)) {
 				go func() {
