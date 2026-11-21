@@ -2,7 +2,7 @@
   "name": "Skiff",
   "slug": "skiff",
   "identifier": "app.skiff.desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "./cmd/skiff",
   "out": "build",
   "icon": "resources/icon.png"
