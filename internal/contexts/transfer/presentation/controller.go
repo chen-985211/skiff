@@ -170,6 +170,19 @@ func (p *preferenceSave[T]) choose(v *View, saved *T, choice T, write func(conte
 	if p.current(*saved) == choice {
 		return
 	}
+	p.store(v, choice, write, func(value, latest T, err error) {
+		if err == nil {
+			*saved = value
+		}
+		if latest != value {
+			p.choose(v, saved, latest, write)
+		}
+	})
+}
+
+// store coalesces edits made during one write. On the UI thread the caller
+// receives both the completed value and the latest requested value.
+func (p *preferenceSave[T]) store(v *View, choice T, write func(context.Context, T) error, completed func(value, latest T, err error)) {
 	p.err = nil
 	if p.pending != nil {
 		*p.pending = choice
@@ -179,20 +192,20 @@ func (p *preferenceSave[T]) choose(v *View, saved *T, choice T, write func(conte
 	submitted := choice
 	p.pending = &choice
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		parent := v.Actions.Context
+		if parent == nil {
+			parent = context.Background()
+		}
+		ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 		defer cancel()
 		err := write(ctx, submitted)
 		v.dispatch(func() {
 			latest := *p.pending
 			p.pending = nil
-			if err == nil {
-				*saved = submitted
-			}
-			if latest != submitted {
-				p.choose(v, saved, latest, write)
-			} else if err != nil {
+			if latest == submitted {
 				p.err = err
 			}
+			completed(submitted, latest, err)
 		})
 	}()
 }

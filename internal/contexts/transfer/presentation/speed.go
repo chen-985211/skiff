@@ -28,6 +28,9 @@ func rateScope(id string) string {
 }
 
 func (v *View) speedSelector(c *ui.Context, p palette, id string, current int64) {
+	if save := v.rateSaves[id]; save != nil {
+		current = save.current(current)
+	}
 	label, display := rateScope(id), rateLabel(current)
 	title := display
 	if id != "" {
@@ -35,7 +38,7 @@ func (v *View) speedSelector(c *ui.Context, p palette, id string, current int64)
 	}
 	dropdown(c.Key(label), p, label+" · "+display, title, !v.Ready || v.Busy, func(m *ui.Menu) {
 		for _, rate := range []int64{0, 512 << 10, 1 << 20, 2 << 20, 5 << 20, 10 << 20} {
-			if m.Item(rateLabel(rate)).Checked(rate == current).Chosen() {
+			if m.Item(rateLabel(rate)).Checked(rate == current).Chosen() && rate != current {
 				v.saveRate(id, rate)
 			}
 		}
@@ -48,12 +51,53 @@ func (v *View) speedSelector(c *ui.Context, p palette, id string, current int64)
 		}
 	})
 }
+
+// Resolve the field by task ID at completion: a refresh can replace or reorder
+// the task slice while the engine is applying a rate.
+func (v *View) rateField(id string) *int64 {
+	if id == "" {
+		return &v.Snapshot.Preferences.DownloadLimit
+	}
+	for i := range v.Snapshot.Tasks {
+		if v.Snapshot.Tasks[i].ID == id {
+			return &v.Snapshot.Tasks[i].DownloadLimit
+		}
+	}
+	return nil
+}
+
 func (v *View) saveRate(id string, rate int64) {
-	v.run(func(ctx context.Context) error { return v.API.SetDownloadLimit(ctx, id, rate) }, func(err error) {
-		v.rateID = id
-		v.rateText = strconv.FormatInt(rate>>10, 10)
-		v.rateErr = err
-		v.rateOpen = err != nil
+	if v.API == nil {
+		return
+	}
+	save := v.rateSaves[id]
+	if save == nil {
+		save = &preferenceSave[int64]{}
+		v.rateSaves[id] = save
+	}
+	if id == "" {
+		v.globalRateErr = nil
+	} else {
+		delete(v.taskErrors, id)
+	}
+	save.store(v, rate, func(ctx context.Context, value int64) error {
+		return v.API.SetDownloadLimit(ctx, id, value)
+	}, func(value, latest int64, err error) {
+		delete(v.rateSaves, id)
+		field := v.rateField(id)
+		if field == nil {
+			return
+		}
+		if err == nil {
+			*field = value
+		}
+		if latest != value && latest != *field {
+			v.saveRate(id, latest)
+		} else if id == "" {
+			v.globalRateErr = save.err
+		} else if save.err != nil {
+			v.setTaskError(id, save.err)
+		}
 	})
 }
 func (v *View) rateDialog(c *ui.Context, p palette, stage ui.Element) {
@@ -69,6 +113,7 @@ func (v *View) rateDialog(c *ui.Context, p palette, stage ui.Element) {
 				return
 			}
 			v.saveRate(v.rateID, int64(n)<<10)
+			v.rateOpen = false
 		}
 	})
 }

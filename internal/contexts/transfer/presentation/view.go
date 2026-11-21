@@ -44,7 +44,8 @@ type View struct {
 	networkErr                                     error
 	rateOpen                                       bool
 	rateID, rateText                               string
-	rateErr                                        error
+	rateErr, globalRateErr                         error
+	rateSaves                                      map[string]*preferenceSave[int64]
 	diskOpen                                       bool
 	cacheText, splitText, allocation               string
 	diskErr                                        error
@@ -85,6 +86,7 @@ type View struct {
 func New(api API, actions Actions) *View {
 	return &View{
 		API: api, Actions: actions, Filter: "all", Ready: api != nil,
+		rateSaves:  make(map[string]*preferenceSave[int64]),
 		taskErrors: make(map[string]error), visibleTransfers: make(map[string]visibleTransfer),
 	}
 }

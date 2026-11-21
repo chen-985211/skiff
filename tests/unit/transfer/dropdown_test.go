@@ -1,6 +1,8 @@
 package transfer_test
 
 import (
+	"bytes"
+	"errors"
 	"image"
 	"image/color"
 	"math"
@@ -259,5 +261,114 @@ func TestRenderDropdownsShareTriggerAndMenuFeedback(t *testing.T) {
 		if hoveredTriggers[0] != hoveredTriggers[1] {
 			t.Errorf("dark=%v: settings and task triggers have different hover colors: %v", dark, hoveredTriggers)
 		}
+	}
+}
+
+func TestRenderChangingDownloadLimitKeepsUnrelatedControlsStable(t *testing.T) {
+	for _, tc := range []struct{ page, trigger, neighbor string }{
+		{"设置", "全局限速", "更改默认保存目录"},
+		{"查看详情 one.zip", "任务限速", "新建下载"},
+	} {
+		t.Run(tc.trigger, func(t *testing.T) {
+			s := service(t, &fakeEngine{}, &fakeRepo{})
+			if _, err := s.Add(t.Context(), "https://example.test/one.zip", t.TempDir()); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.SetStaticBackground(t.Context(), true); err != nil {
+				t.Fatal(err)
+			}
+			dispatch := make(chan func(), 2)
+			v := presentation.New(s, presentation.Actions{
+				Dispatch:      func(f func()) { dispatch <- f },
+				PickDirectory: func(string, func(string, error)) {},
+			})
+			v.Snapshot = s.Snapshot()
+			tt := ui.NewTester(v.Render, 1020, 680)
+			chooseSource(t, tt, tc.page)
+			tt.Move(2, 2)
+			tt.Advance(time.Second)
+			b := sourceBounds(t, tt, ui.RoleButton, tc.neighbor)
+			area := image.Rect(int(b.X+5), int(b.Y+5), int(b.X+b.W-5), int(b.Y+b.H-5))
+			base := renderedRegion(tt, area)
+			check := func(phase string) {
+				t.Helper()
+				if !bytes.Equal(base, renderedRegion(tt, area)) {
+					t.Errorf("%s: %s repainted differently", phase, tc.neighbor)
+				}
+				if n, ok := tt.AccessByRole(ui.RoleButton, tc.neighbor); !ok || n.Disabled {
+					t.Errorf("%s: %s unavailable", phase, tc.neighbor)
+				}
+			}
+			chooseSource(t, tt, tc.trigger+" · 不限速")
+			tt.Advance(80 * time.Millisecond)
+			check("opening")
+			tt.Advance(time.Second)
+			tt.Key(0, ui.KeyDown)
+			tt.Key(0, ui.KeyEscape)
+			tt.Advance(80 * time.Millisecond)
+			check("dismissal")
+			tt.Advance(time.Second)
+			chooseSource(t, tt, tc.trigger+" · 不限速")
+			chooseSource(t, tt, "1 MiB/s")
+			check("selection")
+			tt.Advance(80 * time.Millisecond)
+			check("saving")
+			// A newer observation can arrive while the UI callback is queued.
+			v.Snapshot.Tasks = append([]application.TaskDTO(nil), v.Snapshot.Tasks...)
+			v.Snapshot.Tasks[0].Connections = 7
+			select {
+			case complete := <-dispatch:
+				complete()
+			case <-time.After(2 * time.Second):
+				t.Fatal("missing rate completion")
+			}
+			tt.Advance(time.Second)
+			check("saved")
+			if v.Snapshot.Tasks[0].Connections != 7 {
+				t.Fatal("rate completion replaced a newer task observation")
+			}
+			sourceBounds(t, tt, ui.RoleMenuButton, tc.trigger+" · 1 MiB/s")
+		})
+	}
+}
+
+func TestRateSelectionsKeepLatestValueAndRollbackInPlace(t *testing.T) {
+	repo := &fakeRepo{}
+	s := service(t, &fakeEngine{}, repo)
+	completions := make(chan func(), 1)
+	v := presentation.New(s, presentation.Actions{Dispatch: func(f func()) { completions <- f }})
+	v.Snapshot = s.Snapshot()
+	tt := interactionScene(v, 1020, 680)
+	apply := func() {
+		t.Helper()
+		select {
+		case f := <-completions:
+			f()
+			tt.Frame()
+		case <-time.After(2 * time.Second):
+			t.Fatal("missing download limit save")
+		}
+	}
+	chooseSource(t, tt, "设置")
+	chooseSource(t, tt, "全局限速 · 不限速")
+	chooseSource(t, tt, "1 MiB/s")
+	chooseSource(t, tt, "全局限速 · 1 MiB/s")
+	chooseSource(t, tt, "2 MiB/s")
+	apply()
+	sourceBounds(t, tt, ui.RoleMenuButton, "全局限速 · 2 MiB/s")
+	apply()
+	if s.Snapshot().Preferences.DownloadLimit != 2<<20 {
+		t.Fatal("latest rate was not saved")
+	}
+	repo.saveErr = errors.New("disk full")
+	chooseSource(t, tt, "全局限速 · 2 MiB/s")
+	chooseSource(t, tt, "不限速")
+	apply()
+	sourceBounds(t, tt, ui.RoleMenuButton, "全局限速 · 2 MiB/s")
+	if !tt.HasText("保存任务失败：disk full") {
+		t.Error("missing local save error")
+	}
+	if _, ok := tt.AccessByRole(ui.RoleDialog, "全局限速"); ok {
+		t.Error("failure unexpectedly opened a modal")
 	}
 }
