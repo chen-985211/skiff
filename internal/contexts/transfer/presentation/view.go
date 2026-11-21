@@ -23,6 +23,8 @@ type API interface {
 	Snapshot() application.Snapshot
 }
 type Actions struct {
+	PickSource     func(bool, func(string, error))
+	SaveTorrent    func(string, func(string, error))
 	PickTorrent    func(func(string, error))
 	Context        context.Context
 	DownloadEngine func()

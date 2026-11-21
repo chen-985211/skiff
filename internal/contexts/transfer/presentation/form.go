@@ -190,6 +190,10 @@ func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink floa
 		ui.Text(c, v.FormError).Transition(pageFade).ContentTransition(textChange).MaxHeight(formErrorMaxHeight).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
 	}
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
+		if v.bt.tab == 1 && v.bt.creator.open {
+			v.createFooter(c, p)
+			return
+		}
 		v.composeDestination(c, p)
 		caption := "开始下载"
 		if v.bt.tab == 1 && v.bt.meta.Hash == "" {

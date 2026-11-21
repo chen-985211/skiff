@@ -3,8 +3,10 @@
 package transfer_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -18,6 +20,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/anacrolix/torrent/metainfo"
 
 	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/infrastructure/aria2"
@@ -306,5 +310,160 @@ func TestBTArchivedTaskKeepsTorrentDetails(t *testing.T) {
 	d, err := s.TorrentDetails(ctx, id)
 	if err != nil || d.Pieces != 2 {
 		t.Fatalf("archived: %+v, %v", d, err)
+	}
+}
+
+func TestBTCreateV1FileAndDirectoryAndSeedOriginal(t *testing.T) {
+	s, _, _ := btService(t)
+	ctx := t.Context()
+	for _, folder := range []bool{false, true} {
+		t.Run(fmt.Sprintf("directory=%v", folder), func(t *testing.T) {
+			parent := t.TempDir()
+			source := filepath.Join(parent, "sample.bin")
+			a := []byte(strings.Repeat("a", 175001))
+			b := []byte(strings.Repeat("b", 65003))
+			data := a
+			if folder {
+				source = filepath.Join(parent, "samples")
+				if err := os.MkdirAll(filepath.Join(source, "sub"), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(source, "a.bin"), a, 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(source, "sub", "b.bin"), b, 0600); err != nil {
+					t.Fatal(err)
+				}
+				data = append(append([]byte{}, a...), b...)
+			} else if err := os.WriteFile(source, a, 0600); err != nil {
+				t.Fatal(err)
+			}
+			output := filepath.Join(t.TempDir(), "export.torrent")
+			manifest, err := s.CreateTorrent(ctx, source, output, []string{"http://127.0.0.1:1/announce"}, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := metainfo.LoadFromFile(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			info, err := raw.UnmarshalInfo()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.MetaVersion != 0 || info.PieceLength < 1 || info.TotalLength() != int64(len(data)) || raw.HashInfoBytes().HexString() != manifest.Hash || info.IsDir() != folder || raw.Announce != "http://127.0.0.1:1/announce" {
+				t.Fatal(info, manifest)
+			}
+			var hashes []byte
+			for start := int64(0); start < int64(len(data)); start += info.PieceLength {
+				sum := sha1.Sum(data[start:min(start+info.PieceLength, int64(len(data)))])
+				hashes = append(hashes, sum[:]...)
+			}
+			if !bytes.Equal(hashes, info.Pieces) {
+				t.Fatal("v1 piece hashes differ from original bytes")
+			}
+			var id string
+			for _, task := range s.Snapshot().Tasks {
+				if task.TorrentHash == manifest.Hash {
+					id = task.ID
+					if task.Directory != parent {
+						t.Fatal("seeding a copy")
+					}
+				}
+			}
+			if id == "" {
+				t.Fatal("no task for original files")
+			}
+			awaitTask(t, s, id, func(task application.TaskDTO) bool { return task.Seeding })
+			if err = s.Execute(ctx, id, application.Pause); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+func TestBTCreateRejectsInputAsOutput(t *testing.T) {
+	s, _, _ := btService(t)
+	path := filepath.Join(t.TempDir(), "original.torrent")
+	if err := os.WriteFile(path, []byte("original bytes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateTorrent(t.Context(), path, path, nil, false); err == nil {
+		t.Fatal("overwrote original")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || string(b) != "original bytes" {
+		t.Fatalf("%s %v", b, err)
+	}
+}
+
+func TestBTCreatedSeedServesPeerAndStopsAtShareRatio(t *testing.T) {
+	seed, _, _ := btService(t)
+	peer, _, dest := btService(t)
+	ctx := t.Context()
+	if err := seed.SetBTSettings(ctx, application.BTSettings{DisableDHT: true, Seed: application.SeedPolicy{Enabled: true, Ratio: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	var seederPort atomic.Int32
+	tracker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		port, _ := strconv.Atoi(r.URL.Query().Get("port"))
+		if r.URL.Query().Get("left") == "0" {
+			seederPort.CompareAndSwap(0, int32(port))
+		}
+		var peers []byte
+		if p := int(seederPort.Load()); p != 0 && p != port {
+			peers = []byte{127, 0, 0, 1, byte(p >> 8), byte(p)}
+		}
+		fmt.Fprintf(w, "d8:intervali1e5:peers%d:%se", len(peers), peers)
+	}))
+	defer tracker.Close()
+	source := filepath.Join(t.TempDir(), "local.bin")
+	data := bytes.Repeat([]byte("local peer payload"), 16000)
+	if err := os.WriteFile(source, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	torrent := filepath.Join(t.TempDir(), "local.torrent")
+	meta, err := seed.CreateTorrent(ctx, source, torrent, []string{tracker.URL}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedID := seed.Snapshot().Tasks[0].ID
+	awaitTask(t, seed, seedID, func(task application.TaskDTO) bool { return task.Seeding && seederPort.Load() > 0 })
+	if _, err = peer.PrepareTorrent(ctx, torrent); err != nil {
+		t.Fatal(err)
+	}
+	peerID, err := peer.AddTorrent(ctx, meta.Hash, dest, []int{1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTask(t, peer, peerID, func(task application.TaskDTO) bool { return task.Status == "complete" })
+	actual, err := os.ReadFile(filepath.Join(dest, "local.bin"))
+	if err != nil || !bytes.Equal(actual, data) {
+		t.Fatalf("peer bytes mismatch: %v", err)
+	}
+	awaitTask(t, seed, seedID, func(task application.TaskDTO) bool { return task.Status == "complete" })
+	d, err := seed.TorrentDetails(ctx, seedID)
+	if err != nil || d.Uploaded < int64(len(data)) {
+		t.Fatalf("seed stopped without uploading ratio: %v %+v", err, d)
+	}
+}
+
+func TestBTCreateCancellationKeepsSourceAndSkipsOutput(t *testing.T) {
+	s, _, _ := btService(t)
+	source := filepath.Join(t.TempDir(), "source.bin")
+	out := source + ".torrent"
+	if err := os.WriteFile(source, []byte("leave whole"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := s.CreateTorrent(ctx, source, out, nil, false); !errors.Is(err, context.Canceled) {
+		t.Fatalf("want cancellation, got %v", err)
+	}
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		t.Fatal("published cancelled output", err)
+	}
+	restored, err := os.ReadFile(source)
+	if err != nil || string(restored) != "leave whole" {
+		t.Fatal("source was touched")
 	}
 }

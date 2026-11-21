@@ -41,3 +41,27 @@ func TestBTSettingsOpensFromSettings(t *testing.T) {
 		}
 	}
 }
+
+func TestBTCreateEditorKeepsDownloadDraft(t *testing.T) {
+	s := service(t, &fakeEngine{}, &fakeRepo{})
+	v := presentation.New(s, presentation.Actions{})
+	v.OpenNew()
+	tt := interactionScene(v, 800, 560)
+	click := func(name string) {
+		t.Helper()
+		if err := tt.Click(name); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	click("BT")
+	click("BT 选项")
+	click("创建种子…")
+	if _, ok := tt.AccessByRole(ui.RoleTextField, "制种来源"); !ok {
+		t.Fatal("missing source")
+	}
+	click("返回下载")
+	if _, ok := tt.AccessByRole(ui.RoleTextField, "磁力链接"); !ok {
+		t.Fatal("lost torrent download editor")
+	}
+}

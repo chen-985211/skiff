@@ -50,6 +50,9 @@ func (s *Service) PrepareTorrent(ctx context.Context, source string) (Torrent, e
 	return lib.PrepareTorrent(ctx, source)
 }
 func (s *Service) AddTorrent(ctx context.Context, hash, dir string, files []int) (string, error) {
+	return s.addTorrent(ctx, hash, dir, files, false)
+}
+func (s *Service) addTorrent(ctx context.Context, hash, dir string, files []int, seed bool) (string, error) {
 	lib, ok := s.engine.(TorrentLibrary)
 	if !ok {
 		return "", errors.New("当前引擎不支持 BT")
@@ -83,7 +86,11 @@ func (s *Service) AddTorrent(ctx context.Context, hash, dir string, files []int)
 		}
 	}
 	id := s.nextID()
-	rec := domain.Record{Seed: s.preferences.BT.Seed, ID: id, URL: "magnet:?xt=urn:btih:" + hash, Directory: dir, Path: filepath.Join(dir, meta.Name), Name: meta.Name, TorrentHash: hash, SelectedFiles: strings.Join(parts, ","), Total: size, Status: domain.Waiting}
+	policy := s.preferences.BT.Seed
+	if seed {
+		policy.Enabled = true
+	}
+	rec := domain.Record{Seed: policy, ID: id, URL: "magnet:?xt=urn:btih:" + hash, Directory: dir, Path: filepath.Join(dir, meta.Name), Name: meta.Name, TorrentHash: hash, SelectedFiles: strings.Join(parts, ","), Total: size, Status: domain.Waiting}
 	s.tasks = append(s.tasks, domain.Restore(rec))
 	if err = s.persist(ctx); err != nil {
 		s.tasks = s.tasks[:len(s.tasks)-1]

@@ -82,6 +82,24 @@ func Run() error {
 		installRequests := make(chan struct{}, 1)
 		actions := presentation.Actions{
 			Context: pollCtx,
+			PickSource: func(folder bool, done func(string, error)) {
+				go func() {
+					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "选择制种来源", Directory: folder})
+					win.Update(func() {
+						if len(paths) > 0 {
+							done(paths[0], err)
+						} else {
+							done("", err)
+						}
+					})
+				}()
+			},
+			SaveTorrent: func(path string, done func(string, error)) {
+				go func() {
+					out, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: "保存种子", DefaultPath: path, CreateDirectories: true, Filters: []mygo.FileFilter{{Name: "BitTorrent 种子", Extensions: []string{"torrent"}}}})
+					win.Update(func() { done(out, err) })
+				}()
+			},
 			PickTorrent: func(done func(string, error)) {
 				go func() {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "打开种子", Filters: []mygo.FileFilter{{Name: "BitTorrent 种子", Extensions: []string{"torrent"}}}})

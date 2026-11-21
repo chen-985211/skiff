@@ -20,6 +20,7 @@ type torrentEntry struct {
 	depth, index int
 }
 type torrentDraft struct {
+	creator    torrentCreator
 	tab, wait  int
 	source     string
 	meta       application.Torrent
@@ -123,11 +124,24 @@ func (v *View) lookupTorrent(source string) {
 }
 func (v *View) btWait(c *ui.Context, p palette) {
 	b := &v.bt
-	label := "手动选文件"
-	if b.wait > 0 {
-		label = fmt.Sprintf("%d 秒后全选", b.wait)
+	if b.creator.open {
+		if secondaryAction(c, "返回下载").Disabled(v.Busy).Clicked() {
+			b.creator.open = false
+			v.FormError = ""
+			c.Invalidate()
+		}
+		return
 	}
-	dropdown(c.Key("magnet-wait"), p, "磁力选文件等待时间", label, v.Busy, func(m *ui.Menu) {
+	dropdown(c.Key("bt-options"), p, "BT 选项", "BT 选项", v.Busy, func(m *ui.Menu) {
+		if _, ok := v.API.(torrentCreateAPI); ok {
+			if m.Item("创建种子…").Chosen() {
+				b.stopLookup()
+				b.creator.open = true
+				b.creator.saved = ""
+				v.FormError = ""
+			}
+			m.Separator()
+		}
 		for _, s := range []int{0, 30, 60, 120} {
 			name := "手动选文件"
 			if s > 0 {
@@ -146,6 +160,13 @@ func (v *View) btWait(c *ui.Context, p palette) {
 func (v *View) torrentEditor(c *ui.Context, p palette) {
 	b := &v.bt
 	ui.Column(c.Key("torrent-editor")).Transition(panelMotion).FillWidth().Gap(8).Children(func() {
+		if b.creator.open {
+			v.createEditor(c, p)
+			return
+		}
+		if b.creator.saved != "" {
+			ui.Text(c, "已保存 "+b.creator.saved).Transition(pageFade).SingleLine().TruncateMiddle().Tooltip(b.creator.saved).FontSize(12).TextColor(p.muted)
+		}
 		if b.meta.Hash == "" {
 			ui.Row(c).Transition(pageFade).FillWidth().Gap(8).Children(func() {
 				rowInput(c, p, "磁力链接", "粘贴 magnet 链接", &b.source, false).Disabled(b.cancel != nil)
