@@ -44,6 +44,12 @@ func cardMotion(id string) ui.ElementTransition {
 	return ui.ElementTransition{Match: cardMatch(id), Fly: true, Animation: &cardSpring, Enter: &ui.Motion{Y: 9, Scale: .985}, Exit: &ui.Motion{Y: -5, Scale: .985}}
 }
 
+// Fade through the sheet surface. At the handoff the outgoing glyphs
+// have cleared before the incoming labels occupy the same column.
+func editorOpacity(weight float32) float32 {
+	return max(0, 2*weight-1)
+}
+
 func amount(on bool) float32 {
 	if on {
 		return 1

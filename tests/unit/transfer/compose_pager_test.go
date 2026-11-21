@@ -1,6 +1,7 @@
 package transfer_test
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -49,34 +50,68 @@ func TestAdvancedEditorReplacesLinksAndPreservesTheDraft(t *testing.T) {
 	}
 }
 
-func TestRenderAdvancedPageTravelsIntoPlace(t *testing.T) {
+func TestRenderAdvancedEditorsChangeInPlace(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
 	v.OpenNew()
 	tt := ui.NewTesterWith(v.Render, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
 	tt.Advance(time.Second)
-	if err := tt.Click("高级选项"); err != nil {
-		t.Fatal(err)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
 	}
+	source, _ := tt.AccessByRole(ui.RoleTextField, "下载链接")
+	click("高级选项")
+	tt.Advance(100 * time.Millisecond)
+	tt.Frame()
+	entering, _ := tt.AccessByRole(ui.RoleTextField, "单文件另存为")
 	tt.Advance(time.Second)
 	field, _ := tt.AccessByRole(ui.RoleTextField, "单文件另存为")
-	rail, _ := tt.Find("高级下载选项")
-	if err := tt.Click("请求头"); err != nil {
-		t.Fatal(err)
+	if entering.Bounds.X != field.Bounds.X {
+		t.Errorf("opening the inspector moved the field sideways: %.1f -> %.1f", entering.Bounds.X, field.Bounds.X)
 	}
-	tt.Advance(85 * time.Millisecond)
+	// Sample the label column. Its ink must pass through intermediate
+	// intensities even though the labels no longer move laterally.
+	crop := func() []byte {
+		im := tt.Image()
+		var pixels []byte
+		for y := int(field.Bounds.Y); y < int(field.Bounds.Y+field.Bounds.H); y++ {
+			start := im.PixOffset(int(source.Bounds.X), y)
+			end := im.PixOffset(int(field.Bounds.X)-4, y)
+			pixels = append(pixels, im.Pix[start:end]...)
+		}
+		return pixels
+	}
+	before := crop()
+	click("请求头")
+	tt.Advance(65 * time.Millisecond)
 	tt.Frame()
 	incoming, ok := tt.AccessByRole(ui.RoleTextField, "Cookie")
-	if !ok || incoming.Bounds.X <= field.Bounds.X+8 || incoming.Bounds.X >= field.Bounds.X+rail.W {
-		t.Fatalf("incoming editor snapped to its endpoint: %v, expected motion relative to %v", incoming.Bounds, field.Bounds)
+	if !ok || incoming.Bounds.X != field.Bounds.X {
+		t.Errorf("tab switch moved the field sideways: %+v, want column %.1f", incoming.Bounds, field.Bounds.X)
 	}
 	if _, ok := tt.AccessByRole(ui.RoleTextField, "单文件另存为"); ok {
-		t.Fatal("leaving field still takes input")
+		t.Fatal("outgoing editor still accepts input")
 	}
+	mid := crop()
 	tt.Advance(time.Second)
-	settled, _ := tt.AccessByRole(ui.RoleTextField, "Cookie")
-	if settled.Bounds.X != field.Bounds.X {
-		t.Fatal("editors do not settle on the same column")
+	tt.Frame()
+	end := crop()
+	if bytes.Equal(before, mid) || bytes.Equal(mid, end) || bytes.Equal(before, end) {
+		t.Fatal("editor skipped the rendered intermediate state")
+	}
+	click("文件与连接")
+	tt.Advance(time.Second)
+	click("代理")
+	for range 12 {
+		tt.Advance(16 * time.Millisecond)
+		tt.Frame()
+		if _, visible := tt.Find("Cookie"); visible {
+			t.Fatal("a direct file-to-proxy switch rendered the unselected headers")
+		}
 	}
 }
 

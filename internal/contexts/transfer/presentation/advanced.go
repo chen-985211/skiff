@@ -15,7 +15,7 @@ var optionTitles = [...]string{"文件与连接", "请求头", "代理"}
 func (v *View) advancedOptions(c *ui.Context, p palette, width, height, reveal float32) {
 	const navigationHeight = 44
 	bodyHeight := height - navigationHeight
-	slot := ui.Column(c.Key("advanced-slot")).Absolute().Top(0).Left(width * (1 - reveal)).
+	slot := ui.Column(c.Key("advanced-slot")).Absolute().Top(0).Left(0).Opacity(editorOpacity(reveal)).
 		Width(width).Height(height).Clip().AccessHidden(!v.advanced).IgnoreInput(!v.advanced).Disabled(v.Busy)
 	slot.Children(func() {
 		tabs := ui.TabsBase(c, &v.optionTab, len(optionTitles))
@@ -37,19 +37,18 @@ func (v *View) advancedOptions(c *ui.Context, p palette, width, height, reveal f
 				tab.Children(func() { ui.Text(c, title).SingleLine().FontSize(13).FontWeight(590).TextColor(ink) })
 			}
 		})
-		// The viewport survives selection changes. Both pages remain at
-		// reading width until the outgoing editor has cleared the clip.
+		// Each actual editor has an independent weight on the stable viewport.
+		// Skipping a tab leaves that editor at zero, including during a reversal.
 		viewport := ui.Box(c.Key("option-pages")).FillWidth().Height(bodyHeight).Clip()
-		position := viewport.AnimateTo("page", float32(v.optionTab), selectionSpring)
 		viewport.Children(func() {
 			for i, title := range optionTitles {
-				offset := float32(i) - position
 				active := i == v.optionTab
-				if !active && (offset <= -1 || offset >= 1) {
+				weight := viewport.AnimateTo(i, amount(active), colorFade)
+				if !active && weight == 0 {
 					continue
 				}
-				scroll := ui.Scroll(c.Key(title)).Absolute().Top(0).Left(width * offset).
-					Width(width).Height(bodyHeight).Clip().IgnoreInput(!active).AccessHidden(!active)
+				scroll := ui.Scroll(c.Key(title)).Absolute().Top(0).Left(0).
+					Width(width).Height(bodyHeight).Clip().Opacity(editorOpacity(weight)).IgnoreInput(!active).AccessHidden(!active)
 				scroll.Children(func() {
 					ui.Column(c).FillWidth().Gap(7).Padding(2, 8, 3, 0).Children(func() {
 						switch i {

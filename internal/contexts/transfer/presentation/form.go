@@ -58,7 +58,8 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 				}
 			})
 			back.Background(p.canvas.Alpha(.18 * advanced * reveal))
-			v.composeFields(c, p, width-2*formInsetX, advanced)
+			ink := form.AnimateTo("editor-ink", amount(v.advanced), colorFade)
+			v.composeFields(c, p, width-2*formInsetX, advanced, ink)
 			action := "高级选项"
 			if v.advanced {
 				action = "返回链接"
@@ -129,7 +130,7 @@ func composeCaption(c *ui.Context, first, second string, progress, size float32,
 	})
 }
 
-func (v *View) composeFields(c *ui.Context, p palette, width, advanced float32) {
+func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink float32) {
 	p.muted = p.muted.Mix(c.Theme().Text, .38)
 	_, windowH := c.Size()
 	const chrome = 2*formInsetY + formHeaderHeight + 2*formGap + formFooterHeight + footerInset
@@ -140,14 +141,14 @@ func (v *View) composeFields(c *ui.Context, p palette, width, advanced float32) 
 	optionsHeight := min(float32(244), available)
 	ui.Column(c.Key("editor-viewport")).FillWidth().Clip().Children(func() {
 		source := ui.Column(c.Key("source-fields")).FillWidth().Shrink(0).
-			Translate(-width*advanced, 0).IgnoreInput(v.advanced).AccessHidden(v.advanced)
+			Opacity(editorOpacity(1 - ink)).IgnoreInput(v.advanced).AccessHidden(v.advanced)
 		source.Children(func() { v.linkEditor(c, p) })
 		// The link editor measures wrapped text at its full width, including
 		// while it is offscreen. Only the difference in page heights is added.
 		linkHeight := max(float32(104), source.LayoutBounds().H)
 		ui.Box(c).Height(max(0, optionsHeight-linkHeight) * advanced).Shrink(0)
-		if advanced > 0 || v.advanced {
-			v.advancedOptions(c, p, width, optionsHeight, advanced)
+		if ink > 0 || v.advanced {
+			v.advancedOptions(c, p, width, optionsHeight, ink)
 		}
 	})
 	if v.FormError != "" {
