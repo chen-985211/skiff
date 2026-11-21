@@ -14,7 +14,7 @@ type API interface {
 	SetTheme(context.Context, application.ThemeMode) error
 	SetDefaultDirectory(context.Context, string) error
 	SetStaticBackground(context.Context, bool) error
-	AddBatchWithConnections(context.Context, string, string, int) (application.BatchResult, error)
+	AddWithOptions(context.Context, string, string, application.AddOptions) (application.BatchResult, error)
 	Execute(context.Context, string, application.Command) error
 	SetPaused(context.Context, []string, bool) error
 	Snapshot() application.Snapshot
@@ -28,6 +28,7 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
+	outputName                                     string
 	ftpOpen                                        bool
 	ftpID, ftpUser, ftpPassword                    string
 	concurrencySave                                preferenceSave[int]

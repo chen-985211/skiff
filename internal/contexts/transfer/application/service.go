@@ -74,10 +74,11 @@ func (mode ThemeMode) valid() bool {
 }
 
 type Preferences struct {
-	Concurrency      int       `json:",omitempty"`
-	Theme            ThemeMode `json:",omitempty"`
-	DefaultDirectory string
-	StaticBackground bool
+	RecentDirectories [5]string `json:",omitempty"`
+	Concurrency       int       `json:",omitempty"`
+	Theme             ThemeMode `json:",omitempty"`
+	DefaultDirectory  string
+	StaticBackground  bool
 }
 
 type State struct {
@@ -216,12 +217,26 @@ func (s *Service) AddBatch(ctx context.Context, text, directory string) (BatchRe
 }
 
 func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory string, limit int) (BatchResult, error) {
+	return s.AddWithOptions(ctx, text, directory, AddOptions{ConnectionLimit: limit})
+}
+
+type AddOptions struct {
+	OutputName      string
+	ConnectionLimit int
+}
+
+func (s *Service) AddWithOptions(ctx context.Context, text, directory string, opts AddOptions) (BatchResult, error) {
+	limit := opts.ConnectionLimit
 	if limit < 0 || limit > MaxConnectionLimit {
 		return BatchResult{}, fmt.Errorf("连接上限应为 1 到 %d，留空使用自动设置", MaxConnectionLimit)
 	}
 	batch, err := domain.ParseBatch(text)
 	if err != nil {
 		return BatchResult{}, err
+	}
+	name := strings.TrimSpace(opts.OutputName)
+	if name != "" && (len(batch.Sources) != 1 || len(batch.Remaining) > 0 || !filepath.IsLocal(name) || filepath.Base(name) != name || name == "." || strings.ContainsAny(name, `<>:"/\|?*`+"\x00\r\n")) {
+		return BatchResult{}, errors.New("请为单个下载输入有效的文件名")
 	}
 	directory = filepath.Clean(strings.TrimSpace(directory))
 	if !filepath.IsAbs(directory) {
@@ -254,7 +269,13 @@ func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory s
 		}
 		task = domain.NewTask(s.nextID(), source, directory)
 		pending[task.Record().URL] = true
-		name := sources[i].Filename
+		if name != "" {
+			task.SetOutputName(name)
+		}
+		name := task.Record().OutputName
+		if name == "" {
+			name = sources[i].Filename
+		}
 		if name == "" {
 			name = task.Record().Name
 		}
@@ -277,9 +298,19 @@ func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory s
 			s.tasks[i].SetOutputName(name)
 		}
 	}
+	recent := s.preferences.RecentDirectories
+	s.preferences.RecentDirectories = [5]string{directory}
+	at := 1
+	for _, path := range recent {
+		if path != "" && path != directory && at < len(recent) {
+			s.preferences.RecentDirectories[at] = path
+			at++
+		}
+	}
 	s.directory = directory
 	// The persistent intent precedes the external effect, so a crash can be reconciled.
 	if err := s.persist(ctx); err != nil {
+		s.preferences.RecentDirectories = recent
 		s.tasks, s.directory = oldTasks, oldDir
 		return BatchResult{}, err
 	}

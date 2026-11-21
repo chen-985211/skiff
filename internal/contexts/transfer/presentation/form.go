@@ -103,10 +103,23 @@ func (v *View) composeFields(c *ui.Context, p palette, advanced float32) {
 			v.FormError = ""
 		}
 
-		ui.Box(c.Key("advanced-slot")).FillWidth().Height(42 * advanced).Clip().Opacity(advanced).IgnoreInput(!v.advanced).AccessHidden(!v.advanced).Children(func() {
+		ui.Box(c.Key("advanced-slot")).FillWidth().Height(84 * advanced).Clip().Opacity(advanced).IgnoreInput(!v.advanced).AccessHidden(!v.advanced).Children(func() {
 			if advanced == 0 && !v.advanced {
 				return
 			}
+			ui.Row(c).Absolute().Left(0).Right(0).Top(7).Height(30).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "文件名").FontSize(13).TextColor(p.muted)
+				ui.TextInputBase(c, &v.outputName).Transition(controlMotion).Grow(1).Height(30).PaddingX(8).Border(1, p.border).Radius(cornerInline).Label("单文件另存为").Placeholder("使用原文件名").Disabled(v.Busy || !v.advanced)
+				if v.Snapshot.Preferences.RecentDirectories[0] != "" {
+					ui.MenuButton(c, "最近目录", func(m *ui.Menu) {
+						for _, dir := range v.Snapshot.Preferences.RecentDirectories {
+							if dir != "" && m.Item(dir).Chosen() {
+								v.Directory = dir
+							}
+						}
+					}).Transition(controlMotion)
+				}
+			})
 			ui.Row(c).Absolute().Left(0).Right(0).Bottom(0).Height(30).AlignItems(ui.Center).Gap(8).Children(func() {
 				ui.Text(c, "单文件连接上限").Grow(1).FontSize(13).TextColor(p.muted)
 				field := ui.TextInputBase(c, &v.connectionLimit).Transition(controlMotion).Width(80).Height(30).PaddingX(8).Label("单文件连接上限").Placeholder("自动").Description("1 到 16，留空为自动").Border(1, p.border).Radius(cornerInline).Disabled(v.Busy || !v.advanced)
