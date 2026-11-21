@@ -7,10 +7,10 @@
 <p align="center">使用 MyGo 原生界面和 aria2 引擎的桌面下载工具，支持文件直链、磁力链接和种子文件。</p>
 
 <p align="center">
-  <a href="https://github.com/chen-985211/skiff/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/chen-985211/skiff/ci.yml?branch=main&amp;label=CI&amp;labelColor=374357" alt="CI 状态"></a>
-  <a href="https://github.com/chen-985211/skiff/releases"><img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-496C99?labelColor=374357" alt="平台：macOS、Windows、Linux"></a>
-  <a href="https://github.com/aria2/aria2"><img src="https://img.shields.io/badge/engine-aria2-32766F?labelColor=374357" alt="下载引擎：aria2"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-796194?labelColor=374357" alt="MIT 许可证"></a>
+  <a href="https://github.com/chen-985211/skiff/releases/latest"><img src="https://img.shields.io/github/v/release/chen-985211/skiff?label=version&amp;color=blue" alt="Skiff 最新正式版"></a>
+  <a href="https://github.com/chen-985211/skiff/releases"><img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-lightgrey" alt="平台：macOS、Windows、Linux"></a>
+  <a href="https://github.com/aria2/aria2"><img src="https://img.shields.io/badge/engine-aria2-orange" alt="下载引擎：aria2"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen" alt="MIT 许可证"></a>
 </p>
 
 <div align="center">
@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/8fa22cc3-e91a-4537-87f4-756609c0314c
 - **选文件下载**　在「新建下载 → BT」打开本地 `.torrent`，或粘贴磁力链接并点「读取文件列表」。在文件树中勾选需要的文件，再点「开始下载」。磁力任务可选 30、60 或 120 秒后自动下载全部，手动更改勾选会取消倒计时。
 - **管理节点**　在「设置 → BT 网络」管理 Tracker 订阅、DHT、局域网节点发现、监听端口和节点上限。任务详情可查看节点、Tracker 和分片进度。
 - **做种与复用文件**　下载完成后可继续做种，并按分享率或时长停止。已有完整文件可在任务详情中校验、重新定位或移动，再恢复做种。
-- **创建种子**　在「BT 选项 → 创建种子…」选择本地文件或文件夹，生成 BitTorrent v1 种子。勾选「用原文件做种」即可在保存后开始分享。
+- **创建种子**　在「BT 选项 → 创建种子…」选择本地文件或文件夹，生成 `.torrent` 文件。勾选「用原文件做种」即可在保存后开始分享。
 
 ### 任务与操作
 
@@ -65,7 +65,7 @@ xattr -dr com.apple.quarantine /Applications/Skiff.app && open /Applications/Ski
 
 ## 开发运行
 
-需要 Go **1.27.3+**。Go 可按 go.mod 自动选择所需工具链。
+安装 Go 后，在项目目录运行以下命令。Go 会按 [go.mod](go.mod) 自动选择所需工具链。
 
 ```sh
 go mod download
@@ -88,7 +88,7 @@ make package              # 当前平台的原生应用包
 
 macOS 应用在 `build/darwin-arm64/Skiff.app`。MyGo 本地打包采用 ad hoc 签名，尚未进行 Developer ID 签名与 Apple 公证。
 
-推送与 `mygo.json` 版本一致的标签（例如 `v0.1.0`）即可触发发布。三个平台的测试与打包全部通过后，[GitHub Releases](https://github.com/chen-985211/skiff/releases) 会提供 macOS Apple Silicon 的 DMG、Windows x64 的 EXE，以及 Linux x64 的 DEB、RPM 和 tar.gz。
+推送以 `v` 开头、与 `mygo.json` 版本一致的标签即可触发发布。三个平台的测试与打包全部通过后，[GitHub Releases](https://github.com/chen-985211/skiff/releases) 会提供 macOS Apple Silicon 的 DMG、Windows x64 的 EXE，以及 Linux x64 的 DEB、RPM 和 tar.gz。
 
 ## 许可证
 
