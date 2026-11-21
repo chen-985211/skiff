@@ -3,6 +3,7 @@ package aria2
 import (
 	"context"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"skiff/internal/contexts/transfer/application"
@@ -49,7 +50,10 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 		options["auto-file-renaming"] = "true"
 	}
 	source := s.URL
-	if s.Headers != "" {
+	if err := engineNetwork(s, options); err != nil {
+		return err
+	}
+	if needsLocalRoute(s) {
 		var err error
 		source, err = c.routes.register(s)
 		if err != nil {
@@ -108,6 +112,9 @@ type ariaTask struct {
 	ErrorCode   string `json:"errorCode"`
 	Files       []struct {
 		Path string `json:"path"`
+		URIs []struct {
+			URI string `json:"uri"`
+		} `json:"uris"`
 	} `json:"files"`
 }
 
@@ -151,6 +158,14 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 			o.Total, _ = strconv.ParseInt(t.Total, 10, 64)
 			o.Completed, _ = strconv.ParseInt(t.Completed, 10, 64)
 			o.Speed, _ = strconv.ParseInt(t.Speed, 10, 64)
+			if len(t.Files) > 0 {
+				for _, entry := range t.Files[0].URIs {
+					u, e := url.Parse(entry.URI)
+					if e == nil && u.Hostname() == "127.0.0.1" && strings.HasPrefix(u.Path, "/_skiff_transfer/") {
+						o.LocalRoute = true
+					}
+				}
+			}
 			if len(t.Files) > 0 && t.Files[0].Path != "" {
 				o.Path = t.Files[0].Path
 				o.Name = filepath.Base(o.Path)

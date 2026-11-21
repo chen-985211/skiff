@@ -4,6 +4,8 @@ go 1.27.3
 
 require (
 	github.com/egoist/mygo v0.9.1-0.20261114182207-bd6901daf0f3
+	github.com/mattn/go-ieproxy v0.0.12
+	golang.org/x/net v0.59.0
 	golang.org/x/sys v0.48.0
 )
 
@@ -18,7 +20,6 @@ require (
 	go.digitalxero.dev/rpm v0.3.4 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/image v0.46.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 )
 

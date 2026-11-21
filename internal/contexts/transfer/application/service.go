@@ -36,9 +36,11 @@ type SourceInfo struct {
 	RangeBytes int64
 }
 
+type NetworkSettings = domain.NetworkSettings
 type DiskSettings = domain.DiskSettings
 type TransferSpec struct {
-	DownloadLimit        int64 `json:",omitempty"`
+	Network              NetworkSettings `json:",omitzero"`
+	DownloadLimit        int64           `json:",omitempty"`
 	Digest               string
 	Disk                 DiskSettings
 	Headers              string
@@ -50,6 +52,7 @@ type TransferSpec struct {
 	Paused               bool
 }
 type Observation struct {
+	LocalRoute                    bool
 	HTTPRejected                  bool
 	NextInQueue                   bool
 	Connections                   int
@@ -82,11 +85,12 @@ func (mode ThemeMode) valid() bool {
 }
 
 type Preferences struct {
-	DownloadLimit     int64        `json:",omitempty"`
-	Disk              DiskSettings `json:",omitzero"`
-	RecentDirectories [5]string    `json:",omitempty"`
-	Concurrency       int          `json:",omitempty"`
-	Theme             ThemeMode    `json:",omitempty"`
+	Network           NetworkSettings `json:",omitzero"`
+	DownloadLimit     int64           `json:",omitempty"`
+	Disk              DiskSettings    `json:",omitzero"`
+	RecentDirectories [5]string       `json:",omitempty"`
+	Concurrency       int             `json:",omitempty"`
+	Theme             ThemeMode       `json:",omitempty"`
 	DefaultDirectory  string
 	StaticBackground  bool
 }
@@ -153,7 +157,7 @@ func transferSpec(r domain.Record, paused bool) TransferSpec {
 			headers = ""
 		}
 	}
-	return TransferSpec{DownloadLimit: r.DownloadLimit, Digest: digest, Disk: r.Disk, Headers: headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: source, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
+	return TransferSpec{Network: r.Network, DownloadLimit: r.DownloadLimit, Digest: digest, Disk: r.Disk, Headers: headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: source, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
@@ -204,7 +208,7 @@ func (s *Service) Open(ctx context.Context) error {
 			}
 			continue
 		}
-		if _, ok := found[r.ID]; ok && r.Headers != "" {
+		if o, ok := found[r.ID]; ok && (r.Headers != "" || o.LocalRoute) {
 			// Loopback credential routes have fresh capabilities each launch.
 			if err := s.engine.Execute(ctx, r.ID, Remove); err != nil {
 				return err
@@ -257,6 +261,7 @@ func (s *Service) AddBatchWithConnections(ctx context.Context, text, directory s
 }
 
 type AddOptions struct {
+	Network         NetworkSettings `json:",omitzero"`
 	Mirrors         string
 	Headers         string
 	OutputName      string
@@ -304,7 +309,16 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 	}
 	s.mu.Lock()
 	disk := s.preferences.Disk
+	network := opts.Network
+	if network.Mode == "" {
+		network = s.preferences.Network
+	} else if network.DNS == "" {
+		network.DNS = s.preferences.Network.DNS
+	}
 	s.mu.Unlock()
+	if err := network.Validate(); err != nil {
+		return BatchResult{}, err
+	}
 	requests := make([]TransferSpec, len(batch.Sources))
 	origin := ""
 	for i, source := range batch.Sources {
@@ -316,7 +330,7 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 			}
 			origin = current
 		}
-		requests[i] = TransferSpec{URL: source, Headers: headers, Disk: disk}
+		requests[i] = TransferSpec{Network: network, URL: source, Headers: headers, Disk: disk}
 	}
 	sources := s.inspectBatch(ctx, requests, limit != 1)
 	if err := ctx.Err(); err != nil {
@@ -341,6 +355,7 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 		}
 		task = domain.NewTask(s.nextID(), source, directory)
 		task.SetMirrors(mirrors, sources[i].Digest)
+		task.SetNetwork(network)
 		task.SetDisk(disk)
 		task.SetHeaders(headers)
 		pending[task.Record().URL] = true
@@ -774,5 +789,16 @@ func (s *Service) SetDiskSettings(ctx context.Context, d DiskSettings) error {
 	defer s.mu.Unlock()
 	next := s.preferences
 	next.Disk = d
+	return s.savePreferences(ctx, next)
+}
+
+func (s *Service) SetNetwork(ctx context.Context, n NetworkSettings) error {
+	if err := n.Validate(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.preferences
+	next.Network = n
 	return s.savePreferences(ctx, next)
 }

@@ -12,6 +12,7 @@ type API interface {
 	RetryFTP(context.Context, string, string, string) error
 	SetConcurrency(context.Context, int) error
 	SetDownloadLimit(context.Context, string, int64) error
+	SetNetwork(context.Context, application.NetworkSettings) error
 	SetDiskSettings(context.Context, application.DiskSettings) error
 	SetTheme(context.Context, application.ThemeMode) error
 	SetDefaultDirectory(context.Context, string) error
@@ -32,6 +33,9 @@ type Actions struct {
 type View struct {
 	mirrorText                                     string
 	importedURL                                    string
+	networkOpen, networkTask                       bool
+	networkDraft, taskNetwork                      application.NetworkSettings
+	networkErr                                     error
 	rateOpen                                       bool
 	rateID, rateText                               string
 	rateErr                                        error
@@ -149,6 +153,7 @@ func (v *View) Render(c *ui.Context) {
 	v.rateDialog(c, p)
 	v.diskDialog(c, p)
 	v.requestDialog(c, p)
+	v.networkDialog(c, p)
 	v.ftpLogin(c, p)
 	if ui.AlertDialog(c, &v.RestartOpen, "从头重新下载？", "原来的未完成文件会保留，新下载使用不同文件名。", "取消", "重新下载") == 1 {
 		v.command(v.RestartID, application.Restart)

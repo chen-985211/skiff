@@ -41,7 +41,7 @@ func (v *View) submit() {
 	v.Busy = true
 	v.FormError = ""
 	text, dir := v.URLs, v.Directory
-	opts := application.AddOptions{ConnectionLimit: limit, Mirrors: v.mirrorText, Headers: v.headerBlock(), OutputName: v.outputName}
+	opts := application.AddOptions{ConnectionLimit: limit, Network: v.taskNetwork, Mirrors: v.mirrorText, Headers: v.headerBlock(), OutputName: v.outputName}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -81,6 +81,7 @@ func (v *View) submit() {
 				v.fields = nil
 				v.importedURL = ""
 				v.mirrorText = ""
+				v.taskNetwork = application.NetworkSettings{}
 				if result.Added+result.Duplicates > 1 || result.Duplicates > 0 {
 					v.batchNotice = summary
 				}

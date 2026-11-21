@@ -61,14 +61,15 @@ const (
 )
 
 type Record struct {
-	DownloadLimit                 int64        `json:",omitempty"`
-	Mirrors, MirrorSource, Digest string       `json:",omitempty"`
-	Disk                          DiskSettings `json:",omitzero"`
-	Headers                       string       `json:",omitempty"`
-	FTPUser                       string       `json:",omitempty"`
-	FTPPassword                   string       `json:",omitempty"`
-	RequestedConnections          int          `json:",omitempty"`
-	ConnectionLimit               int          `json:",omitempty"`
+	Network                       NetworkSettings `json:",omitzero"`
+	DownloadLimit                 int64           `json:",omitempty"`
+	Mirrors, MirrorSource, Digest string          `json:",omitempty"`
+	Disk                          DiskSettings    `json:",omitzero"`
+	Headers                       string          `json:",omitempty"`
+	FTPUser                       string          `json:",omitempty"`
+	FTPPassword                   string          `json:",omitempty"`
+	RequestedConnections          int             `json:",omitempty"`
+	ConnectionLimit               int             `json:",omitempty"`
 	Version                       SourceVersion
 	ID                            string
 	URL                           string

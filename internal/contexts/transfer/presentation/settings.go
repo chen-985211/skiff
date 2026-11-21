@@ -17,6 +17,9 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 		list.Children(func() {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Margin(0, 0, 20).Gap(8).Children(func() {
 				ui.Text(c, "设置").Grow(1).FontSize(28).FontWeight(650)
+				if secondaryAction(c, "代理与 DNS").Disabled(!v.Ready || v.Busy).Clicked() {
+					v.openNetwork(false)
+				}
 				v.speedSelector(c, "", v.Snapshot.Preferences.DownloadLimit)
 				if secondaryAction(c, "性能与磁盘").Disabled(!v.Ready || v.Busy).Clicked() {
 					v.openDisk(v.Snapshot.Preferences.Disk)

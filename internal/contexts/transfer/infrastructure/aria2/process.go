@@ -100,6 +100,16 @@ func StartConfigured(ctx context.Context, dataDir, binary string, prefs applicat
 		return nil, err
 	}
 	p := &Process{cmd: exec.Command(binary, "--conf-path="+conf), done: make(chan struct{})}
+	// All transfer proxy choices are explicit. Inherited engine environment
+	// variables would otherwise override per-task direct and bypass modes.
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		switch strings.ToLower(key) {
+		case "all_proxy", "http_proxy", "https_proxy", "ftp_proxy", "no_proxy":
+			continue
+		}
+		p.cmd.Env = append(p.cmd.Env, entry)
+	}
 	p.cmd.Stdout, p.cmd.Stderr = logFile, logFile
 	if err := p.cmd.Start(); err != nil {
 		logFile.Close()

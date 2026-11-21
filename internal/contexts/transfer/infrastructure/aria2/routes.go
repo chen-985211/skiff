@@ -45,7 +45,7 @@ func (g *downloadRoutes) register(s application.TransferSpec) (string, error) {
 	token := rand.Text()
 	g.byID[s.ID] = token
 	g.byToken[token] = s
-	return g.base + "/" + token, nil
+	return g.base + "/_skiff_transfer/" + token, nil
 }
 func (g *downloadRoutes) remove(id string) {
 	g.mu.Lock()
@@ -70,10 +70,7 @@ func applyHeaders(r *http.Request, block string) {
 	}
 }
 func sourceClient(s application.TransferSpec) *http.Client {
-	if s.Headers == "" {
-		return http.DefaultClient
-	}
-	return &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	return &http.Client{Transport: networkTransport{s.Network}, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {
 			return fmt.Errorf("重定向次数过多")
 		}
@@ -92,7 +89,7 @@ func sourceClient(s application.TransferSpec) *http.Client {
 }
 func (g *downloadRoutes) serve(w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
-	s, ok := g.byToken[strings.TrimPrefix(r.URL.Path, "/")]
+	s, ok := g.byToken[strings.TrimPrefix(r.URL.Path, "/_skiff_transfer/")]
 	g.mu.Unlock()
 	if !ok || r.Method != "GET" && r.Method != "HEAD" {
 		http.NotFound(w, r)
