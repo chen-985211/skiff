@@ -57,12 +57,11 @@ var proxyChoices = [...]proxyChoice{{"", "全局设置"}, {"system", "跟随系�
 
 func (v *View) proxyOptions(c *ui.Context, p palette, n *application.NetworkSettings, task bool, width float32) {
 	ui.Column(c.Key("proxy-options")).Width(width).Shrink(0).Children(func() {
-		var track ui.Element
-		if task {
-			formRow(c, p, "代理模式", func() { track = v.proxySelector(c, p, n, width-optionLabelWidth-optionGap, proxyChoices[:]) })
-		} else {
-			track = v.proxySelector(c, p, n, width, proxyChoices[1:])
+		choices := proxyChoices[:]
+		if !task {
+			choices = choices[1:]
 		}
+		track := v.proxySelector(c, p, n, width, choices)
 		manual := n.Mode == "manual"
 		visible := track.AnimateTo("manual-fields", amount(manual), panelSpring)
 		inherits := task && n.Mode == ""
@@ -77,7 +76,7 @@ func (v *View) proxyOptions(c *ui.Context, p palette, n *application.NetworkSett
 				label = v.Snapshot.Preferences.Network.Proxy
 			}
 			line.Children(func() {
-				ui.Text(c, "当前全局设置 · "+label).Absolute().Left(optionLabelWidth + optionGap).Right(0).Top(7).TruncateMiddle().Tooltip(label).SingleLine().FontSize(12).TextColor(p.muted)
+				ui.Text(c, "当前全局设置 · "+label).Absolute().Left(0).Right(0).Top(7).TruncateMiddle().Tooltip(label).SingleLine().FontSize(12).TextColor(p.muted)
 			})
 		}
 		// Include the gap above the fields in the reveal. An outer layout gap

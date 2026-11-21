@@ -295,11 +295,18 @@ func TestAdvancedToolbarAndEditorsShareEdges(t *testing.T) {
 			t.Error("empty counter occupies the header controls")
 		}
 		click("代理")
+		mode := box(ui.RoleRadioGroup, "代理模式")
+		if _, visible := tt.AccessByRole(ui.RoleText, "代理模式"); visible {
+			t.Error("proxy tab repeats the selector name as a visible heading")
+		}
+		hint := box(ui.RoleText, "当前全局设置 · 跟随系统")
+		if mode.X != rail.X || right(mode) != right(submit) || hint.X != mode.X {
+			t.Errorf("proxy selector and inherited setting should start at the toolbar edge: rail=%v mode=%v hint=%v", rail, mode, hint)
+		}
 		click("手动代理")
 		proxy := box(ui.RoleTextField, "HTTP 代理地址")
-		mode := box(ui.RoleRadioGroup, "代理模式")
-		if mode.X != file.X || right(mode) != right(submit) || proxy.X != file.X || right(proxy) != right(submit) {
-			t.Errorf("proxy controls left the value column: %+v, %+v", mode, proxy)
+		if box(ui.RoleText, "地址").X != mode.X || proxy.X != file.X || right(proxy) != right(submit) {
+			t.Errorf("manual proxy fields should follow the form grid: %+v", proxy)
 		}
 	}
 }
