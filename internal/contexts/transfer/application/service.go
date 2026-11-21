@@ -38,6 +38,7 @@ type SourceInfo struct {
 
 type DiskSettings = domain.DiskSettings
 type TransferSpec struct {
+	DownloadLimit        int64 `json:",omitempty"`
 	Digest               string
 	Disk                 DiskSettings
 	Headers              string
@@ -59,6 +60,7 @@ type Observation struct {
 type OutputCandidate struct{ ID, Name string }
 
 type Engine interface {
+	SetDownloadLimit(context.Context, string, int64) error
 	ProtectCheckpoints(context.Context, string, []OutputCandidate) (map[string]string, error)
 	SetConcurrency(context.Context, int) error
 	HasPartial(context.Context, domain.Record) (bool, error)
@@ -80,6 +82,7 @@ func (mode ThemeMode) valid() bool {
 }
 
 type Preferences struct {
+	DownloadLimit     int64        `json:",omitempty"`
 	Disk              DiskSettings `json:",omitzero"`
 	RecentDirectories [5]string    `json:",omitempty"`
 	Concurrency       int          `json:",omitempty"`
@@ -99,6 +102,7 @@ type Repository interface {
 	Save(context.Context, State) error
 }
 type TaskDTO struct {
+	DownloadLimit                                 int64 `json:",omitempty"`
 	MirrorSource                                  string
 	NeedsFTPLogin                                 bool
 	CanPrioritize, NextInQueue                    bool
@@ -149,7 +153,7 @@ func transferSpec(r domain.Record, paused bool) TransferSpec {
 			headers = ""
 		}
 	}
-	return TransferSpec{Digest: digest, Disk: r.Disk, Headers: headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: source, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
+	return TransferSpec{DownloadLimit: r.DownloadLimit, Digest: digest, Disk: r.Disk, Headers: headers, FTPUser: r.FTPUser, FTPPassword: r.FTPPassword, ID: r.ID, URL: source, Directory: r.Directory, OutputName: name, Version: r.Version, ConnectionLimit: r.ConnectionLimit, Paused: paused}
 }
 func (s *Service) Open(ctx context.Context) error {
 	s.mu.Lock()
@@ -161,6 +165,9 @@ func (s *Service) Open(ctx context.Context) error {
 	s.preferences = state.Preferences
 	if s.preferences.Concurrency < 1 || s.preferences.Concurrency > MaxConcurrency {
 		s.preferences.Concurrency = DefaultConcurrency
+	}
+	if err := s.engine.SetDownloadLimit(ctx, "", s.preferences.DownloadLimit); err != nil {
+		return err
 	}
 	s.concurrencyPending = true
 	if err := s.applyConcurrency(ctx); err != nil {
@@ -205,6 +212,11 @@ func (s *Service) Open(ctx context.Context) error {
 			delete(found, r.ID)
 		}
 		if o, ok := found[r.ID]; ok {
+			if o.Status != "complete" && o.Status != "error" {
+				if err := s.engine.SetDownloadLimit(ctx, r.ID, r.DownloadLimit); err != nil {
+					return err
+				}
+			}
 			apply(task, o)
 			if task.Allows(domain.Pause) {
 				if err := s.engine.Execute(ctx, r.ID, Pause); err != nil {
@@ -633,7 +645,7 @@ func (s *Service) Snapshot() Snapshot {
 	snap := Snapshot{Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
-		dto := TaskDTO{MirrorSource: r.MirrorSource, NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
+		dto := TaskDTO{DownloadLimit: r.DownloadLimit, MirrorSource: r.MirrorSource, NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
 		snap.Tasks = append(snap.Tasks, dto)
 		if r.Status == domain.Active {
 			snap.Active++

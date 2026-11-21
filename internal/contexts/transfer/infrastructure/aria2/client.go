@@ -16,6 +16,7 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 		return err
 	}
 	options := map[string]string{"gid": s.ID, "dir": s.Directory, "pause": strconv.FormatBool(s.Paused)}
+	options["max-download-limit"] = strconv.FormatInt(s.DownloadLimit, 10)
 	options["min-split-size"] = strconv.FormatInt(s.Disk.SplitBytes(), 10)
 	if s.Disk.Allocation != "" {
 		options["file-allocation"] = s.Disk.Allocation
@@ -177,4 +178,12 @@ func conditionalHeader(v domain.SourceVersion) string {
 		return "If-Unmodified-Since: " + v.LastModified
 	}
 	return ""
+}
+
+func (c *Client) SetDownloadLimit(ctx context.Context, id string, rate int64) error {
+	value := strconv.FormatInt(rate, 10)
+	if id == "" {
+		return c.call(ctx, "aria2.changeGlobalOption", []any{map[string]string{"max-overall-download-limit": value}}, nil)
+	}
+	return c.call(ctx, "aria2.changeOption", []any{id, map[string]string{"max-download-limit": value}}, nil)
 }

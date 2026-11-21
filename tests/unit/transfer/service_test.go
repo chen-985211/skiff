@@ -24,6 +24,7 @@ func (f *fakeEngine) ProtectCheckpoints(context.Context, string, []application.O
 	return nil, nil
 }
 
+func (f *fakeEngine) SetDownloadLimit(context.Context, string, int64) error { return nil }
 func (f *fakeEngine) SetConcurrency(_ context.Context, limit int) error {
 	if f.limitErr != nil {
 		return f.limitErr

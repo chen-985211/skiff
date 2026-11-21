@@ -301,6 +301,9 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 		v.cardSurface(c, card, p, t.ID, color, cornerDetail).Children(func() {
 			ui.Row(c).Height(44).FillWidth().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
 				fileHeading(c, p, t, 18, 2)
+				if t.Status != "complete" {
+					v.speedSelector(c, t.ID, t.DownloadLimit)
+				}
 				if secondaryAction(c, "返回").Label("返回任务列表").Clicked() {
 					v.detailID = ""
 					c.Invalidate()

@@ -24,6 +24,7 @@ const ResumeUnsupported = "resume_unsupported"
 const SourceUnverified = "source_unverified" // Legacy resume refusal.
 const FTPLoginRequired = "ftp_login_required"
 
+func (t *Task) SetDownloadLimit(rate int64) { t.record.DownloadLimit = rate }
 func (t *Task) SetFTPLogin(user, password string) {
 	t.record.FTPUser = user
 	t.record.FTPPassword = password
@@ -60,6 +61,7 @@ const (
 )
 
 type Record struct {
+	DownloadLimit                 int64        `json:",omitempty"`
 	Mirrors, MirrorSource, Digest string       `json:",omitempty"`
 	Disk                          DiskSettings `json:",omitzero"`
 	Headers                       string       `json:",omitempty"`

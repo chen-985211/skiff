@@ -11,6 +11,7 @@ import (
 type API interface {
 	RetryFTP(context.Context, string, string, string) error
 	SetConcurrency(context.Context, int) error
+	SetDownloadLimit(context.Context, string, int64) error
 	SetDiskSettings(context.Context, application.DiskSettings) error
 	SetTheme(context.Context, application.ThemeMode) error
 	SetDefaultDirectory(context.Context, string) error
@@ -31,6 +32,9 @@ type Actions struct {
 type View struct {
 	mirrorText                                     string
 	importedURL                                    string
+	rateOpen                                       bool
+	rateID, rateText                               string
+	rateErr                                        error
 	diskOpen                                       bool
 	cacheText, splitText, allocation               string
 	diskErr                                        error
@@ -142,6 +146,7 @@ func (v *View) Render(c *ui.Context) {
 		search.Opacity(max(0, 1-reveal/.35))
 		v.newDialog(c, p, anchor, reveal)
 	}
+	v.rateDialog(c, p)
 	v.diskDialog(c, p)
 	v.requestDialog(c, p)
 	v.ftpLogin(c, p)
