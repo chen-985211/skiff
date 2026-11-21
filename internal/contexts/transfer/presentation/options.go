@@ -62,3 +62,46 @@ func (v *View) ftpLogin(c *ui.Context, p palette, stage ui.Element) {
 		v.ftpPassword = ""
 	}
 }
+
+const preferenceWidth = 396
+const preferenceInset = 20
+
+func preferenceSheet(c *ui.Context, p palette, stage ui.Element, key, title, icon string, open *bool, body func()) {
+	optionDialog(c, p, stage, key, open, func(panel ui.Element) {
+		panel.Label(title).Width(preferenceWidth).Column().Padding(preferenceInset).Gap(16).
+			Radius(cornerSheet).Background(p.panel).Border(1, p.border.Alpha(.5)).Children(func() {
+			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(9).Children(func() {
+				ui.Box(c).Size(30, 30).Center().Radius(cornerSmall).Background(p.tint.Alpha(.38)).Children(func() {
+					ui.Icon(c, icons[icon]).FontSize(17).TextColor(p.active).AccessHidden(true)
+				})
+				ui.Text(c, title).Grow(1).FontSize(18).FontWeight(600)
+				close := ui.ButtonBase(c.Key("close")).Transition(controlMotion).Size(30, 30).Radius(cornerRemove).
+					Center().FocusRing(true).Label("关闭" + title).Tooltip("关闭")
+				if close.Hovered() {
+					close.Background(p.tint.Alpha(.45))
+				}
+				close.Children(func() { ui.Icon(c, icons["close"]).FontSize(15).TextColor(p.muted) })
+				if close.Clicked() {
+					*open = false
+					c.Invalidate()
+				}
+			})
+			body()
+		})
+	})
+}
+
+// Keep the unit visible when the user replaces the placeholder with a number.
+func preferenceNumber(c *ui.Context, p palette, label, unit, placeholder, hint string, value *string) ui.Element {
+	var field ui.Element
+	ui.Column(c.Key(label)).FillWidth().Gap(4).Children(func() {
+		formRow(c, p, label, func() {
+			ui.Row(c).Grow(1).MinWidth(0).Height(32).AlignItems(ui.Center).Children(func() {
+				field = rowInput(c, p, label, placeholder, value, false).Padding(0, 50, 0, 9).Description(unit + "。" + hint)
+				ui.Text(c, unit).Absolute().Right(10).FontSize(12).TextColor(p.muted).AccessHidden(true).IgnoreInput(true)
+			})
+		})
+		ui.Text(c, hint).Margin(0, 0, 0, optionLabelWidth+optionGap).FontSize(12).TextColor(p.muted)
+	})
+	return field
+}
