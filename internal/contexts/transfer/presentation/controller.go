@@ -79,6 +79,7 @@ func (v *View) submit() {
 				v.connectionLimit = ""
 				v.outputName = ""
 				v.fields = nil
+				v.importedURL = ""
 				if result.Added+result.Duplicates > 1 || result.Duplicates > 0 {
 					v.batchNotice = summary
 				}

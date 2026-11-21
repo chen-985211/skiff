@@ -1,6 +1,7 @@
 package presentation
 
 import (
+	"skiff/internal/contexts/transfer/application"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -89,7 +90,7 @@ func (v *View) composeFields(c *ui.Context, p palette, advanced float32) {
 	p.muted = p.muted.Mix(c.Theme().Text, .38)
 	ui.Column(c.Key("source-fields")).FillWidth().Children(func() {
 		links := ui.TextAreaBase(c, &v.URLs).Transition(controlMotion).FillWidth().Lines(4, 7).Padding(12, 14).FontSize(13).FixedLineHeight(20).
-			Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接，每行一个").PlaceholderColor(p.muted).
+			Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接或浏览器 cURL").PlaceholderColor(p.muted).
 			Description("支持 HTTP、HTTPS 和 FTP 文件链接").AutoFocus().Disabled(v.Busy)
 		edge, focusEdge := p.border, p.active
 		if !c.Preferences().HighContrast {
@@ -101,6 +102,16 @@ func (v *View) composeFields(c *ui.Context, p palette, advanced float32) {
 		links.Border(1, edge)
 		if links.Changed() {
 			v.FormError = ""
+			if v.importedURL != "" && v.URLs != v.importedURL {
+				v.fields = nil
+				v.importedURL = ""
+			}
+			if request, ok, err := application.ImportCurl(v.URLs); ok && err == nil {
+				v.URLs = request.URL
+				v.importedURL = request.URL
+				v.loadHeaders(request.Headers)
+				c.Invalidate()
+			}
 		}
 
 		ui.Box(c.Key("advanced-slot")).FillWidth().Height(84 * advanced).Clip().Opacity(advanced).IgnoreInput(!v.advanced).AccessHidden(!v.advanced).Children(func() {

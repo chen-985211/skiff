@@ -28,6 +28,7 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
+	importedURL                                    string
 	headerErr                                      error
 	requestOpen                                    bool
 	fields                                         []requestField

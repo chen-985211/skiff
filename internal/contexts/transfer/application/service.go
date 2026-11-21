@@ -236,6 +236,13 @@ type AddOptions struct {
 }
 
 func (s *Service) AddWithOptions(ctx context.Context, text, directory string, opts AddOptions) (BatchResult, error) {
+	if request, ok, err := ImportCurl(text); ok {
+		if err != nil {
+			return BatchResult{}, err
+		}
+		text = request.URL
+		opts.Headers = strings.TrimSpace(request.Headers + "\n" + opts.Headers)
+	}
 	limit := opts.ConnectionLimit
 	if limit < 0 || limit > MaxConnectionLimit {
 		return BatchResult{}, fmt.Errorf("连接上限应为 1 到 %d，留空使用自动设置", MaxConnectionLimit)
