@@ -17,6 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - { os: macos-15, asset: darwin-arm64.tar.gz }
           - { os: ubuntu-24.04, asset: linux-x64.tar.gz }
           - { os: ubuntu-24.04-arm, asset: linux-arm64.tar.gz }
           - { os: windows-2025, asset: win32-x64.zip }

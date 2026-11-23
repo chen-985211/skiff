@@ -118,7 +118,7 @@ func StartConfigured(ctx context.Context, dataDir, binary string, prefs applicat
 		p.cmd.Env = append(p.cmd.Env, entry)
 	}
 	p.cmd.Stdout, p.cmd.Stderr = logFile, logFile
-	if err := p.cmd.Start(); err != nil {
+	if err := startEngineProcess(p.cmd); err != nil {
 		logFile.Close()
 		return nil, err
 	}
