@@ -72,7 +72,9 @@ func NewInstallation(dataDir string) *Installation {
 	return &Installation{
 		directory: filepath.Join(dataDir, "engine"),
 		Release:   engineReleases[runtime.GOOS+"/"+runtime.GOARCH],
-		Client:    http.DefaultClient,
+		// Installation precedes loading task preferences. Resolve each release
+		// request, including redirects, with the system proxy and DNS settings.
+		Client: &http.Client{Transport: systemDNSTransport()},
 	}
 }
 
