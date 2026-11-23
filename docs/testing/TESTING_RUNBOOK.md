@@ -7,6 +7,7 @@
 | 获取依赖 | `go mod download` |
 | 格式化 | `gofmt -w cmd internal tests` |
 | unit + 架构契约 | `go test ./...` |
+| Go 文件 800 行上限 | `go test -count=1 ./tests/contract -run '^TestGoFileLineLimit$'` |
 | 本地 UI 门禁（设计规则与界面回归） | `make check-ui` |
 | 目标 Red/Green | `go test ./tests/unit/transfer -run TestName -v` |
 | 集成 | `go test -tags integration ./tests/integration/... -v` |

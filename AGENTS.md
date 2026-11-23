@@ -6,6 +6,8 @@
 
 遵循 [架构约定](docs/engineering/architecture.md)：DDD + Clean Architecture，以限界上下文为第一目录维度。业务动作只进入 application；端口归 application；domain 不依赖 GUI、进程、网络或存储；presentation 与 infrastructure 不相互依赖。Platform 只负责装配和生命周期。
 
+项目自有的每个 Go 文件最多 800 行，含测试、注释和空行。超过上限时按用例、组件或测试场景拆分。[文件行数契约](tests/contract/file_length_test.go) 随本地完整检查和 CI 运行。
+
 ## 测试
 
 - 所有生产行为采用 TDD：先运行能表达目标行为的失败测试，再实现，再重构。
