@@ -20,7 +20,8 @@ import (
 
 // CI supplies the untouched upstream archive for the native runner. Only the
 // download host changes; platform selection and both pinned digests stay live.
-func TestNativeEngineReleaseDownloadsFile(t *testing.T) {
+func downloadWithNativeEngineRelease(t *testing.T) {
+	t.Helper()
 	archive := os.Getenv("SKIFF_TEST_ENGINE_ARCHIVE")
 	if _, err := os.Stat(archive); err != nil {
 		t.Fatal(err)
