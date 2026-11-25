@@ -99,3 +99,31 @@ func TestDiskSettingsShareAColumnAndRestoreDefaultsInPlace(t *testing.T) {
 		t.Fatal("reset should restore automatic allocation in the same dialog")
 	}
 }
+
+func TestRenderEnglishOptionColumnFitsFullLabels(t *testing.T) {
+	for _, tc := range []struct {
+		label string
+		path  []string
+	}{
+		{"Download limit", []string{"Global speed limit · Unlimited", "Custom…"}},
+		{"Peer discovery", []string{"BitTorrent Network", "Tracker", "Connections"}},
+	} {
+		t.Run(tc.label, func(t *testing.T) {
+			view := presentation.New(service(t, &fakeEngine{}, &fakeRepo{}), presentation.Actions{})
+			var textWidth float32
+			scene := ui.NewTesterWith(func(c *ui.Context) {
+				textWidth, _ = c.MeasureText(0, ui.Span{Text: tc.label, Size: 12, Weight: 560})
+				view.Render(c)
+			}, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+			scene.SetLocale("en")
+			chooseSource(t, scene, "Settings")
+			for _, label := range tc.path {
+				chooseSource(t, scene, label)
+			}
+			label := sourceBounds(t, scene, ui.RoleText, tc.label)
+			if label.W < float32(math.Ceil(float64(textWidth))) {
+				t.Errorf("%q needs %.1f pt with %.1f pt available", tc.label, textWidth, label.W)
+			}
+		})
+	}
+}

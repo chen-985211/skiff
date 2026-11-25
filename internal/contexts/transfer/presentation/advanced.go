@@ -17,7 +17,7 @@ var optionTabs = [...]optionTabItem{
 }
 
 const (
-	optionLabelWidth = 82
+	optionLabelWidth = 96
 	optionGap        = 8
 	optionGutter     = 8 // the scroll thumb lives in the sheet margin
 )
