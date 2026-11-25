@@ -31,7 +31,7 @@ func (v *View) selectCategory(id string) {
 	}
 	v.settingsOpen = false
 	v.Filter, v.detailID = id, ""
-	v.batchNotice = ""
+	v.batchNotice = messageError{}
 	v.queueError = nil
 	v.taskRows = ui.ListState{}
 }

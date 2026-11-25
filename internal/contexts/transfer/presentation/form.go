@@ -208,7 +208,7 @@ func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink, btI
 	_, windowH := c.Size()
 	const chrome = 2*formInsetY + formHeaderHeight + 2*formGap + formFooterHeight + footerInset
 	available := windowH - max(float32(36), c.TitleBar().Bottom+8) - chrome
-	if v.FormError != "" {
+	if v.FormError != nil {
 		available -= formErrorMaxHeight + formGap
 	}
 	optionsHeight := min(float32(194), available)
@@ -225,8 +225,8 @@ func (v *View) composeFields(c *ui.Context, p palette, width, advanced, ink, btI
 			v.advancedOptions(c, p, width, optionsHeight, ink)
 		}
 	})
-	if v.FormError != "" {
-		ui.Text(c, v.FormError).Transition(pageFade).ContentTransition(textChange).MaxHeight(formErrorMaxHeight).Tooltip(v.FormError).FontSize(12).TextColor(c.Theme().Danger)
+	if message := errorText(c.Locale(), v.FormError); message != "" {
+		ui.Text(c, message).Transition(pageFade).ContentTransition(textChange).MaxHeight(formErrorMaxHeight).Tooltip(message).FontSize(12).TextColor(c.Theme().Danger)
 	}
 	v.composeFooter(c, p)
 }
@@ -275,7 +275,7 @@ func (v *View) linkEditor(c *ui.Context, p palette) {
 	}
 	styleSourceField(c, links, p)
 	if links.Changed() {
-		v.FormError = ""
+		v.FormError = nil
 		if v.importedURL != "" && v.URLs != v.importedURL {
 			v.fields = nil
 			v.importedURL = ""
@@ -305,9 +305,9 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 		pick := func() {
 			v.Actions.PickDirectory(v.Directory, func(path string, err error) {
 				if err != nil {
-					v.FormError = errorText(v.locale, err)
+					v.FormError = err
 				} else if path != "" {
-					v.Directory, v.FormError = path, ""
+					v.Directory, v.FormError = path, nil
 				}
 			})
 		}
@@ -320,7 +320,7 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 				}
 				for _, dir := range v.Snapshot.Preferences.RecentDirectories {
 					if dir != "" && m.Item(dir).Tooltip(dir).Checked(dir == v.Directory).Chosen() {
-						v.Directory, v.FormError = dir, ""
+						v.Directory, v.FormError = dir, nil
 					}
 				}
 			}, icons["folder"]).Tooltip(tr(c, "download.folderOrRecent"))
@@ -357,7 +357,7 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 				ui.Text(c, caption).Transition(pageFade).Margin(0, 6).FontSize(12).TextColor(p.muted).SingleLine().TruncateMiddle().IgnoreInput(true).AccessHidden(true)
 			}
 			if dir.Changed() {
-				v.FormError = ""
+				v.FormError = nil
 			}
 		})
 	})

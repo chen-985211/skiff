@@ -3,6 +3,7 @@
   "batch.partialFailure": "已创建 {added} 个任务，部分操作失败：{reason}",
   "batch.summary": "新增 {added} · 重复 {duplicates} · 无效 {invalid}",
   "batch.summaryDeferred": "新增 {added} · 重复 {duplicates} · 无效 {invalid} · 待下批 {deferred}",
+  "batch.withPartialFailure": "{summary}\n{failure}",
   "bt.cancelCreate": "取消生成",
   "bt.cancelFetch": "取消获取",
   "bt.changeTorrent": "更换种子",

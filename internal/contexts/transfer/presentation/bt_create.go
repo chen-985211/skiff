@@ -33,10 +33,10 @@ func (v *View) createEditor(c *ui.Context, p palette) {
 								return
 							}
 							if err != nil {
-								v.FormError = errorText(v.locale, err)
+								v.FormError = err
 							} else if path != "" {
 								b.source = path
-								v.FormError = ""
+								v.FormError = nil
 							}
 						})
 					}
@@ -64,7 +64,7 @@ func (v *View) createFooter(c *ui.Context, p palette, width float32) {
 			return
 		}
 		if err != nil {
-			v.FormError = errorText(v.locale, err)
+			v.FormError = err
 			return
 		}
 		if path == "" {
@@ -80,7 +80,7 @@ func (v *View) createFooter(c *ui.Context, p palette, width float32) {
 		ctx, cancel := context.WithCancel(parent)
 		b.cancel = cancel
 		api := v.API.(torrentCreateAPI)
-		v.FormError = ""
+		v.FormError = nil
 		v.run(func(context.Context) error {
 			defer cancel()
 			_, e := api.CreateTorrent(ctx, source, path, trackers, seed)
@@ -91,7 +91,7 @@ func (v *View) createFooter(c *ui.Context, p palette, width float32) {
 				if errors.Is(err, context.Canceled) {
 					return
 				}
-				v.FormError = errorText(v.locale, err)
+				v.FormError = err
 				return
 			}
 			b.open = false

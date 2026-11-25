@@ -61,7 +61,7 @@ func (v *View) sourceTabs(c *ui.Context, p palette, ink float32) {
 			item.Children(func() { ui.Text(c, label).SingleLine().FontSize(12).FontWeight(560) })
 			if item.Changed() {
 				b.stopLookup()
-				v.FormError = ""
+				v.FormError = nil
 				c.Invalidate()
 			}
 		}
@@ -78,7 +78,7 @@ func (v *View) lookupTorrent(source string) {
 	seq := b.generation
 	b.source = source
 	b.clearPreview()
-	v.FormError = ""
+	v.FormError = nil
 	parent := v.Actions.Context
 	if parent == nil {
 		parent = context.Background()
@@ -94,7 +94,7 @@ func (v *View) lookupTorrent(source string) {
 			}
 			b.cancel = nil
 			if err != nil {
-				v.FormError = errorText(v.locale, err)
+				v.FormError = err
 				return
 			}
 			b.meta = meta
@@ -149,7 +149,7 @@ func (v *View) torrentTools(c *ui.Context, p palette) {
 func (v *View) returnToTorrent(c *ui.Context, p palette) {
 	if secondaryAction(c, tr(c, "download.returnToDownload")).Disabled(v.Busy).Clicked() {
 		v.bt.creator.open = false
-		v.FormError = ""
+		v.FormError = nil
 		c.Invalidate()
 	}
 }
@@ -162,7 +162,7 @@ func (v *View) torrentOptions(c *ui.Context, p palette) {
 				b.stopLookup()
 				b.creator.open = true
 				b.creator.saved = ""
-				v.FormError = ""
+				v.FormError = nil
 			}
 			m.Separator()
 		}
@@ -214,7 +214,7 @@ func (v *View) torrentDownloadEditor(c *ui.Context, p palette) {
 				if pick.Clicked() {
 					v.Actions.PickTorrent(func(file string, err error) {
 						if err != nil {
-							v.FormError = errorText(v.locale, err)
+							v.FormError = err
 						} else if file != "" {
 							v.lookupTorrent(file)
 						}
@@ -275,7 +275,7 @@ func (v *View) submitTorrent() {
 	}
 	if b.meta.Hash == "" {
 		if strings.TrimSpace(b.source) == "" {
-			v.FormError = i18n.Text(v.locale, "bt.requireSource")
+			v.FormError = copyError("bt.requireSource", nil)
 			return
 		}
 		v.lookupTorrent(strings.TrimSpace(b.source))
@@ -288,7 +288,7 @@ func (v *View) submitTorrent() {
 		}
 	}
 	if len(indexes) == 0 {
-		v.FormError = i18n.Text(v.locale, "bt.requireFiles")
+		v.FormError = copyError("bt.requireFiles", nil)
 		return
 	}
 	dir, hash := v.Directory, b.meta.Hash
@@ -296,11 +296,11 @@ func (v *View) submitTorrent() {
 	api := v.API.(torrentAPI)
 	v.run(func(ctx context.Context) error { _, err := api.AddTorrent(ctx, hash, dir, indexes); return err }, func(err error) {
 		if err != nil {
-			v.FormError = errorText(v.locale, err)
+			v.FormError = err
 			return
 		}
 		v.DialogOpen = false
 		v.bt = torrentDraft{wait: b.wait}
-		v.FormError = ""
+		v.FormError = nil
 	})
 }

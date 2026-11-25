@@ -27,7 +27,7 @@ func TestEmptyDownloadViewAndNewDownloadValidation(t *testing.T) {
 	if err := tt.Click("开始下载"); err != nil {
 		t.Fatal(err)
 	}
-	if v.FormError == "" || !v.DialogOpen {
+	if v.FormError == nil || !v.DialogOpen {
 		t.Fatal("empty download must be rejected without closing form")
 	}
 }
@@ -104,7 +104,7 @@ func TestEditingDownloadLinksClearsStaleValidation(t *testing.T) {
 	if err := tt.Click("开始下载"); err != nil {
 		t.Fatal(err)
 	}
-	if v.FormError == "" {
+	if v.FormError == nil {
 		t.Fatal("missing empty-link error")
 	}
 	field, ok := tt.AccessByRole(ui.RoleTextField, "下载链接")
@@ -114,8 +114,8 @@ func TestEditingDownloadLinksClearsStaleValidation(t *testing.T) {
 	r := field.Bounds
 	tt.ClickAt(r.X+r.W/2, r.Y+r.H/2)
 	tt.Type("https://example.org/archive.zip")
-	if v.FormError != "" || v.URLs == "" {
-		t.Fatalf("edited links still show a stale error: %s (%q)", v.FormError, v.URLs)
+	if v.FormError != nil || v.URLs == "" {
+		t.Fatalf("edited links still show a stale error: %v (%q)", v.FormError, v.URLs)
 	}
 }
 
@@ -237,7 +237,7 @@ func TestAdvancedConnectionLimitAndLiveCount(t *testing.T) {
 	focusLimit()
 	tt.Type("17")
 	_ = tt.Click("开始下载")
-	if !v.DialogOpen || v.FormError == "" {
+	if !v.DialogOpen || v.FormError == nil {
 		t.Fatal("invalid cap accepted")
 	}
 	focusLimit()
@@ -265,5 +265,50 @@ func TestAdvancedConnectionLimitAndLiveCount(t *testing.T) {
 	}
 	if !tt.HasText("2 / 2") {
 		t.Fatalf("missing live count: %v", tt.Texts())
+	}
+}
+
+func TestOpenDownloadValidationUpdatesWhenLocaleChanges(t *testing.T) {
+	view := presentation.New(nil, presentation.Actions{})
+	view.Ready = true
+	view.Snapshot.Directory = t.TempDir()
+	scene := interactionScene(view, 800, 560)
+	chooseSource(t, scene, "新建下载")
+	chooseSource(t, scene, "开始下载")
+	if !scene.HasText("请先输入下载链接") {
+		t.Fatal("missing initial validation message")
+	}
+	scene.SetLocale("en")
+	if !scene.HasText("Enter a download link") || scene.HasText("请先输入下载链接") {
+		t.Fatalf("validation kept the previous locale: %v", scene.Texts())
+	}
+}
+
+func TestBatchDownloadNoticeUpdatesWhenLocaleChanges(t *testing.T) {
+	svc := service(t, &fakeEngine{}, &fakeRepo{})
+	updates := make(chan func(), 1)
+	view := presentation.New(svc, presentation.Actions{
+		Context:  t.Context(),
+		Dispatch: func(fn func()) { updates <- fn },
+	})
+	view.Snapshot = svc.Snapshot()
+	view.OpenNew()
+	view.URLs = "https://example.test/one.zip\nhttps://example.test/two.zip"
+	scene := interactionScene(view, 800, 560)
+	chooseSource(t, scene, "开始下载")
+	select {
+	case update := <-updates:
+		update()
+		scene.Frame()
+	case <-time.After(time.Second):
+		t.Fatal("batch result did not arrive")
+	}
+	const chinese = "新增 2 · 重复 0 · 无效 0"
+	if !scene.HasText(chinese) {
+		t.Fatalf("missing initial batch notice: %v", scene.Texts())
+	}
+	scene.SetLocale("en")
+	if !scene.HasText("Added 2 · Duplicates 0 · Invalid 0") || scene.HasText(chinese) {
+		t.Fatalf("batch notice kept the previous locale: %v", scene.Texts())
 	}
 }

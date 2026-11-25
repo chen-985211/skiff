@@ -88,7 +88,7 @@ func (v *View) proxyOptions(c *ui.Context, p palette, n *application.NetworkSett
 					formRow(c, p, tr(c, "network.address"), func() {
 						if rowInput(c, p, tr(c, "network.proxyURL"), "http://proxy:8080", &n.Proxy, false).Changed() {
 							v.networkErr = nil
-							v.FormError = ""
+							v.FormError = nil
 						}
 					})
 					formRow(c, p, tr(c, "network.auth"), func() {
@@ -125,7 +125,7 @@ func (v *View) proxySelector(c *ui.Context, p palette, n *application.NetworkSet
 			if item.Changed() {
 				n.Mode = choice.mode
 				v.networkErr = nil
-				v.FormError = ""
+				v.FormError = nil
 				c.Invalidate()
 			}
 		}

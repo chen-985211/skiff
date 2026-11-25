@@ -36,7 +36,6 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
-	locale                                         string
 	btNetwork                                      btNetworkPanel
 	btInfo                                         btInspector
 	bt                                             torrentDraft
@@ -65,7 +64,8 @@ type View struct {
 	connectionLimit                                string
 	themeSave                                      preferenceSave[application.ThemeMode]
 	flowSave                                       preferenceSave[bool]
-	lastDefault, batchNotice                       string
+	lastDefault                                    string
+	batchNotice                                    messageError
 	settingsOpen                                   bool
 	light                                          windowLight
 	API                                            API
@@ -74,7 +74,8 @@ type View struct {
 	Ready, Busy, DialogOpen                        bool
 	RestartOpen                                    bool
 	RestartID                                      string
-	Filter, Query, URLs, Directory, FormError      string
+	Filter, Query, URLs, Directory                 string
+	FormError                                      error
 	EngineError                                    error
 	engineOffered, installingEngine                bool
 	taskErrors                                     map[string]error
@@ -113,11 +114,10 @@ func (v *View) OpenNew() {
 			v.Directory = v.Snapshot.Directory
 			v.lastDefault = v.Directory
 		}
-		v.FormError = ""
+		v.FormError = nil
 	}
 }
 func (v *View) Render(c *ui.Context) {
-	v.locale = c.Locale()
 	defer v.forgetHiddenTransfers()
 	if !v.DialogOpen {
 		v.bt.stopLookup()

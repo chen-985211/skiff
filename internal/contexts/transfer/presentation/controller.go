@@ -23,18 +23,18 @@ func (v *View) submit() {
 	}
 	if strings.TrimSpace(v.URLs) == "" {
 		v.advanced, v.focusLinks = false, true
-		v.FormError = i18n.Text(v.locale, "download.fileLinksRequired")
+		v.FormError = copyError("download.fileLinksRequired", nil)
 		return
 	}
 	if strings.TrimSpace(v.Directory) == "" {
-		v.FormError = i18n.Text(v.locale, "download.chooseDirectory")
+		v.FormError = copyError("download.chooseDirectory", nil)
 		return
 	}
 	network := normalizedNetwork(v.taskNetwork)
 	if err := network.Validate(); err != nil {
 		v.optionTab = proxyTab
 		v.advanced = true
-		v.FormError = errorText(v.locale, err)
+		v.FormError = err
 		return
 	}
 	if v.API == nil {
@@ -45,14 +45,14 @@ func (v *View) submit() {
 		var err error
 		limit, err = strconv.Atoi(value)
 		if err != nil || limit < 1 || limit > application.MaxConnectionLimit {
-			v.FormError = i18n.Format(v.locale, "download.connectionLimitError", i18n.Args{"limit": application.MaxConnectionLimit})
+			v.FormError = copyError("download.connectionLimitError", i18n.Args{"limit": application.MaxConnectionLimit})
 			v.optionTab = fileTab
 			v.advanced = true
 			return
 		}
 	}
 	v.Busy = true
-	v.FormError = ""
+	v.FormError = nil
 	text, dir := v.URLs, v.Directory
 	opts := application.AddOptions{ConnectionLimit: limit, Network: network, Mirrors: v.mirrorText, Headers: v.headerBlock(), OutputName: v.outputName}
 	go func() {
@@ -67,26 +67,26 @@ func (v *View) submit() {
 				v.advanced, v.focusLinks = false, true
 			}
 			if err != nil && result.Added == 0 {
-				v.FormError = errorText(v.locale, err)
+				v.FormError = err
 				return
 			}
 			v.URLs = strings.Join(result.Remaining, "\n")
 			v.selectCategory("all")
 			v.Query = ""
-			summary := i18n.Format(v.locale, "batch.summary", i18n.Args{"added": result.Added, "duplicates": result.Duplicates, "invalid": result.Invalid})
+			summary := copyError("batch.summary", i18n.Args{"added": result.Added, "duplicates": result.Duplicates, "invalid": result.Invalid})
 			if result.Deferred > 0 {
-				summary = i18n.Format(v.locale, "batch.summaryDeferred", i18n.Args{"added": result.Added, "duplicates": result.Duplicates, "invalid": result.Invalid, "deferred": result.Deferred})
+				summary = copyError("batch.summaryDeferred", i18n.Args{"added": result.Added, "duplicates": result.Duplicates, "invalid": result.Invalid, "deferred": result.Deferred})
 			}
 			switch {
 			case err != nil:
-				v.FormError = i18n.Format(v.locale, "batch.partialFailure", i18n.Args{"added": result.Added, "reason": errorText(v.locale, err)})
+				v.FormError = copyError("batch.partialFailure", i18n.Args{"added": result.Added, "reason": err})
 				if len(result.Remaining) > 0 || result.Duplicates > 0 {
-					v.FormError = summary + "\n" + v.FormError
+					v.FormError = copyError("batch.withPartialFailure", i18n.Args{"summary": summary, "failure": v.FormError})
 				}
 			case len(result.Remaining) > 0:
 				v.FormError = summary
 				if result.Invalid > 0 {
-					v.FormError = i18n.Format(v.locale, "batch.fixInvalid", i18n.Args{"summary": summary})
+					v.FormError = copyError("batch.fixInvalid", i18n.Args{"summary": summary})
 				}
 			default:
 				v.DialogOpen = false

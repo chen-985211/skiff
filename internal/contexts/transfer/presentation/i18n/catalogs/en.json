@@ -3,6 +3,7 @@
   "batch.partialFailure": "Created {added} tasks. Some operations failed: {reason}",
   "batch.summary": "Added {added} · Duplicates {duplicates} · Invalid {invalid}",
   "batch.summaryDeferred": "Added {added} · Duplicates {duplicates} · Invalid {invalid} · Deferred {deferred}",
+  "batch.withPartialFailure": "{summary}\n{failure}",
   "bt.cancelCreate": "Cancel",
   "bt.cancelFetch": "Cancel Fetch",
   "bt.changeTorrent": "Change Torrent",

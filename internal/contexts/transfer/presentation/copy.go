@@ -23,10 +23,27 @@ type messageError struct {
 }
 
 func (e messageError) Error() string {
-	return i18n.Format(i18n.Source, e.key, e.args)
+	return e.text(i18n.Source)
 }
 
-func copyError(key string, args i18n.Args) error {
+func (e messageError) text(locale string) string {
+	if e.key == "" {
+		return ""
+	}
+	if len(e.args) == 0 {
+		return i18n.Text(locale, e.key)
+	}
+	args := make(i18n.Args, len(e.args))
+	for name, value := range e.args {
+		if nested, ok := value.(error); ok {
+			value = errorText(locale, nested)
+		}
+		args[name] = value
+	}
+	return i18n.Format(locale, e.key, args)
+}
+
+func copyError(key string, args i18n.Args) messageError {
 	return messageError{key, args}
 }
 
@@ -36,7 +53,7 @@ func errorText(locale string, err error) string {
 	}
 	var message messageError
 	if errors.As(err, &message) {
-		return i18n.Format(locale, message.key, message.args)
+		return message.text(locale)
 	}
 	key := transferErrorMessages[application.CodeOf(err)]
 	if key == "" {

@@ -107,7 +107,7 @@ func (v *View) fileOptions(c *ui.Context, p palette) {
 	formRow(c, p, tr(c, "download.connectionLimit"), func() {
 		f := rowInput(c, p, tr(c, "download.singleConnectionLimit"), tr(c, "common.auto"), &v.connectionLimit, false).Description(tr(c, "download.autoOrConnectionLimit"))
 		if f.Changed() {
-			v.FormError = ""
+			v.FormError = nil
 		}
 	})
 	ui.Row(c).FillWidth().AlignItems(ui.Start).Gap(optionGap).Children(func() {
@@ -117,7 +117,7 @@ func (v *View) fileOptions(c *ui.Context, p palette) {
 			field.Border(1, p.active)
 		}
 		if field.Changed() {
-			v.FormError = ""
+			v.FormError = nil
 		}
 	})
 }
