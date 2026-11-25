@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
+
 	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/presentation"
 )
@@ -98,5 +100,39 @@ func TestBTFilePickerFeedbackUsesRenderedLanguage(t *testing.T) {
 				t.Errorf("existing completion feedback did not switch language: %v", scene.Texts())
 			}
 		})
+	}
+}
+
+func TestInvalidTorrentPeerLimitShowsTheAllowedRange(t *testing.T) {
+	api := delayedBTFileAPI{
+		Service: service(t, &fakeEngine{}, &fakeRepo{}),
+		snapshot: application.Snapshot{Tasks: []application.TaskDTO{{
+			ID: "task", Name: "sample.torrent", TorrentHash: "hash", Status: "complete",
+		}}},
+	}
+	updates := make(chan func(), 2)
+	view := presentation.New(api, presentation.Actions{
+		Context: t.Context(), Dispatch: func(fn func()) { updates <- fn },
+	})
+	view.Snapshot = api.Snapshot()
+	scene := interactionScene(view, 1020, 680)
+	scene.SetLocale("en")
+	chooseSource(t, scene, "View details for sample.torrent")
+	chooseSource(t, scene, "BitTorrent Details")
+	select {
+	case update := <-updates:
+		update()
+		scene.Frame()
+	case <-time.After(time.Second):
+		t.Fatal("no inspector update")
+	}
+	for _, input := range []string{"abc", "999999999999999999999"} {
+		chooseSource(t, scene, "Peer limit for this torrent")
+		scene.Key(ui.Cmd, ui.KeyA)
+		scene.Type(input)
+		chooseSource(t, scene, "Apply")
+		if !scene.HasText("Enter a peer limit from 0 to 65535") {
+			t.Errorf("missing the peer limit range for %q: %v", input, scene.Texts())
+		}
 	}
 }

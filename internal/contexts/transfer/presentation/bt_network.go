@@ -268,7 +268,7 @@ func (v *View) renderBTDetails(c *ui.Context, p palette, stage ui.Element) {
 			if secondaryAction(c, tr(c, "common.apply")).Disabled(v.Busy).Clicked() {
 				n, err := optionalNumber(b.peerLimit)
 				if err != nil {
-					b.err = err
+					b.err = application.ErrBTPeerLimit
 					return
 				}
 				id := b.id
