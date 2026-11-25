@@ -2,6 +2,7 @@ package presentation
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
@@ -50,6 +51,18 @@ func copyError(key string, args i18n.Args) messageError {
 func errorText(locale string, err error) string {
 	if err == nil {
 		return ""
+	}
+	if batch, ok := err.(*application.BatchAddError); ok {
+		var messages []string
+		seen := make(map[string]bool)
+		for _, failure := range batch.Unwrap() {
+			message := errorText(locale, failure)
+			if !seen[message] {
+				messages = append(messages, message)
+				seen[message] = true
+			}
+		}
+		return strings.Join(messages, "\n")
 	}
 	var message messageError
 	if errors.As(err, &message) {

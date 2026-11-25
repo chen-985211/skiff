@@ -1,12 +1,16 @@
 package transfer_test
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
 	"skiff/internal/contexts/transfer/application"
+	"skiff/internal/contexts/transfer/domain"
 	"skiff/internal/contexts/transfer/presentation"
 )
 
@@ -163,6 +167,48 @@ func TestWorkspacePartialCreationExplainsFailureInForm(t *testing.T) {
 	tt.Key(0, ui.KeyEscape)
 	if tt.HasText(message) || !tt.HasText("无法连接下载引擎") {
 		t.Fatal("dismissing the form should leave the affected card's own error visible")
+	}
+}
+
+type rejectFailedDownloadsRepository struct{ fakeRepo }
+
+func (r *rejectFailedDownloadsRepository) Save(ctx context.Context, state application.State) error {
+	for _, task := range state.Tasks {
+		if task.Status == domain.Failed {
+			return errors.New("private repository detail")
+		}
+	}
+	return r.fakeRepo.Save(ctx, state)
+}
+
+func TestDownloadFormLocalizesEachDistinctBatchFailure(t *testing.T) {
+	next := 0
+	api := application.New(&fakeEngine{addErr: application.ErrEngineConnection}, &rejectFailedDownloadsRepository{}, t.TempDir(), func() string {
+		next++
+		return fmt.Sprintf("%016x", next)
+	})
+	if err := api.Open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan func(), 1)
+	view := presentation.New(api, presentation.Actions{Dispatch: func(fn func()) { done <- fn }})
+	view.OpenNew()
+	view.URLs, view.Directory = "https://example.org/a\nhttps://example.org/b", t.TempDir()
+	scene := interactionScene(view, 800, 560)
+	chooseSource(t, scene, "开始下载")
+	select {
+	case apply := <-done:
+		apply()
+	case <-time.After(3 * time.Second):
+		t.Fatal("batch creation did not finish")
+	}
+	scene.Frame()
+	if !scene.HasText("已创建 2 个任务，部分操作失败：无法连接下载引擎\n保存任务失败") {
+		t.Errorf("Chinese form did not show both distinct failures: %v", scene.Texts())
+	}
+	scene.SetLocale("en")
+	if !scene.HasText("Created 2 tasks. Some operations failed: Could not connect to the download engine\nCould not save the download queue") {
+		t.Errorf("English form did not show both distinct failures: %v", scene.Texts())
 	}
 }
 

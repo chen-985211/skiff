@@ -191,8 +191,23 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 	if err := s.persist(ctx); err != nil {
 		failures = append(failures, err)
 	}
-	return result, errors.Join(failures...)
+	if len(failures) == 0 {
+		return result, nil
+	}
+	return result, &BatchAddError{failures: failures}
 }
+
+// BatchAddError preserves the separate enqueue and queue save failures.
+type BatchAddError struct{ failures []error }
+
+func (e *BatchAddError) Error() string {
+	if joined := errors.Join(e.failures...); joined != nil {
+		return joined.Error()
+	}
+	return ""
+}
+
+func (e *BatchAddError) Unwrap() []error { return e.failures }
 
 // Bound metadata latency for an entire paste. Sources that do not answer HEAD
 // can still download; their partial files require an explicit fresh start.
