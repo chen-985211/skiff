@@ -213,6 +213,10 @@ func TestRenderWindowLightKeepsRelativePositionOnResize(t *testing.T) {
 		var pixels []color.RGBA
 		for y := 60; y <= 94; y += 2 {
 			for x := 50; x <= 98; x += 2 {
+				// The dock covers this part of the field at the smallest size.
+				if y >= 90 && x < 60 {
+					continue
+				}
 				pixels = append(pixels, im.RGBAAt(x*w/100, y*h/100))
 			}
 		}

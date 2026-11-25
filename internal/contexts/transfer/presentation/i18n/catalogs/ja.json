@@ -144,7 +144,7 @@
   "download.start": "ダウンロード開始",
   "download.type": "ダウンロードの種類",
   "download.urls": "ダウンロードリンク",
-  "engine.download": "ダウンロードエンジン",
+  "engine.download": "エンジンを入手",
   "engine.downloading": "ダウンロード中…",
   "engine.installFailed": "エンジンのインストールに失敗しました",
   "engine.missing": "ダウンロードエンジンがインストールされていません",

@@ -9,36 +9,40 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"skiff/internal/contexts/transfer/presentation"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 )
 
 func TestRenderSheetExpandsWithoutShiftingButtonLabelOnClick(t *testing.T) {
-	v := presentation.New(nil, presentation.Actions{})
-	v.Ready, v.Snapshot.Preferences.StaticBackground = true, true
-	tt := ui.NewTester(v.Render, 1020, 680)
-	tt.Advance(time.Second)
-	button, ok := tt.Find("新建下载")
-	if !ok {
-		t.Fatal("missing new download button")
-	}
-	// Measure just the light ink inside the pill, clear of its rounded rim.
-	inkBounds := func() image.Rectangle {
-		im := tt.Image()
-		var ink image.Rectangle
-		for y := int(button.Y + 6); y < int(button.Y+button.H-6); y++ {
-			for x := int(button.X + 11); x < int(button.X+button.W-11); x++ {
-				if im.RGBAAt(x, y).R > 175 {
-					ink = ink.Union(image.Rect(x, y, x+1, y+1))
+	for _, locale := range i18n.Languages() {
+		t.Run(locale, func(t *testing.T) {
+			v := presentation.New(nil, presentation.Actions{})
+			v.Ready, v.Snapshot.Preferences.StaticBackground = true, true
+			tt := ui.NewTester(v.Render, 1020, 680)
+			tt.SetLocale(locale)
+			tt.Advance(time.Second)
+			label := i18n.Text(locale, "download.new")
+			button := sourceBounds(t, tt, ui.RoleButton, label)
+			// Measure just the light ink inside the pill, clear of its rounded rim.
+			inkBounds := func() image.Rectangle {
+				im := tt.Image()
+				var ink image.Rectangle
+				for y := int(button.Y + 6); y < int(button.Y+button.H-6); y++ {
+					for x := int(button.X + 11); x < int(button.X+button.W-11); x++ {
+						if im.RGBAAt(x, y).R > 175 {
+							ink = ink.Union(image.Rect(x, y, x+1, y+1))
+						}
+					}
 				}
+				return ink
 			}
-		}
-		return ink
-	}
-	idle := inkBounds()
-	if err := tt.Click("新建下载"); err != nil {
-		t.Fatal(err)
-	}
-	if first := inkBounds(); idle.Empty() || first != idle {
-		t.Fatalf("label shifted on the opening frame: %v -> %v", idle, first)
+			idle := inkBounds()
+			if err := tt.Click(label); err != nil {
+				t.Fatal(err)
+			}
+			if first := inkBounds(); idle.Empty() || first != idle {
+				t.Fatalf("label shifted on the opening frame: %v -> %v", idle, first)
+			}
+		})
 	}
 }
 
@@ -268,7 +272,7 @@ func TestRenderEnglishComposerTitleFitsWhenOpenedFromSettings(t *testing.T) {
 	chooseSource(t, scene, "Settings")
 	scene.Key(ui.Cmd, ui.KeyN)
 	opening := sourceBounds(t, scene, ui.RoleDialog, "New Download")
-	if room := opening.W - 17 - 15 - 7; opening.W != dock.W || room < float32(math.Ceil(float64(caption))) {
+	if room := opening.W - 2*8 - 15 - 7; opening != dock || room < float32(math.Ceil(float64(caption))) {
 		t.Errorf("opening sheet %v does not match dock %v or fit %.1f pt of text", opening, dock, caption)
 	}
 	scene.Advance(85 * time.Millisecond)

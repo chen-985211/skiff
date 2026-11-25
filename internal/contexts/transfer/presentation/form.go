@@ -27,8 +27,7 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 	width := min(float32(420), windowW-left-workspaceInset)
 	if anchor.W == 0 {
 		// A menu or keyboard shortcut can open the form from Settings, without a dock.
-		dockWidth := downloadDockWidth(c)
-		anchor = ui.Rect{X: left + min(cardWidth, width) - dockWidth, Y: windowH - footerInset - dockHeight, W: dockWidth, H: dockHeight}
+		anchor = ui.Rect{X: left + min(dockWidth, width) - dockActionWidth, Y: windowH - footerInset - dockHeight, W: dockActionWidth, H: dockHeight}
 	}
 	closed := 1 - reveal
 	shown := true // Keep the modal and its draft mounted until the spring reaches the button.
@@ -82,11 +81,9 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 
 		// Carry the dock label through the start of the morph, then yield to the editor.
 		if buttonInk > 0 {
-			ui.Row(c.Key("compose-title")).Transition(controlMotion).Absolute().Left(17).Top(9).Height(26).
-				Gap(7).AlignItems(ui.Center).Opacity(buttonInk).IgnoreInput(true).AccessHidden(true).Children(func() {
-				ui.Icon(c, icons["plus"]).FontSize(15).TextColor(c.Theme().AccentText)
-				ui.Text(c, tr(c, "download.new")).SingleLine().FontSize(13).FontWeight(600).TextColor(c.Theme().AccentText)
-			})
+			title := ui.Row(c.Key("compose-title")).Transition(controlMotion).Absolute().Left(0).Top(0).
+				Size(anchor.W, anchor.H).PaddingX(dockActionInset).Opacity(buttonInk).IgnoreInput(true).AccessHidden(true)
+			primaryActionContent(c, title, tr(c, "download.new"), "plus")
 		}
 		// Until the inputs are revealed, a second press belongs to the morphing
 		// button. Keep keyboard focus in the editor so a paste is accepted immediately.

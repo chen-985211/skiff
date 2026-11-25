@@ -10,6 +10,7 @@ import (
 
 	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/presentation"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 )
 
 func TestWorkspaceSearchCountSitsAboveFirstCard(t *testing.T) {
@@ -142,11 +143,11 @@ func TestWorkspaceCardsKeepTheirSizeAndAlignmentOnResize(t *testing.T) {
 		}
 		bar := get("下载工具栏")
 		settings := get("设置")
-		if bar.X != card.X || bar.W != card.W || bar.Y+bar.H != settings.Y+settings.H || bar.Y+bar.H != height-23 {
+		if bar.X != card.X || bar.Y+bar.H != settings.Y+settings.H || bar.Y+bar.H != height-23 {
 			t.Errorf("%d: bottom toolbar %v, card %v, settings %v", size.width, bar, card, settings)
 		}
 		add := get("新建下载")
-		if add.X+add.W != card.X+card.W || add.Y+add.H != bar.Y+bar.H {
+		if add.X+add.W != bar.X+bar.W || add.Y+add.H != bar.Y+bar.H {
 			t.Errorf("%d: new download button %v does not meet the right and bottom edges of %v", size.width, add, bar)
 		}
 		search := get("任务搜索")
@@ -170,6 +171,46 @@ func TestWorkspaceDownloadSheetSharesTheSearchBarAnchor(t *testing.T) {
 	sheet, found := tt.AccessByRole(ui.RoleDialog, "")
 	if !found || sheet.Bounds.X != bar.Bounds.X || sheet.Bounds.Y+sheet.Bounds.H != bar.Bounds.Y+bar.Bounds.H {
 		t.Fatalf("sheet %v does not open from the leading and bottom edges of the search bar %v", sheet.Bounds, bar.Bounds)
+	}
+}
+
+func TestWorkspaceDockFitsTranslationsWithoutMovingControls(t *testing.T) {
+	v := presentation.New(nil, presentation.Actions{})
+	v.Ready = true
+	var placeholderWidth, actionLabelWidth float32
+	tt := ui.NewTesterWith(func(c *ui.Context) {
+		placeholder := i18n.Text(c.Locale(), "workspace.searchPlaceholder")
+		placeholderWidth, _ = c.MeasureText(0, ui.Span{Text: placeholder, Size: 13})
+		actionLabelWidth = 0
+		for _, key := range []string{"download.new", "engine.download", "engine.downloading"} {
+			w, _ := c.MeasureText(0, ui.Span{Text: i18n.Text(c.Locale(), key), Size: 13, Weight: 600})
+			actionLabelWidth = max(actionLabelWidth, w)
+		}
+		v.Render(c)
+	}, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true, ReduceTransparency: true}})
+	wantSearch := sourceBounds(t, tt, ui.RoleSearch, "任务搜索")
+	wantAdd := sourceBounds(t, tt, ui.RoleButton, "新建下载")
+	if wantSearch.W < 1.5*wantAdd.W {
+		t.Errorf("search should have at least 50%% more room than the button: %v and %v", wantSearch, wantAdd)
+	}
+	for _, locale := range i18n.Languages() {
+		t.Run(locale, func(t *testing.T) {
+			tt.SetLocale(locale)
+			tt.Frame()
+			search := sourceBounds(t, tt, ui.RoleSearch, i18n.Text(locale, "workspace.searchRegion"))
+			add := sourceBounds(t, tt, ui.RoleButton, i18n.Text(locale, "download.new"))
+			field := sourceBounds(t, tt, ui.RoleTextField, i18n.Text(locale, "workspace.searchLabel"))
+			if search != wantSearch || add != wantAdd {
+				t.Errorf("language switch moved controls: search %v → %v, action %v → %v", wantSearch, search, wantAdd, add)
+			}
+			if field.W < placeholderWidth {
+				t.Errorf("search field has %.1f pt for a %.1f pt placeholder", field.W, placeholderWidth)
+			}
+			const actionChrome = 2*8 + 7 + 15 // Button insets, gap, and icon.
+			if add.W-actionChrome < actionLabelWidth {
+				t.Errorf("action has %.1f pt for a %.1f pt label", add.W-actionChrome, actionLabelWidth)
+			}
+		})
 	}
 }
 

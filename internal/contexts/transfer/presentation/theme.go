@@ -123,10 +123,15 @@ func primaryAction(c *ui.Context, title, icon string, disabled bool) ui.Element 
 		fill = t.AccentHover
 	}
 	return b.Background(fill).Children(func() {
-		ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(primaryActionGap).Children(func() {
-			ui.Icon(c, icons[icon]).FontSize(primaryActionIconSize).TextColor(t.AccentText)
-			ui.Text(c, title).SingleLine().FontSize(primaryActionFontSize).FontWeight(primaryActionFontWeight).TextColor(t.AccentText).ContentTransition(textChange)
-		})
+		primaryActionContent(c, ui.Row(c).Fill(), title, icon)
+	})
+}
+
+func primaryActionContent(c *ui.Context, row ui.Element, title, icon string) {
+	ink := c.Theme().AccentText
+	row.AlignItems(ui.Center).Justify(ui.Center).Gap(primaryActionGap).Children(func() {
+		ui.Icon(c, icons[icon]).FontSize(primaryActionIconSize).TextColor(ink)
+		ui.Text(c, title).SingleLine().FontSize(primaryActionFontSize).FontWeight(primaryActionFontWeight).TextColor(ink).ContentTransition(textChange)
 	})
 }
 
