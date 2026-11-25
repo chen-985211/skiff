@@ -46,3 +46,35 @@ func TestPrivateHeadersStopAtOriginOnBothProbeAndDownload(t *testing.T) {
 		t.Fatalf("task=%+v leaked=%d seen=%d", done, leaked.Load(), seen.Load())
 	}
 }
+
+func TestForwardedDownloadKeepsRedirectFailureUntilRetry(t *testing.T) {
+	var loop atomic.Bool
+	loop.Store(true)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if loop.Load() {
+			http.Redirect(w, r, "/loop", http.StatusFound)
+			return
+		}
+		http.Error(w, "source unavailable", http.StatusBadGateway)
+	}))
+	defer server.Close()
+	svc := downloadService(t)
+	_, err := svc.AddWithOptions(t.Context(), server.URL+"/loop", svc.Snapshot().Directory, application.AddOptions{Headers: "X-Example: forwarded"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := svc.Snapshot().Tasks[0].ID
+	failed := func(task application.TaskDTO) bool { return task.Status == "error" }
+	for range 2 {
+		if task := awaitTask(t, svc, id, failed); task.Failure != string(application.ErrTooManyRedirects) {
+			t.Errorf("forwarded task lost its redirect failure: %q", task.Failure)
+		}
+	}
+	loop.Store(false)
+	if err := svc.Execute(t.Context(), id, application.Retry); err != nil {
+		t.Fatal(err)
+	}
+	if task := awaitTask(t, svc, id, failed); task.Failure != application.FailureSourceUnavailable {
+		t.Errorf("retry reused the previous redirect failure: %q", task.Failure)
+	}
+}

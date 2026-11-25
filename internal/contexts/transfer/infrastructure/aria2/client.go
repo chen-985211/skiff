@@ -148,9 +148,6 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 		}
 		firstWaiting := true
 		for _, t := range tasks {
-			if t.Status == "complete" || t.Status == "error" || t.Status == "removed" {
-				c.routes.remove(t.GID)
-			}
 			o := application.Observation{Seeding: t.Seeder == "true", ID: t.GID, Status: t.Status, Error: t.Error, HTTPRejected: t.ErrorCode == "22"}
 			if req.method == "aria2.tellWaiting" && t.Status == "waiting" && firstWaiting {
 				o.NextInQueue = true
@@ -171,6 +168,15 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 				o.Failure = string(application.ErrDownloadAuthorization)
 			case "32":
 				o.Failure = string(application.ErrDownloadChecksum)
+			}
+			switch t.Status {
+			case "error":
+				// aria2 reports HTTP errors from the loopback route as code 29.
+				if failure := c.routes.finish(t.GID, t.ErrorCode == "29"); failure != "" {
+					o.Failure = string(failure)
+				}
+			case "complete", "removed":
+				c.routes.remove(t.GID)
 			}
 			if t.ErrorCode == "21" && strings.HasSuffix(strings.TrimSpace(t.Error), "status=530") {
 				o.Failure = domain.FTPLoginRequired
