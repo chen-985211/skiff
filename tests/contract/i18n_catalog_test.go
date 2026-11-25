@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -96,4 +97,39 @@ func readMessages(t *testing.T, path string) map[string]map[string]string {
 		t.Fatal(fmt.Errorf("%s: unexpected token after object: %v (%v)", path, extra, err))
 	}
 	return result
+}
+
+func TestI18nMacBundleDeclaresCatalogLanguages(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(i18nRepositoryRoot(), "mygo.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config struct {
+		MacOS struct {
+			InfoPlist struct {
+				Region    string   `json:"CFBundleDevelopmentRegion"`
+				Languages []string `json:"CFBundleLocalizations"`
+			}
+		}
+	}
+	if err := json.Unmarshal(body, &config); err != nil {
+		t.Fatal(err)
+	}
+	bundleTag := func(locale string) string {
+		if locale == "zh-CN" {
+			return "zh-Hans"
+		}
+		return locale
+	}
+	bundle := config.MacOS.InfoPlist
+	if want := bundleTag(i18n.Source); bundle.Region != want {
+		t.Errorf("bundle development region = %q, want %q", bundle.Region, want)
+	}
+	var want []string
+	for _, locale := range i18n.Languages() {
+		want = append(want, bundleTag(locale))
+	}
+	if !slices.Equal(slices.Sorted(slices.Values(bundle.Languages)), slices.Sorted(slices.Values(want))) {
+		t.Errorf("bundle languages = %q, want %q", bundle.Languages, want)
+	}
 }
