@@ -7,12 +7,18 @@ func (code ErrorCode) Error() string { return string(code) }
 
 // NamedError adds the affected name without changing the stable error code.
 type NamedError struct {
-	Code ErrorCode
-	Name string
+	Code  ErrorCode
+	Name  string
+	Cause error
 }
 
 func (e NamedError) Error() string { return string(e.Code) + ": " + e.Name }
-func (e NamedError) Unwrap() error { return e.Code }
+func (e NamedError) Unwrap() []error {
+	if e.Cause != nil {
+		return []error{e.Code, e.Cause}
+	}
+	return []error{e.Code}
+}
 
 const (
 	ErrInvalidHeaders      ErrorCode = "INVALID_HEADERS"

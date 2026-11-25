@@ -226,6 +226,8 @@
   "error.torrentFileChanged": "A file has changed",
   "error.torrentFileChangedNamed": "File {name} has changed",
   "error.torrentFileList": "The torrent file list is invalid",
+  "error.torrentFileMissing": "A required torrent file is missing. Restore it and try again.",
+  "error.torrentFileMissingNamed": "File {name} is missing. Restore it and try again.",
   "error.torrentFileMismatch": "A file has an unexpected size or type",
   "error.torrentFileMismatchNamed": "File {name} has an unexpected size or type",
   "error.torrentFiles": "Verification failed. The files do not match the torrent.",

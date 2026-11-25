@@ -62,6 +62,8 @@ func errorText(locale string, err error) string {
 		switch code {
 		case application.ErrManagedHeader:
 			return i18n.Format(locale, "error.managedHeaderNamed", args)
+		case application.ErrTorrentFileMissing:
+			return i18n.Format(locale, "error.torrentFileMissingNamed", args)
 		case application.ErrTorrentFileMismatch:
 			return i18n.Format(locale, "error.torrentFileMismatchNamed", args)
 		case application.ErrTorrentFileChanged:

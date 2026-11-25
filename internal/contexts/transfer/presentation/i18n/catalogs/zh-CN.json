@@ -226,6 +226,8 @@
   "error.torrentFileChanged": "文件已变化",
   "error.torrentFileChangedNamed": "文件 {name} 已变化",
   "error.torrentFileList": "种子文件列表无效",
+  "error.torrentFileMissing": "缺少种子所需的文件。请补齐后重试。",
+  "error.torrentFileMissingNamed": "缺少文件 {name}。请补齐后重试。",
   "error.torrentFileMismatch": "文件大小或类型不匹配",
   "error.torrentFileMismatchNamed": "文件 {name} 的大小或类型不匹配",
   "error.torrentFiles": "分片校验失败，文件内容与种子不匹配",

@@ -250,6 +250,15 @@ func TestBTRelocateVerifiedFilesMoveAndResumeSeeding(t *testing.T) {
 	if err = s.VerifyTorrentFiles(ctx, id); !errors.Is(err, application.ErrTorrentFileMismatch) || !strings.Contains(err.Error(), "set/a.txt") {
 		t.Fatalf("payload mismatch should identify its relative file: %v", err)
 	}
+	if err = os.Remove(file); err != nil {
+		t.Fatal(err)
+	}
+	err = s.VerifyTorrentFiles(ctx, id)
+	var missing application.NamedError
+	if !errors.Is(err, os.ErrNotExist) || application.CodeOf(err) != application.ErrTorrentFileMissing ||
+		!errors.As(err, &missing) || missing.Name != "set/a.txt" {
+		t.Fatalf("missing payload should retain its code, relative name and OS cause: %v", err)
+	}
 	if err = os.WriteFile(file, original, 0600); err != nil {
 		t.Fatal(err)
 	}

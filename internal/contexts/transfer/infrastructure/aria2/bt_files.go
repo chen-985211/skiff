@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/anacrolix/torrent/metainfo"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"skiff/internal/contexts/transfer/application"
@@ -26,14 +27,14 @@ func (f cancellableFile) Close() error { return f.file.Close() }
 func openPayload(root *os.Root, name string, size int64) (*os.File, os.FileInfo, error) {
 	st, err := root.Lstat(name)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, payloadOpenError(name, err)
 	}
 	if !st.Mode().IsRegular() || st.Size() != size {
 		return nil, nil, application.NamedError{Code: application.ErrTorrentFileMismatch, Name: filepath.ToSlash(name)}
 	}
 	file, err := root.Open(name)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, payloadOpenError(name, err)
 	}
 	info, err := file.Stat()
 	if err != nil || !os.SameFile(st, info) {
@@ -42,6 +43,13 @@ func openPayload(root *os.Root, name string, size int64) (*os.File, os.FileInfo,
 	}
 	return file, info, nil
 }
+func payloadOpenError(name string, err error) error {
+	if errors.Is(err, fs.ErrNotExist) {
+		return application.NamedError{Code: application.ErrTorrentFileMissing, Name: filepath.ToSlash(name), Cause: err}
+	}
+	return err
+}
+
 func generatePayloadPieces(info *metainfo.Info, open func(metainfo.FileInfo) (io.ReadCloser, error)) error {
 	// The metainfo writer turns open failures into text on its worker goroutine.
 	// Keep the original cause so callers can read the code and relative name.

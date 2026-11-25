@@ -100,6 +100,7 @@ const (
 	ErrTorrentSourceEmpty         ErrorCode = "TORRENT_SOURCE_EMPTY"
 	ErrTorrentSourceChanged       ErrorCode = "TORRENT_SOURCE_CHANGED"
 	ErrTorrentDestinationChanged  ErrorCode = "TORRENT_DESTINATION_CHANGED"
+	ErrTorrentFileMissing         ErrorCode = "TORRENT_FILE_MISSING"
 	ErrTorrentFileMismatch        ErrorCode = "TORRENT_FILE_MISMATCH"
 	ErrTorrentFileChanged         ErrorCode = "TORRENT_FILE_CHANGED"
 	ErrTorrentHashChanged         ErrorCode = "TORRENT_HASH_CHANGED"
@@ -145,7 +146,7 @@ func IsExpected(code ErrorCode) bool {
 		ErrTorrentVersion, ErrMagnetInvalid, ErrTorrentFiles,
 		ErrTorrentSourceType, ErrTorrentExtension, ErrTorrentDestinationIsSource, ErrTorrentDestinationOverlaps,
 		ErrTorrentDestinationType, ErrTorrentDestinationConflict, ErrTorrentSourceEmpty, ErrTorrentSourceChanged,
-		ErrTorrentDestinationChanged, ErrTorrentFileMismatch, ErrTorrentFileChanged, ErrTorrentHashChanged,
+		ErrTorrentDestinationChanged, ErrTorrentFileMissing, ErrTorrentFileMismatch, ErrTorrentFileChanged, ErrTorrentHashChanged,
 		ErrTorrentName, ErrTorrentPath, ErrTorrentFileList, ErrTorrentPieces,
 		ErrEmptySubscription:
 		return true

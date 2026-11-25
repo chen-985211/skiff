@@ -142,42 +142,52 @@ func TestInvalidTorrentPeerLimitShowsTheAllowedRange(t *testing.T) {
 	}
 }
 
-func TestBTFileVerificationDisplaysTheMismatchedFileInBothLanguages(t *testing.T) {
-	api := delayedBTFileAPI{
-		Service: service(t, &fakeEngine{}, &fakeRepo{}),
-		snapshot: application.Snapshot{Tasks: []application.TaskDTO{{
-			ID: "task", Name: "sample.torrent", TorrentHash: "hash", Status: "complete",
-		}}},
-		verifyErr: application.NamedError{Code: application.ErrTorrentFileMismatch, Name: "sample/folder/a.txt"},
-	}
-	updates := make(chan func(), 2)
-	view := presentation.New(api, presentation.Actions{
-		Context: t.Context(), Dispatch: func(fn func()) { updates <- fn },
-	})
-	view.Snapshot = api.Snapshot()
-	scene := interactionScene(view, 1020, 680)
-	scene.SetLocale("en")
-	applyUpdate := func() {
-		t.Helper()
-		select {
-		case update := <-updates:
-			update()
-			scene.Frame()
-		case <-time.After(time.Second):
-			t.Fatal("no inspector update")
-		}
-	}
-	chooseSource(t, scene, "View details for sample.torrent")
-	chooseSource(t, scene, "BitTorrent Details")
-	applyUpdate()
-	chooseSource(t, scene, "Torrent file actions")
-	chooseSource(t, scene, "Verify Files")
-	applyUpdate()
-	if !scene.HasText("File sample/folder/a.txt has an unexpected size or type") {
-		t.Errorf("missing the mismatched file in English: %v", scene.Texts())
-	}
-	scene.SetLocale("zh-CN")
-	if !scene.HasText("文件 sample/folder/a.txt 的大小或类型不匹配") {
-		t.Errorf("missing the mismatched file in Chinese: %v", scene.Texts())
+func TestBTFileVerificationIdentifiesTheFileInBothLanguages(t *testing.T) {
+	for _, tc := range []struct {
+		code             application.ErrorCode
+		chinese, english string
+	}{
+		{application.ErrTorrentFileMismatch, "文件 sample/folder/a.txt 的大小或类型不匹配", "File sample/folder/a.txt has an unexpected size or type"},
+		{application.ErrTorrentFileMissing, "缺少文件 sample/folder/a.txt。请补齐后重试。", "File sample/folder/a.txt is missing. Restore it and try again."},
+	} {
+		t.Run(string(tc.code), func(t *testing.T) {
+			api := delayedBTFileAPI{
+				Service: service(t, &fakeEngine{}, &fakeRepo{}),
+				snapshot: application.Snapshot{Tasks: []application.TaskDTO{{
+					ID: "task", Name: "sample.torrent", TorrentHash: "hash", Status: "complete",
+				}}},
+				verifyErr: application.NamedError{Code: tc.code, Name: "sample/folder/a.txt"},
+			}
+			updates := make(chan func(), 2)
+			view := presentation.New(api, presentation.Actions{
+				Context: t.Context(), Dispatch: func(fn func()) { updates <- fn },
+			})
+			view.Snapshot = api.Snapshot()
+			scene := interactionScene(view, 1020, 680)
+			scene.SetLocale("en")
+			applyUpdate := func() {
+				t.Helper()
+				select {
+				case update := <-updates:
+					update()
+					scene.Frame()
+				case <-time.After(time.Second):
+					t.Fatal("no inspector update")
+				}
+			}
+			chooseSource(t, scene, "View details for sample.torrent")
+			chooseSource(t, scene, "BitTorrent Details")
+			applyUpdate()
+			chooseSource(t, scene, "Torrent file actions")
+			chooseSource(t, scene, "Verify Files")
+			applyUpdate()
+			if !scene.HasText(tc.english) {
+				t.Errorf("missing the affected file in English: %v", scene.Texts())
+			}
+			scene.SetLocale("zh-CN")
+			if !scene.HasText(tc.chinese) {
+				t.Errorf("missing the affected file in Chinese: %v", scene.Texts())
+			}
+		})
 	}
 }
