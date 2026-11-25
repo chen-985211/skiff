@@ -254,3 +254,25 @@ func TestAdvancedOptionsRespectReducedMotion(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderEnglishComposerTitleFitsWhenOpenedFromSettings(t *testing.T) {
+	view := presentation.New(nil, presentation.Actions{})
+	view.Ready = true
+	var caption float32
+	scene := ui.NewTesterWith(func(c *ui.Context) {
+		caption, _ = c.MeasureText(0, ui.Span{Text: "New Download", Size: 13, Weight: 600})
+		view.Render(c)
+	}, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceTransparency: true}})
+	scene.SetLocale("en")
+	dock := sourceBounds(t, scene, ui.RoleButton, "New Download")
+	chooseSource(t, scene, "Settings")
+	scene.Key(ui.Cmd, ui.KeyN)
+	opening := sourceBounds(t, scene, ui.RoleDialog, "New Download")
+	if room := opening.W - 17 - 15 - 7; opening.W != dock.W || room < float32(math.Ceil(float64(caption))) {
+		t.Errorf("opening sheet %v does not match dock %v or fit %.1f pt of text", opening, dock, caption)
+	}
+	scene.Advance(85 * time.Millisecond)
+	if middle := sourceBounds(t, scene, ui.RoleDialog, "New Download"); middle.W <= opening.W {
+		t.Errorf("sheet did not expand from its opening bounds: %v to %v", opening, middle)
+	}
+}

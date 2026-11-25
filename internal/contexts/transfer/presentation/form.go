@@ -27,7 +27,8 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 	width := min(float32(420), windowW-left-workspaceInset)
 	if anchor.W == 0 {
 		// A menu or keyboard shortcut can open the form from Settings, without a dock.
-		anchor = ui.Rect{X: left + min(cardWidth, width) - composeButtonWidth, Y: windowH - footerInset - dockHeight, W: composeButtonWidth, H: dockHeight}
+		dockWidth := downloadDockWidth(c)
+		anchor = ui.Rect{X: left + min(cardWidth, width) - dockWidth, Y: windowH - footerInset - dockHeight, W: dockWidth, H: dockHeight}
 	}
 	closed := 1 - reveal
 	shown := true // Keep the modal and its draft mounted until the spring reaches the button.

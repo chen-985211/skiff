@@ -143,6 +143,10 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 	})
 }
 
+func downloadDockWidth(c *ui.Context) float32 {
+	return primaryActionWidth(c, composeButtonWidth, tr(c, "download.new"), tr(c, "engine.download"), tr(c, "engine.downloading"))
+}
+
 func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 	ui.Row(c.Key("task-dock")).Transition(dockMotion).Height(cardGap+dockHeight+footerInset).Shrink(0).Padding(0, 0, footerInset).AlignItems(ui.End).Justify(ui.Start).Children(func() {
 		ui.Row(c).Role(ui.RoleToolbar).Label(tr(c, "workspace.toolbar")).Width(cardWidth).MaxWidthPercent(100).Height(dockHeight).Gap(cardGap).Children(func() {
@@ -183,8 +187,7 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 					v.OpenNew()
 				}
 			}
-			width := primaryActionWidth(c, composeButtonWidth, tr(c, "download.new"), tr(c, "engine.download"), tr(c, "engine.downloading"))
-			trigger.Width(width).Shrink(0).FillHeight().Radius(cornerDock)
+			trigger.Width(downloadDockWidth(c)).Shrink(0).FillHeight().Radius(cornerDock)
 		})
 	})
 	return search, trigger
