@@ -166,6 +166,8 @@
   "error.curlUnsupportedOperation": "该 cURL 包含普通文件下载不支持的操作",
   "error.destinationInUse": "目标位置已由另一任务使用",
   "error.diskRange": "缓存支持 0–4096 MiB，最小分段支持 1–1024 MiB",
+  "error.downloadAuthorization": "服务器拒绝下载授权。请检查凭据后重试。",
+  "error.downloadChecksum": "文件校验和不匹配。请重试或更换下载来源。",
   "error.duplicateTorrent": "此种子已在该目录的任务列表中",
   "error.emptySubscription": "订阅未返回有效 Tracker",
   "error.engineConnection": "无法连接下载引擎",

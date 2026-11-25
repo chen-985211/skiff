@@ -50,3 +50,25 @@ func TestDiskSpaceFailureExplainsRecoveryInBothLanguages(t *testing.T) {
 		t.Errorf("missing English disk-space recovery message: %v", scene.Texts())
 	}
 }
+
+func TestDownloadFailureReasonsAreDistinctInBothLanguages(t *testing.T) {
+	for _, tc := range []struct{ code, chinese, english string }{
+		{string(application.ErrTooManyRedirects), "重定向次数过多", "The server redirected the download too many times"},
+		{string(application.ErrDownloadAuthorization), "服务器拒绝下载授权。请检查凭据后重试。", "The server rejected the download credentials. Check them and try again."},
+		{string(application.ErrDownloadChecksum), "文件校验和不匹配。请重试或更换下载来源。", "The file checksum did not match. Try again or use another download source."},
+	} {
+		t.Run(tc.code, func(t *testing.T) {
+			view := presentation.New(nil, presentation.Actions{})
+			view.Ready = true
+			view.Snapshot.Tasks = []application.TaskDTO{{ID: "task", Name: "archive.zip", Status: "error", Failure: tc.code, CanRetry: true}}
+			scene := interactionScene(view, 800, 560)
+			if !scene.HasText(tc.chinese) {
+				t.Errorf("missing Chinese recovery message: %v", scene.Texts())
+			}
+			scene.SetLocale("en")
+			if !scene.HasText(tc.english) {
+				t.Errorf("missing English recovery message: %v", scene.Texts())
+			}
+		})
+	}
+}

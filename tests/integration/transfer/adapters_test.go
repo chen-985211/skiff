@@ -173,3 +173,32 @@ func TestRPCClassifiesInsufficientDiskSpaceByCode(t *testing.T) {
 		t.Fatalf("disk space failure was not classified: %+v, %v", tasks, err)
 	}
 }
+
+func TestRPCPreservesDistinguishableDownloadFailures(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Method string }
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Error(err)
+			return
+		}
+		result := `[]`
+		if req.Method == "aria2.tellStopped" {
+			result = `[
+				{"gid":"redirect","status":"error","errorCode":"23","errorMessage":"opaque"},
+				{"gid":"auth","status":"error","errorCode":"24","errorMessage":"opaque"},
+				{"gid":"checksum","status":"error","errorCode":"32","errorMessage":"opaque"}
+			]`
+		}
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":` + result + `}`))
+	}))
+	defer server.Close()
+	tasks, err := aria2.NewClient(server.URL, "secret").Observe(t.Context())
+	if err != nil || len(tasks) != 3 {
+		t.Fatalf("unexpected tasks: %+v, %v", tasks, err)
+	}
+	for i, want := range []string{string(application.ErrTooManyRedirects), string(application.ErrDownloadAuthorization), string(application.ErrDownloadChecksum)} {
+		if tasks[i].Failure != want {
+			t.Errorf("%s classified as %q, want %q", tasks[i].ID, tasks[i].Failure, want)
+		}
+	}
+}

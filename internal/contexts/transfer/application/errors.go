@@ -111,6 +111,8 @@ const (
 	ErrReadSubscription           ErrorCode = "READ_SUBSCRIPTION_FAILED"
 	ErrEmptySubscription          ErrorCode = "EMPTY_SUBSCRIPTION"
 	ErrReadQueue                  ErrorCode = "READ_QUEUE_FAILED"
+	ErrDownloadAuthorization      ErrorCode = "DOWNLOAD_AUTHORIZATION_FAILED"
+	ErrDownloadChecksum           ErrorCode = "DOWNLOAD_CHECKSUM_MISMATCH"
 	ErrInsufficientDiskSpace      ErrorCode = "INSUFFICIENT_DISK_SPACE"
 	ErrUnexpected                 ErrorCode = "UNEXPECTED_ERROR"
 )

@@ -166,6 +166,8 @@
   "error.curlUnsupportedOperation": "The cURL command includes an unsupported download operation",
   "error.destinationInUse": "Another task is already using this location",
   "error.diskRange": "Cache sizes range from 0–4096 MiB and segment sizes from 1–1024 MiB",
+  "error.downloadAuthorization": "The server rejected the download credentials. Check them and try again.",
+  "error.downloadChecksum": "The file checksum did not match. Try again or use another download source.",
   "error.duplicateTorrent": "This torrent is already queued for that folder",
   "error.emptySubscription": "The subscription returned no valid trackers",
   "error.engineConnection": "Could not connect to the download engine",

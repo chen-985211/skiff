@@ -365,7 +365,7 @@ func (s *Service) Refresh(ctx context.Context) error {
 	var fallbacks []domain.Record
 	for _, t := range s.tasks {
 		r := t.Record()
-		if r.Mirrors != "" && r.Status == domain.Failed && (r.Failure == domain.SourceUnavailable || r.Failure == ResumeUnsupported || r.Failure == domain.SourceChanged) {
+		if r.Mirrors != "" && r.Status == domain.Failed && canFallBackToMirror(r.Failure) {
 			fallbacks = append(fallbacks, r)
 		}
 	}

@@ -294,3 +294,25 @@ func TestQueuePreferenceSurvivesRestartAndEngineRetry(t *testing.T) {
 		t.Fatal("restart did not configure the engine")
 	}
 }
+
+func TestMirrorFallbackRetainsSpecificSourceFailures(t *testing.T) {
+	for _, failure := range []string{string(application.ErrTooManyRedirects), string(application.ErrDownloadAuthorization), string(application.ErrDownloadChecksum)} {
+		t.Run(failure, func(t *testing.T) {
+			engine := &fakeEngine{}
+			svc := service(t, engine, &fakeRepo{})
+			const backup = "https://mirror.test/backup.zip"
+			_, err := svc.AddWithOptions(t.Context(), "https://primary.test/file.zip", t.TempDir(), application.AddOptions{Mirrors: backup})
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := svc.Snapshot().Tasks[0].ID
+			engine.observed = []application.Observation{{ID: id, Status: "error", Failure: failure}}
+			if err := svc.Refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if len(engine.enqueued) != 2 || engine.enqueued[1].URL != backup {
+				t.Fatalf("source failure did not advance the mirror: %+v", engine.enqueued)
+			}
+		})
+	}
+}

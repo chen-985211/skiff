@@ -34,6 +34,16 @@ func sameOrigin(a, b string) bool {
 	y, ey := url.Parse(b)
 	return ex == nil && ey == nil && x.Scheme == y.Scheme && strings.EqualFold(x.Host, y.Host)
 }
+func canFallBackToMirror(failure string) bool {
+	switch failure {
+	case domain.SourceUnavailable, ResumeUnsupported, domain.SourceChanged,
+		string(ErrTooManyRedirects), string(ErrDownloadAuthorization), string(ErrDownloadChecksum):
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Service) tryMirror(ctx context.Context, r domain.Record) error {
 	next, rest, _ := strings.Cut(r.Mirrors, "\n")
 	spec := transferSpec(r, false)

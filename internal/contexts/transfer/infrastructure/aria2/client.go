@@ -149,10 +149,16 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 				firstWaiting = false
 			}
 			switch t.ErrorCode {
-			case "1", "2", "3", "4", "5", "6", "7", "19", "21", "22", "23", "24", "29", "32":
+			case "1", "2", "3", "4", "5", "6", "7", "19", "21", "22", "29":
 				o.Failure = domain.SourceUnavailable
 			case "9":
 				o.Failure = string(application.ErrInsufficientDiskSpace)
+			case "23":
+				o.Failure = string(application.ErrTooManyRedirects)
+			case "24":
+				o.Failure = string(application.ErrDownloadAuthorization)
+			case "32":
+				o.Failure = string(application.ErrDownloadChecksum)
 			}
 			if t.ErrorCode == "21" && strings.HasSuffix(strings.TrimSpace(t.Error), "status=530") {
 				o.Failure = domain.FTPLoginRequired
