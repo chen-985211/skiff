@@ -214,6 +214,7 @@
   "error.readPeers": "无法读取 BT 节点",
   "error.readQueue": "无法读取下载任务记录",
   "error.readSubscription": "无法读取完整订阅",
+  "error.readSubscriptionHTTP": "无法读取订阅（HTTP {status}）。",
   "error.saveQueue": "保存任务失败",
   "error.singleCURLRequired": "请粘贴单条浏览器下载请求",
   "error.singleMirrorTask": "请为单个 HTTP 下载添加备用地址",

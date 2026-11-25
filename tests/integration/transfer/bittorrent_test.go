@@ -180,9 +180,12 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 	var broken atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if broken.Load() {
-			if r.URL.Path == "/empty" {
+			switch r.URL.Path {
+			case "/empty":
 				fmt.Fprintln(w, "no trackers")
-			} else {
+			case "/missing":
+				http.NotFound(w, r)
+			default:
 				http.Error(w, "offline", 503)
 			}
 			return
@@ -190,7 +193,7 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 		fmt.Fprintln(w, "udp://127.0.0.1:9090/announce\n\nhttp://127.0.0.1:7070/announce\nudp://127.0.0.1:9090/announce")
 	}))
 	defer server.Close()
-	cfg := application.BTSettings{Sources: server.URL + "/empty\n" + server.URL, MaxPeers: 12, ListenPort: 9870}
+	cfg := application.BTSettings{Sources: strings.Join([]string{server.URL + "/empty", server.URL + "/missing", server.URL}, "\n"), MaxPeers: 12, ListenPort: 9870}
 	if err := s.SetBTSettings(t.Context(), cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +203,7 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 		t.Fatalf("successful refresh returned %v and logged %s", err, output.String())
 	}
 	sub := s.Snapshot().BTSubscriptions
-	if len(sub) != 2 || len(sub[0].Trackers) != 2 || sub[0].Failure != "" || sub[1].Failure != "" {
+	if len(sub) != 3 || len(sub[0].Trackers) != 2 || sub[0].Failure != "" || sub[1].Failure != "" || sub[2].Failure != "" {
 		t.Fatal(sub)
 	}
 	broken.Store(true)
@@ -209,9 +212,23 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 		t.Fatalf("refresh did not return both subscription errors: %v", err)
 	}
 	sub = s.Snapshot().BTSubscriptions
-	if len(sub[0].Trackers) != 2 || len(sub[1].Trackers) != 2 || sub[0].Failure != application.ErrEmptySubscription || sub[1].Failure != application.ErrReadSubscription {
+	if len(sub[0].Trackers) != 2 || len(sub[1].Trackers) != 2 || len(sub[2].Trackers) != 2 ||
+		sub[0].Failure != application.ErrEmptySubscription || sub[1].Failure != application.ErrReadSubscription || sub[2].Failure != application.ErrReadSubscription {
 		t.Fatal("lost cached trackers or health", sub)
 	}
+	assertHTTPStatuses := func(want ...int) {
+		t.Helper()
+		current := s.Snapshot().BTSubscriptions
+		if len(current) != len(want) {
+			t.Fatalf("got %d subscription statuses, want %d", len(current), len(want))
+		}
+		for i, status := range current {
+			if status.HTTPStatus != want[i] {
+				t.Errorf("subscription %d HTTP status = %d, want %d", i, status.HTTPStatus, want[i])
+			}
+		}
+	}
+	assertHTTPStatuses(0, http.StatusNotFound, http.StatusServiceUnavailable)
 	if size := output.Len(); observed.RefreshBTSubscriptions(t.Context(), false) != nil || output.Len() != size {
 		t.Fatal("background refresh retried or logged fresh manual failure state", output.String())
 	}
@@ -238,6 +255,11 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 		}
 		correlationID = entry.CorrelationID
 	}
+	broken.Store(false)
+	if err := observed.RefreshBTSubscriptions(t.Context(), true); err != nil {
+		t.Fatal(err)
+	}
+	assertHTTPStatuses(0, 0, 0)
 }
 
 func TestBTRelocateVerifiedFilesMoveAndResumeSeeding(t *testing.T) {

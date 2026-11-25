@@ -99,8 +99,11 @@ func (v *View) renderBTNetwork(c *ui.Context, p palette, stage ui.Element) {
 		})
 		ui.Column(c).FillWidth().Gap(8).Children(func() {
 			if message := errorText(c.Locale(), b.err); message != "" {
-				ui.Text(c.Key("tracker-refresh-error"), message).FillWidth().
-					Transition(pageFade).ContentTransition(textChange).FontSize(12).TextColor(c.Theme().Danger)
+				ui.Scroll(c.Key("refresh-errors")).FillWidth().MaxHeight(84).Label(tr(c, "bt.refreshFailed")).
+					Focusable().FocusRing(true).Radius(cornerSmall).ScrollbarStyle(settingsScrollbar(c, p)).Transition(pageFade).Children(func() {
+					ui.Text(c.Key("tracker-refresh-error"), message).FillWidth().Padding(0, settingsScrollGutter, 0, 0).
+						ContentTransition(textChange).FontSize(12).TextColor(c.Theme().Danger)
+				})
 			}
 			if primaryAction(c, tr(c, "bt.saveRefresh"), "check", v.Busy).AlignSelf(ui.End).Shrink(0).Clicked() {
 				v.saveBTSettings()
@@ -156,7 +159,7 @@ func (v *View) trackerSubscriptions(c *ui.Context, p palette) {
 					status, color := trf(c, "bt.trackerCount", i18n.Args{"count": len(sub.Trackers)}), p.muted
 					var reason string
 					if sub.Failure != "" {
-						reason = errorText(c.Locale(), sub.Failure)
+						reason = errorText(c.Locale(), sub.FailureReason())
 						status, color = tr(c, "bt.refreshFailed"), c.Theme().Danger
 					} else if sub.Checked.IsZero() {
 						status = tr(c, "bt.pendingRefresh")

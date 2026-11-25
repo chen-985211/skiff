@@ -2,7 +2,6 @@ package aria2
 
 import (
 	"context"
-	"fmt"
 	"github.com/anacrolix/torrent/metainfo"
 	"io"
 	"net"
@@ -24,7 +23,7 @@ func (c *Client) FetchTrackers(ctx context.Context, source string) ([]string, er
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("%w: HTTP status %d", application.ErrReadSubscription, res.StatusCode)
+		return nil, application.SubscriptionHTTPError{Status: res.StatusCode}
 	}
 	const limit = 2 << 20
 	body, err := io.ReadAll(io.LimitReader(res.Body, limit+1))

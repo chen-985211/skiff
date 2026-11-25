@@ -69,6 +69,10 @@ func errorText(locale string, err error) string {
 		return message.text(locale)
 	}
 	code := application.CodeOf(err)
+	var httpFailure application.SubscriptionHTTPError
+	if code == application.ErrReadSubscription && errors.As(err, &httpFailure) {
+		return i18n.Format(locale, "error.readSubscriptionHTTP", i18n.Args{"status": httpFailure.Status})
+	}
 	var seed *application.TorrentSeedError
 	if code == application.ErrTorrentSeed && errors.As(err, &seed) && seed.Cause != nil {
 		return i18n.Format(locale, "error.torrentSeedCause", i18n.Args{"reason": errorText(locale, seed.Cause)})

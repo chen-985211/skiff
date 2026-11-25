@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"net/url"
 	"slices"
@@ -17,12 +18,33 @@ type BTSettings struct {
 	ListenPort, MaxPeers       int
 }
 type BTSubscription struct {
-	URL      string
-	Trackers []string
-	Checked  time.Time
-	Failure  ErrorCode `json:",omitempty"`
-	Error    string    `json:",omitempty"` // Legacy persisted error text.
+	URL        string
+	Trackers   []string
+	Checked    time.Time
+	Failure    ErrorCode `json:",omitempty"`
+	HTTPStatus int       `json:",omitempty"`
+	Error      string    `json:",omitempty"` // Legacy persisted error text.
 }
+
+// SubscriptionHTTPError identifies an HTTP rejection without retaining response content.
+type SubscriptionHTTPError struct{ Status int }
+
+func (e SubscriptionHTTPError) Error() string {
+	return fmt.Sprintf("%s: HTTP status %d", ErrReadSubscription, e.Status)
+}
+
+func (SubscriptionHTTPError) Unwrap() error { return ErrReadSubscription }
+
+func (s BTSubscription) FailureReason() error {
+	if s.Failure == ErrReadSubscription && s.HTTPStatus != 0 {
+		return SubscriptionHTTPError{Status: s.HTTPStatus}
+	}
+	if s.Failure != "" {
+		return s.Failure
+	}
+	return nil
+}
+
 type Peer struct {
 	Address, Download, Upload string
 	Seeder                    bool
@@ -123,8 +145,13 @@ func (s *Service) RefreshBTSubscriptions(ctx context.Context, force bool) error 
 		}
 		src.Checked = time.Now()
 		src.Failure = ""
+		src.HTTPStatus = 0
 		if err != nil {
 			src.Failure = CodeOf(err)
+			var httpFailure SubscriptionHTTPError
+			if errors.As(err, &httpFailure) {
+				src.HTTPStatus = httpFailure.Status
+			}
 			errs = append(errs, err)
 		} else {
 			src.Trackers = unique(list)

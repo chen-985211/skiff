@@ -214,6 +214,7 @@
   "error.readPeers": "Could not read BitTorrent peers",
   "error.readQueue": "Could not read the download queue",
   "error.readSubscription": "Could not load the complete tracker subscription",
+  "error.readSubscriptionHTTP": "Could not load the subscription (HTTP {status}).",
   "error.saveQueue": "Could not save the download queue",
   "error.singleCURLRequired": "Paste one browser download request",
   "error.singleMirrorTask": "Add mirrors to a single HTTP download",

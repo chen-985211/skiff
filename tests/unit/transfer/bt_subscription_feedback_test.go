@@ -3,6 +3,7 @@ package transfer_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -32,7 +33,7 @@ func TestTrackerSubscriptionRowsExplainTheirOwnFailure(t *testing.T) {
 	const legacyURL = "https://tracker.test/legacy"
 	const raw = "private transport detail"
 	engine := &trackerFailureEngine{failures: map[string]error{
-		readURL:  application.Wrap(application.ErrReadSubscription, errors.New(raw)),
+		readURL:  application.SubscriptionHTTPError{Status: 404},
 		emptyURL: application.ErrEmptySubscription,
 	}}
 	repo := &fakeRepo{state: application.State{
@@ -69,8 +70,8 @@ func TestTrackerSubscriptionRowsExplainTheirOwnFailure(t *testing.T) {
 		locale, label string
 		causes        []string
 	}{
-		{"zh-CN", "更新失败", []string{"无法读取完整订阅", "订阅未返回有效 Tracker", "操作失败，请重试"}},
-		{"en", "Refresh failed", []string{"Could not load the complete tracker subscription", "The subscription returned no valid trackers", "The operation failed. Try again."}},
+		{"zh-CN", "更新失败", []string{"无法读取订阅（HTTP 404）。", "订阅未返回有效 Tracker", "操作失败，请重试"}},
+		{"en", "Refresh failed", []string{"Could not load the subscription (HTTP 404).", "The subscription returned no valid trackers", "The operation failed. Try again."}},
 	} {
 		scene.SetLocale(tc.locale)
 		for i, url := range []string{readURL, emptyURL, legacyURL} {
@@ -104,11 +105,14 @@ func (r *rejectRefreshedTrackerRepository) Save(ctx context.Context, state appli
 }
 
 func TestManualTrackerRefreshShowsFetchAndSaveFailures(t *testing.T) {
-	const empty = "https://tracker.test/empty"
-	const unreadable = "https://tracker.test/unreadable"
-	engine := &trackerFailureEngine{failures: map[string]error{empty: application.ErrEmptySubscription, unreadable: application.ErrReadSubscription}}
+	const missing = "https://tracker.test/missing"
+	const unavailable = "https://tracker.test/unavailable"
+	engine := &trackerFailureEngine{failures: map[string]error{
+		missing:     application.SubscriptionHTTPError{Status: 404},
+		unavailable: application.SubscriptionHTTPError{Status: 503},
+	}}
 	repo := &rejectRefreshedTrackerRepository{fakeRepo{state: application.State{
-		Preferences: application.Preferences{BT: application.BTSettings{Sources: empty + "\n" + unreadable}},
+		Preferences: application.Preferences{BT: application.BTSettings{Sources: missing + "\n" + unavailable}},
 	}}}
 	svc := application.New(engine, repo, t.TempDir(), nil)
 	if err := svc.Open(t.Context()); err != nil {
@@ -129,8 +133,8 @@ func TestManualTrackerRefreshShowsFetchAndSaveFailures(t *testing.T) {
 		t.Fatal("refresh did not finish")
 	}
 	for _, tc := range []struct{ locale, message, button string }{
-		{"zh-CN", "订阅未返回有效 Tracker\n保存任务失败\n无法读取完整订阅", "保存并更新"},
-		{"en", "The subscription returned no valid trackers\nCould not save the download queue\nCould not load the complete tracker subscription", "Save and Refresh"},
+		{"zh-CN", "无法读取订阅（HTTP 404）。\n保存任务失败\n无法读取订阅（HTTP 503）。", "保存并更新"},
+		{"en", "Could not load the subscription (HTTP 404).\nCould not save the download queue\nCould not load the subscription (HTTP 503).", "Save and Refresh"},
 	} {
 		scene.SetLocale(tc.locale)
 		bounds := sourceBounds(t, scene, ui.RoleText, tc.message)
@@ -138,5 +142,57 @@ func TestManualTrackerRefreshShowsFetchAndSaveFailures(t *testing.T) {
 		if bounds.W < 300 || bounds.H < 40 || bounds.Y+bounds.H > button.Y || button.Y+button.H > 560 {
 			t.Errorf("%s refresh errors do not fit above the action: message %v, action %v", tc.locale, bounds, button)
 		}
+	}
+}
+
+func TestRenderLongTrackerRefreshFeedbackIsKeyboardScrollable(t *testing.T) {
+	engine := &trackerFailureEngine{failures: make(map[string]error)}
+	var sources, reasons []string
+	for status := 400; status < 416; status++ {
+		source := fmt.Sprintf("https://tracker.test/%d", status)
+		sources = append(sources, source)
+		reasons = append(reasons, fmt.Sprintf("Could not load the subscription (HTTP %d).", status))
+		engine.failures[source] = application.SubscriptionHTTPError{Status: status}
+	}
+	repo := &fakeRepo{state: application.State{
+		Preferences: application.Preferences{BT: application.BTSettings{Sources: strings.Join(sources, "\n")}},
+	}}
+	svc := application.New(engine, repo, t.TempDir(), nil)
+	if err := svc.Open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	updates := make(chan func(), 1)
+	view := presentation.New(svc, presentation.Actions{Context: t.Context(), Dispatch: func(fn func()) { updates <- fn }})
+	view.Snapshot = svc.Snapshot()
+	scene := interactionScene(view, 800, 560)
+	scene.SetLocale("en")
+	for _, label := range []string{"Settings", "BitTorrent Network", "Tracker", "Save and Refresh"} {
+		chooseSource(t, scene, label)
+	}
+	select {
+	case update := <-updates:
+		update()
+		scene.Frame()
+	case <-time.After(time.Second):
+		t.Fatal("refresh did not finish")
+	}
+	const label = "Refresh failed"
+	scroll := sourceBounds(t, scene, ui.RoleScroll, label)
+	message := strings.Join(reasons, "\n")
+	before := sourceBounds(t, scene, ui.RoleText, message)
+	button := sourceBounds(t, scene, ui.RoleButton, "Save and Refresh")
+	if scroll.H >= before.H || scroll.Y+scroll.H > button.Y || button.Y+button.H > 560 {
+		t.Fatalf("long refresh feedback overflowed the panel: text %v, viewport %v, button %v", before, scroll, button)
+	}
+	for range 12 {
+		if node, _ := scene.AccessByRole(ui.RoleScroll, label); node.Focused {
+			break
+		}
+		scene.Key(0, ui.KeyTab)
+	}
+	scene.Key(0, ui.KeyEnd)
+	after := sourceBounds(t, scene, ui.RoleText, message)
+	if after.Y >= before.Y || after.Y+after.H > scroll.Y+scroll.H+1 {
+		t.Errorf("keyboard scrolling did not reveal the end of the feedback: before %v, after %v, viewport %v", before, after, scroll)
 	}
 }
