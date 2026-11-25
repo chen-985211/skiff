@@ -52,7 +52,7 @@ func errorText(locale string, err error) string {
 	if err == nil {
 		return ""
 	}
-	if batch, ok := err.(*application.BatchAddError); ok {
+	if batch, ok := err.(*application.OperationFailures); ok {
 		var messages []string
 		seen := make(map[string]bool)
 		for _, failure := range batch.Unwrap() {

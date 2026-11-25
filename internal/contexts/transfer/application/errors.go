@@ -166,6 +166,25 @@ func Wrap(code ErrorCode, cause error) error {
 	return fmt.Errorf("%w: %w", code, cause)
 }
 
+// OperationFailures holds independent failures from one operation.
+type OperationFailures struct{ failures []error }
+
+func joinOperationFailures(failures []error) error {
+	if len(failures) == 0 {
+		return nil
+	}
+	return &OperationFailures{failures: failures}
+}
+
+func (e *OperationFailures) Error() string {
+	if joined := errors.Join(e.failures...); joined != nil {
+		return joined.Error()
+	}
+	return ""
+}
+
+func (e *OperationFailures) Unwrap() []error { return e.failures }
+
 // TaskActionError preserves the task identity in a partially failed batch.
 type TaskActionError struct {
 	TaskName string

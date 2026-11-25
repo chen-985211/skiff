@@ -30,8 +30,8 @@ func (l *Logger) TransferFailure(op Operation, err error) {
 		return
 	}
 	failures := []error{err}
-	if refresh, ok := err.(*application.SubscriptionRefreshError); ok {
-		failures = refresh.Unwrap()
+	if batch, ok := err.(*application.OperationFailures); ok {
+		failures = batch.Unwrap()
 	}
 	seen := make(map[application.ErrorCode]bool, len(failures))
 	for _, failure := range failures {

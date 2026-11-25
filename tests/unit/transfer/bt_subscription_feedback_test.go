@@ -91,3 +91,49 @@ func TestTrackerSubscriptionRowsExplainTheirOwnFailure(t *testing.T) {
 		}
 	}
 }
+
+type rejectRefreshedTrackerRepository struct{ fakeRepo }
+
+func (r *rejectRefreshedTrackerRepository) Save(ctx context.Context, state application.State) error {
+	for _, subscription := range state.BTSubscriptions {
+		if !subscription.Checked.IsZero() {
+			return errors.New("private persistence detail")
+		}
+	}
+	return r.fakeRepo.Save(ctx, state)
+}
+
+func TestManualTrackerRefreshShowsFetchAndSaveFailures(t *testing.T) {
+	const source = "https://tracker.test/subscription"
+	engine := &trackerFailureEngine{failures: map[string]error{source: application.ErrReadSubscription}}
+	repo := &rejectRefreshedTrackerRepository{fakeRepo{state: application.State{
+		Preferences: application.Preferences{BT: application.BTSettings{Sources: source}},
+	}}}
+	svc := application.New(engine, repo, t.TempDir(), nil)
+	if err := svc.Open(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	updates := make(chan func(), 1)
+	view := presentation.New(svc, presentation.Actions{Context: t.Context(), Dispatch: func(fn func()) { updates <- fn }})
+	view.Snapshot = svc.Snapshot()
+	scene := interactionScene(view, 800, 560)
+	for _, label := range []string{"设置", "BT 网络", "Tracker", "保存并更新"} {
+		chooseSource(t, scene, label)
+	}
+	select {
+	case update := <-updates:
+		update()
+		scene.Frame()
+	case <-time.After(time.Second):
+		t.Fatal("refresh did not finish")
+	}
+	for _, tc := range []struct{ locale, message string }{
+		{"zh-CN", "无法读取完整订阅\n保存任务失败"},
+		{"en", "Could not load the complete tracker subscription\nCould not save the download queue"},
+	} {
+		scene.SetLocale(tc.locale)
+		if bounds := sourceBounds(t, scene, ui.RoleText, tc.message); bounds.H < 24 {
+			t.Errorf("%s refresh errors did not have room for both lines: %v", tc.locale, bounds)
+		}
+	}
+}
