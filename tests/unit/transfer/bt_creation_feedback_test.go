@@ -2,6 +2,7 @@ package transfer_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -70,17 +71,28 @@ func submitTorrentCreation(t *testing.T, scene *ui.Tester, updates <-chan func()
 	}
 }
 
-func TestTorrentCreationIdentifiesTheInvalidTrackerEntry(t *testing.T) {
-	engine := &torrentCreationEngine{}
-	scene, updates := torrentCreationScene(t, engine, false)
-	chooseSource(t, scene, "Torrent trackers")
-	scene.Type("https://tracker.test/announce\n\ninvalid://tracker.test/private-passkey")
-	submitTorrentCreation(t, scene, updates)
-	if engine.writes != 0 || !scene.HasText("Tracker address 2 is invalid.") || scene.HasText("invalid://tracker.test/private-passkey") {
-		t.Errorf("invalid tracker was not identified without its secret: %v", scene.Texts())
-	}
-	scene.SetLocale("zh-CN")
-	if !scene.HasText("第 2 个 Tracker 地址无效。") {
-		t.Errorf("missing the invalid tracker entry in Chinese: %v", scene.Texts())
+func TestTorrentCreationIdentifiesTheInvalidTrackerLine(t *testing.T) {
+	for _, tc := range []struct {
+		name, draft string
+		line        int
+	}{
+		{"after a blank line", "https://tracker.test/announce\n\ninvalid://tracker.test/private-passkey", 3},
+		{"space in the first line", "https://tracker.test/announce with-space\nhttps://tracker.test/valid", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			engine := &torrentCreationEngine{}
+			scene, updates := torrentCreationScene(t, engine, false)
+			chooseSource(t, scene, "Torrent trackers")
+			scene.Type(tc.draft)
+			submitTorrentCreation(t, scene, updates)
+			if engine.writes != 0 || !scene.HasText(fmt.Sprintf("Tracker URL on line %d is invalid.", tc.line)) ||
+				scene.HasText("invalid://tracker.test/private-passkey") {
+				t.Errorf("invalid tracker line was not identified without its secret: %v", scene.Texts())
+			}
+			scene.SetLocale("zh-CN")
+			if !scene.HasText(fmt.Sprintf("第 %d 行的 Tracker 地址无效。", tc.line)) {
+				t.Errorf("missing the invalid tracker line in Chinese: %v", scene.Texts())
+			}
+		})
 	}
 }

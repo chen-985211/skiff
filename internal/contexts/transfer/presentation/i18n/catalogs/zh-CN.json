@@ -195,7 +195,7 @@
   "error.invalidProxyValue": "代理配置包含无效字符",
   "error.invalidSeedPolicy": "分享率和做种时长需要非负数值",
   "error.invalidTracker": "Tracker 地址无效",
-  "error.invalidTrackerEntry": "第 {entry} 个 Tracker 地址无效。",
+  "error.invalidTrackerLine": "第 {line} 行的 Tracker 地址无效。",
   "error.linksRequired": "请先输入下载链接",
   "error.magnetInvalid": "磁力链接无效",
   "error.magnetMetadata": "未取得磁力元数据",

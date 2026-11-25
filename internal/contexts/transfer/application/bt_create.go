@@ -38,14 +38,14 @@ func (s *Service) CreateTorrent(ctx context.Context, source, output string, trac
 		return Torrent{}, ErrTorrentPathsRequired
 	}
 	var announce []string
-	for _, line := range trackers {
+	for i, line := range trackers {
 		tr := strings.TrimSpace(line)
 		if tr == "" {
 			continue
 		}
 		u, err := url.Parse(tr)
 		if err != nil || u.Hostname() == "" || strings.ContainsAny(tr, " \r\t\n") || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "udp") {
-			return Torrent{}, NamedError{Code: ErrInvalidTracker, Name: strconv.Itoa(len(announce) + 1)}
+			return Torrent{}, NamedError{Code: ErrInvalidTracker, Name: strconv.Itoa(i + 1)}
 		}
 		announce = append(announce, tr)
 	}

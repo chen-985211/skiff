@@ -58,7 +58,7 @@ func (v *View) createFooter(c *ui.Context, p palette, width float32) {
 	if !primaryAction(c, tr(c, "bt.save"), "file", v.Busy || strings.TrimSpace(b.source) == "" || v.Actions.SaveTorrent == nil).Width(width).Shrink(0).Clicked() {
 		return
 	}
-	source, trackers, seed := filepath.Clean(strings.TrimSpace(b.source)), strings.Fields(b.trackers), b.seed
+	source, trackers, seed := filepath.Clean(strings.TrimSpace(b.source)), strings.Split(b.trackers, "\n"), b.seed
 	v.Actions.SaveTorrent(source+".torrent", func(path string, err error) {
 		if !b.open || !v.DialogOpen || v.bt.tab != 1 {
 			return
