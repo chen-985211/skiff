@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/egoist/mygo"
 	_ "github.com/egoist/mygo/locales/zh-Hans"
+	_ "github.com/egoist/mygo/locales/zh-Hant"
 	"github.com/egoist/mygo/ui"
 	"os"
 	"path/filepath"

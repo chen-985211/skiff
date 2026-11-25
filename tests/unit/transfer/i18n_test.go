@@ -14,6 +14,8 @@ func TestDownloadTranslationsUseNamedValues(t *testing.T) {
 	for _, test := range []struct{ locale, title, summary string }{
 		{"zh-CN", "新建下载", "新增 1 · 重复 2 · 无效 3"},
 		{"en-GB", "New Download", "Added 1 · Duplicates 2 · Invalid 3"},
+		{"zh-TW", "新增下載", "新增 1 · 重複 2 · 無效 3"},
+		{"zh-HK", "新增下載", "新增 1 · 重複 2 · 無效 3"},
 		{"", "新建下载", "新增 1 · 重复 2 · 无效 3"},
 	} {
 		if got := i18n.Text(test.locale, "download.new"); got != test.title {
@@ -88,11 +90,41 @@ func clickLanguageButton(t *testing.T, scene *ui.Tester, name string) {
 	scene.ClickAt(b.X+b.W/2, b.Y+b.H/2)
 }
 
+func TestAdditionalLanguageSwitchKeepsSettingsOpen(t *testing.T) {
+	for _, tc := range []struct {
+		locale, name, language, appearance, hint string
+	}{
+		{"zh-Hant", "繁體中文", "介面語言", "外觀", "1–200 項，超過時排入佇列"},
+	} {
+		t.Run(tc.locale, func(t *testing.T) {
+			var chosen string
+			view := presentation.New(nil, presentation.Actions{
+				ChosenLocale: func() string { return chosen },
+				SetLocale:    func(locale string) { chosen = locale },
+			})
+			scene := interactionScene(view, 800, 560)
+			chooseSource(t, scene, "设置")
+			clickLanguageButton(t, scene, "界面语言")
+			chooseSource(t, scene, tc.name)
+			if chosen != tc.locale {
+				t.Fatalf("choosing %q selected %q, want %q", tc.name, chosen, tc.locale)
+			}
+			scene.SetLocale(chosen)
+			for _, label := range []string{tc.language, tc.appearance, tc.hint} {
+				if !scene.HasText(label) {
+					t.Errorf("localized settings missing %q: %v", label, scene.Texts())
+				}
+			}
+		})
+	}
+}
+
 func TestLanguageDropdownShowsTheMatchedNativePreference(t *testing.T) {
 	for _, tc := range []struct {
 		preference, effective, settings, label, selected, system string
 	}{
 		{"zh-Hans", "zh-CN", "设置", "界面语言", "简体中文", "跟随系统"},
+		{"zh-TW", "zh-Hant", "設定", "介面語言", "繁體中文", "跟隨系統"},
 		{"en-GB", "en", "Settings", "Language", "English", "System"},
 		{"fr-CA", "en", "Settings", "Language", "English", "System"},
 		{"", "zh-CN", "设置", "界面语言", "跟随系统", "跟随系统"},

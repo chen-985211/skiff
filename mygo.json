@@ -9,7 +9,7 @@
   "macos": {
     "infoPlist": {
       "CFBundleDevelopmentRegion": "zh-Hans",
-      "CFBundleLocalizations": ["zh-Hans", "en"]
+      "CFBundleLocalizations": ["zh-Hans", "en", "zh-Hant"]
     }
   }
 }
