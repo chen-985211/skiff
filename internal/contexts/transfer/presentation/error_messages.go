@@ -81,6 +81,7 @@ var transferErrorMessages = map[application.ErrorCode]string{
 	application.ErrMagnetInvalid:              "error.magnetInvalid",
 	application.ErrMagnetMetadata:             "error.magnetMetadata",
 	application.ErrTorrentFiles:               "error.torrentFiles",
+	application.ErrInsufficientDiskSpace:      "error.insufficientDiskSpace",
 	application.ErrUnexpected:                 "error.unexpected",
 	application.ErrTorrentSourceType:          "error.torrentSourceType",
 	application.ErrTorrentExtension:           "error.torrentExtension",

@@ -153,3 +153,23 @@ func TestFreshDownloadUsesNewFilenameAndSingleConnection(t *testing.T) {
 		t.Fatalf("unsafe restart options: %v", options)
 	}
 }
+
+func TestRPCClassifiesInsufficientDiskSpaceByCode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Method string }
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Error(err)
+			return
+		}
+		result := `[]`
+		if req.Method == "aria2.tellStopped" {
+			result = `[{"gid":"disk-full","status":"error","errorCode":"9","errorMessage":"opaque engine message"}]`
+		}
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":` + result + `}`))
+	}))
+	defer server.Close()
+	tasks, err := aria2.NewClient(server.URL, "secret").Observe(t.Context())
+	if err != nil || len(tasks) != 1 || tasks[0].Failure != string(application.ErrInsufficientDiskSpace) {
+		t.Fatalf("disk space failure was not classified: %+v, %v", tasks, err)
+	}
+}

@@ -151,6 +151,8 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 			switch t.ErrorCode {
 			case "1", "2", "3", "4", "5", "6", "7", "19", "21", "22", "23", "24", "29", "32":
 				o.Failure = domain.SourceUnavailable
+			case "9":
+				o.Failure = string(application.ErrInsufficientDiskSpace)
 			}
 			if t.ErrorCode == "21" && strings.HasSuffix(strings.TrimSpace(t.Error), "status=530") {
 				o.Failure = domain.FTPLoginRequired

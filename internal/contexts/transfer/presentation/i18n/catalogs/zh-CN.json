@@ -177,6 +177,7 @@
   "error.folderOpen": "无法打开保存目录",
   "error.ftpLoginUnneeded": "任务无需 FTP 登录",
   "error.invalidAllocation": "未知的预分配选项",
+  "error.insufficientDiskSpace": "磁盘空间不足。请释放空间后重试。",
   "error.invalidDefaultDirectory": "请选择绝对路径作为默认保存目录",
   "error.invalidDirectory": "请选择绝对路径作为保存目录",
   "error.invalidFTPLogin": "请输入有效的 FTP 账号和密码",

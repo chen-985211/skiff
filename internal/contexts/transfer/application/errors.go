@@ -111,6 +111,7 @@ const (
 	ErrReadSubscription           ErrorCode = "READ_SUBSCRIPTION_FAILED"
 	ErrEmptySubscription          ErrorCode = "EMPTY_SUBSCRIPTION"
 	ErrReadQueue                  ErrorCode = "READ_QUEUE_FAILED"
+	ErrInsufficientDiskSpace      ErrorCode = "INSUFFICIENT_DISK_SPACE"
 	ErrUnexpected                 ErrorCode = "UNEXPECTED_ERROR"
 )
 

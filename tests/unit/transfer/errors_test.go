@@ -34,3 +34,19 @@ func TestEnglishEngineErrorNeverShowsRawCause(t *testing.T) {
 		t.Fatalf("engine failure did not use localized safe copy: %v", scene.Texts())
 	}
 }
+
+func TestDiskSpaceFailureExplainsRecoveryInBothLanguages(t *testing.T) {
+	view := presentation.New(nil, presentation.Actions{})
+	view.Ready = true
+	view.Snapshot.Tasks = []application.TaskDTO{{
+		ID: "disk-full", Name: "archive.zip", Status: "error", Failure: string(application.ErrInsufficientDiskSpace), CanRetry: true,
+	}}
+	scene := interactionScene(view, 800, 560)
+	if !scene.HasText("磁盘空间不足。请释放空间后重试。") {
+		t.Errorf("missing Chinese disk-space recovery message: %v", scene.Texts())
+	}
+	scene.SetLocale("en")
+	if !scene.HasText("Not enough disk space. Free up space and try again.") {
+		t.Errorf("missing English disk-space recovery message: %v", scene.Texts())
+	}
+}

@@ -177,6 +177,7 @@
   "error.folderOpen": "Could not open the download folder",
   "error.ftpLoginUnneeded": "This task does not require FTP sign-in",
   "error.invalidAllocation": "Unknown file allocation option",
+  "error.insufficientDiskSpace": "Not enough disk space. Free up space and try again.",
   "error.invalidDefaultDirectory": "Choose an absolute path for the default download folder",
   "error.invalidDirectory": "Choose an absolute path for the download folder",
   "error.invalidFTPLogin": "Enter a valid FTP username and password",
