@@ -84,6 +84,7 @@ var transferErrorMessages = map[application.ErrorCode]string{
 	application.ErrTorrentFiles:               "error.torrentFiles",
 	application.ErrDownloadAuthorization:      "error.downloadAuthorization",
 	application.ErrDownloadChecksum:           "error.downloadChecksum",
+	application.ErrCreateDownloadFile:         "error.downloadFileCreate",
 	application.ErrInsufficientDiskSpace:      "error.insufficientDiskSpace",
 	application.ErrUnexpected:                 "error.unexpected",
 	application.ErrTorrentSourceType:          "error.torrentSourceType",

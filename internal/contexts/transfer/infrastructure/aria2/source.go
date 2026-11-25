@@ -167,7 +167,13 @@ func (c *Client) ProtectCheckpoints(ctx context.Context, dir string, candidates 
 		return nil, nil
 	}
 	if err != nil {
-		return nil, application.Wrap(application.ErrDirectoryUnavailable, err)
+		return nil, downloadDirectoryError(err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := directoryWriteAccess(dir); err != nil {
+		return nil, downloadDirectoryError(&os.PathError{Op: "check directory write access", Path: dir, Err: err})
 	}
 	hasCheckpoint := false
 	for _, entry := range entries {

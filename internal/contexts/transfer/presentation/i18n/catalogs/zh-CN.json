@@ -173,6 +173,7 @@
   "error.downloadAuthorization": "服务器拒绝下载授权。请检查凭据后重试。",
   "error.downloadChecksum": "文件校验和不匹配。请重试或更换下载来源。",
   "error.downloadDirectoryUnavailable": "保存目录不可用，请选择其他目录。",
+  "error.downloadFileCreate": "无法创建下载文件。请检查文件和目录的权限，或选择其他保存目录。",
   "error.duplicateTorrent": "此种子已在该目录的任务列表中",
   "error.emptySubscription": "订阅未返回有效 Tracker",
   "error.engineConnection": "无法连接下载引擎",

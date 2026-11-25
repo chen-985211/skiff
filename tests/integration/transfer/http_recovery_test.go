@@ -5,6 +5,7 @@ package transfer_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -43,6 +44,28 @@ func downloadService(t *testing.T) *application.Service {
 		t.Fatal(err)
 	}
 	return service
+}
+
+func TestAddRejectsReadableButUnwritableDirectoryBeforeQueuing(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0700) })
+	if err := os.WriteFile(filepath.Join(dir, "permission-test"), nil, 0600); err == nil {
+		t.Skip("filesystem or test credentials do not enforce the directory write restriction")
+	} else if !errors.Is(err, os.ErrPermission) {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("payload"))
+	}))
+	defer server.Close()
+	svc := downloadService(t)
+	result, err := svc.AddBatch(t.Context(), server.URL+"/payload", dir)
+	if result.Added != 0 || len(svc.Snapshot().Tasks) != 0 || application.CodeOf(err) != application.ErrDirectoryUnavailable || !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("unwritable directory created tasks or lost the actionable cause: %+v, %v", result, err)
+	}
 }
 
 func TestRedirectedSourceChangesBeforeResume(t *testing.T) {

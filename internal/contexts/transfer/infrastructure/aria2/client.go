@@ -17,7 +17,7 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 		return c.enqueueTorrent(ctx, s)
 	}
 	if err := os.MkdirAll(s.Directory, 0755); err != nil {
-		return application.Wrap(application.ErrDirectoryUnavailable, err)
+		return downloadDirectoryError(err)
 	}
 	options := map[string]string{"gid": s.ID, "dir": s.Directory, "pause": strconv.FormatBool(s.Paused)}
 	options["max-download-limit"] = strconv.FormatInt(s.DownloadLimit, 10)
@@ -71,6 +71,14 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 	}
 	return err
 }
+
+func downloadDirectoryError(err error) error {
+	if isVolumeFull(err) {
+		return application.Wrap(application.ErrInsufficientDiskSpace, err)
+	}
+	return application.Wrap(application.ErrDirectoryUnavailable, err)
+}
+
 func (c *Client) Execute(ctx context.Context, id string, cmd application.Command) error {
 	switch cmd {
 	case application.Prioritize:
@@ -153,6 +161,10 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 				o.Failure = domain.SourceUnavailable
 			case "9":
 				o.Failure = string(application.ErrInsufficientDiskSpace)
+			case "16":
+				o.Failure = string(application.ErrCreateDownloadFile)
+			case "18":
+				o.Failure = string(application.ErrDirectoryUnavailable)
 			case "23":
 				o.Failure = string(application.ErrTooManyRedirects)
 			case "24":

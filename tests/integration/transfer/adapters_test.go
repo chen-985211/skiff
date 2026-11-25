@@ -208,19 +208,25 @@ func TestRPCPreservesDistinguishableDownloadFailures(t *testing.T) {
 			result = `[
 				{"gid":"redirect","status":"error","errorCode":"23","errorMessage":"opaque"},
 				{"gid":"auth","status":"error","errorCode":"24","errorMessage":"opaque"},
-				{"gid":"checksum","status":"error","errorCode":"32","errorMessage":"opaque"}
+				{"gid":"checksum","status":"error","errorCode":"32","errorMessage":"opaque"},
+				{"gid":"file","status":"error","errorCode":"16","errorMessage":"opaque"},
+				{"gid":"directory","status":"error","errorCode":"18","errorMessage":"opaque"}
 			]`
 		}
 		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":` + result + `}`))
 	}))
 	defer server.Close()
 	tasks, err := aria2.NewClient(server.URL, "secret").Observe(t.Context())
-	if err != nil || len(tasks) != 3 {
+	want := []string{
+		string(application.ErrTooManyRedirects), string(application.ErrDownloadAuthorization), string(application.ErrDownloadChecksum),
+		string(application.ErrCreateDownloadFile), string(application.ErrDirectoryUnavailable),
+	}
+	if err != nil || len(tasks) != len(want) {
 		t.Fatalf("unexpected tasks: %+v, %v", tasks, err)
 	}
-	for i, want := range []string{string(application.ErrTooManyRedirects), string(application.ErrDownloadAuthorization), string(application.ErrDownloadChecksum)} {
-		if tasks[i].Failure != want {
-			t.Errorf("%s classified as %q, want %q", tasks[i].ID, tasks[i].Failure, want)
+	for i, code := range want {
+		if tasks[i].Failure != code {
+			t.Errorf("%s classified as %q, want %q", tasks[i].ID, tasks[i].Failure, code)
 		}
 	}
 }

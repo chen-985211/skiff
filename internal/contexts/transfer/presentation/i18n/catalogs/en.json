@@ -173,6 +173,7 @@
   "error.downloadAuthorization": "The server rejected the download credentials. Check them and try again.",
   "error.downloadChecksum": "The file checksum did not match. Try again or use another download source.",
   "error.downloadDirectoryUnavailable": "The download folder is unavailable. Choose another folder.",
+  "error.downloadFileCreate": "Could not create the download file. Check the file and folder permissions, or save to another folder.",
   "error.duplicateTorrent": "This torrent is already queued for that folder",
   "error.emptySubscription": "The subscription returned no valid trackers",
   "error.engineConnection": "Could not connect to the download engine",
