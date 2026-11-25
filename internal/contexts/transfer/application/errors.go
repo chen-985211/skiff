@@ -8,6 +8,7 @@ import (
 )
 
 type ErrorCode = domain.ErrorCode
+type NamedError = domain.NamedError
 
 // Domain validation errors keep their identity across the application boundary.
 const (

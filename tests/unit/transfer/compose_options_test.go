@@ -311,3 +311,22 @@ func TestAdvancedToolbarAndEditorsShareEdges(t *testing.T) {
 		}
 	}
 }
+
+func TestManagedHeaderImportIdentifiesRejectedFieldInBothLanguages(t *testing.T) {
+	view := presentation.New(nil, presentation.Actions{})
+	view.Ready = true
+	view.OpenNew()
+	scene := interactionScene(view, 800, 560)
+	scene.SetLocale("en")
+	chooseSource(t, scene, "Advanced options")
+	chooseSource(t, scene, "Headers")
+	scene.SetClipboard("Accept: application/zip\nRange: bytes=2-3")
+	chooseSource(t, scene, "Import headers from clipboard")
+	if !scene.HasText("The download engine manages the Range header") {
+		t.Errorf("missing the rejected header name in English: %v", scene.Texts())
+	}
+	scene.SetLocale("zh-CN")
+	if !scene.HasText("请求头 Range 由下载引擎管理") || scene.HasText("bytes=2-3") {
+		t.Errorf("missing the rejected header name in Chinese or exposed the value: %v", scene.Texts())
+	}
+}

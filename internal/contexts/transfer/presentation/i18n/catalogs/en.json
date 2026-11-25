@@ -198,6 +198,7 @@
   "error.magnetInvalid": "Enter a valid magnet link",
   "error.magnetMetadata": "Could not retrieve magnet metadata",
   "error.managedHeader": "The download engine manages this header",
+  "error.managedHeaderNamed": "The download engine manages the {name} header",
   "error.mixedHeaderOrigins": "Downloads sharing request headers must use the same origin",
   "error.negativeRate": "The download speed limit must be nonnegative",
   "error.pauseBeforeMoving": "Pause the download before changing the file location",

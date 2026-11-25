@@ -5,6 +5,15 @@ type ErrorCode string
 
 func (code ErrorCode) Error() string { return string(code) }
 
+// NamedError adds the affected name without changing the stable error code.
+type NamedError struct {
+	Code ErrorCode
+	Name string
+}
+
+func (e NamedError) Error() string { return string(e.Code) + ": " + e.Name }
+func (e NamedError) Unwrap() error { return e.Code }
+
 const (
 	ErrInvalidHeaders      ErrorCode = "INVALID_HEADERS"
 	ErrManagedHeader       ErrorCode = "MANAGED_HEADER"

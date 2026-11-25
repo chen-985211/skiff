@@ -23,7 +23,7 @@ func NormalizeHeaders(block string) (string, error) {
 		}
 		switch strings.ToLower(name) {
 		case "host", "connection", "upgrade", "transfer-encoding", "te", "trailer", "content-length", "range", "accept-encoding", "keep-alive", "proxy-connection", "proxy-authorization", "if-match", "if-unmodified-since", "if-range":
-			return "", ErrManagedHeader
+			return "", NamedError{Code: ErrManagedHeader, Name: name}
 		}
 		lines = append(lines, name+": "+value)
 	}

@@ -198,6 +198,7 @@
   "error.magnetInvalid": "磁力链接无效",
   "error.magnetMetadata": "未取得磁力元数据",
   "error.managedHeader": "此请求头由下载引擎管理",
+  "error.managedHeaderNamed": "请求头 {name} 由下载引擎管理",
   "error.mixedHeaderOrigins": "同一组请求头只能用于同一来源的 HTTP 下载",
   "error.negativeRate": "下载限速必须为非负数",
   "error.pauseBeforeMoving": "请先暂停任务，再更改文件位置",

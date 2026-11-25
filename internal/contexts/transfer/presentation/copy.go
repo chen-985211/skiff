@@ -55,7 +55,12 @@ func errorText(locale string, err error) string {
 	if errors.As(err, &message) {
 		return message.text(locale)
 	}
-	key := transferErrorMessages[application.CodeOf(err)]
+	code := application.CodeOf(err)
+	var named application.NamedError
+	if code == application.ErrManagedHeader && errors.As(err, &named) && named.Code == code {
+		return i18n.Format(locale, "error.managedHeaderNamed", i18n.Args{"name": named.Name})
+	}
+	key := transferErrorMessages[code]
 	if key == "" {
 		key = transferErrorMessages[application.ErrUnexpected]
 	}
