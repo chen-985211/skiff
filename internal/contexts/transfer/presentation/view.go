@@ -178,8 +178,11 @@ func (v *View) Render(c *ui.Context) {
 }
 
 func inlineError(c *ui.Context, err error) {
-	if err != nil {
-		message := errorText(c.Locale(), err)
+	inlineErrorMessage(c, errorText(c.Locale(), err))
+}
+
+func inlineErrorMessage(c *ui.Context, message string) {
+	if message != "" {
 		ui.Text(c.Key("inline-error"), message).Transition(pageFade).ContentTransition(textChange).MinWidth(0).MaxWidthPercent(100).SingleLine().FontSize(12).TextColor(c.Theme().Danger).Tooltip(message)
 	}
 }

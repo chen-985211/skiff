@@ -352,5 +352,6 @@
   "workspace.searchLabel": "搜索下载任务",
   "workspace.searchPlaceholder": "搜索文件名或链接",
   "workspace.searchRegion": "任务搜索",
+  "workspace.taskActionFailed": "{name}：{reason}",
   "workspace.toolbar": "下载工具栏"
 }

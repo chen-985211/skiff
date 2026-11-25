@@ -352,5 +352,6 @@
   "workspace.searchLabel": "Search downloads",
   "workspace.searchPlaceholder": "Search filenames or URLs",
   "workspace.searchRegion": "Task search",
+  "workspace.taskActionFailed": "{name}: {reason}",
   "workspace.toolbar": "Download toolbar"
 }

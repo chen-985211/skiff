@@ -159,6 +159,15 @@ func Wrap(code ErrorCode, cause error) error {
 	return fmt.Errorf("%w: %w", code, cause)
 }
 
+// TaskActionError preserves the task identity in a partially failed batch.
+type TaskActionError struct {
+	TaskName string
+	Cause    error
+}
+
+func (e *TaskActionError) Error() string { return fmt.Sprintf("%s: %v", e.TaskName, e.Cause) }
+func (e *TaskActionError) Unwrap() error { return e.Cause }
+
 // Task failure values already persisted in the queue keep their stable identity.
 const (
 	FailureResumeUnsupported    = domain.ResumeUnsupported

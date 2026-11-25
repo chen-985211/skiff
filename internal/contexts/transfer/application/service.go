@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path/filepath"
 	"skiff/internal/contexts/transfer/domain"
 	"slices"
@@ -269,7 +268,7 @@ func (s *Service) SetPaused(ctx context.Context, ids []string, paused bool) erro
 			continue
 		}
 		if err := s.execute(ctx, i, command); err != nil {
-			failures = append(failures, fmt.Errorf("%s: %w", record.Name, err))
+			failures = append(failures, &TaskActionError{TaskName: record.Name, Cause: err})
 		}
 	}
 	return errors.Join(failures...)

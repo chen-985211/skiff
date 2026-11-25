@@ -2,12 +2,13 @@ package presentation
 
 import (
 	"context"
-	"skiff/internal/contexts/transfer/presentation/i18n"
+	"errors"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
 
 	"skiff/internal/contexts/transfer/application"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 )
 
 func (v *View) queue(c *ui.Context, p palette) {
@@ -73,7 +74,7 @@ func (v *View) queueHeader(c *ui.Context, p palette, gridWidth float32, items []
 				if v.batchNotice != "" {
 					ui.Text(c.Key("batch-notice"), v.batchNotice).Transition(pageFade).ContentTransition(textChange).SingleLine().FontSize(12).TextColor(p.muted).Tooltip(v.batchNotice)
 				}
-				inlineError(c, v.queueError)
+				inlineErrorMessage(c, queueErrorText(c.Locale(), v.queueError))
 				v.batchAction(c, items, application.Pause)
 				v.batchAction(c, items, application.Resume)
 			})
@@ -121,6 +122,26 @@ func (v *View) batchAction(c *ui.Context, items []application.TaskDTO, cmd appli
 			}
 		})
 	}
+}
+
+func queueErrorText(locale string, err error) string {
+	batch, joined := err.(interface{ Unwrap() []error })
+	var task *application.TaskActionError
+	if !joined || !errors.As(err, &task) {
+		return errorText(locale, err)
+	}
+	var messages []string
+	for _, failure := range batch.Unwrap() {
+		var task *application.TaskActionError
+		if errors.As(failure, &task) {
+			messages = append(messages, i18n.Format(locale, "workspace.taskActionFailed", i18n.Args{
+				"name": task.TaskName, "reason": errorText(locale, task.Cause),
+			}))
+		} else {
+			messages = append(messages, errorText(locale, failure))
+		}
+	}
+	return strings.Join(messages, "\n")
 }
 
 func (v *View) empty(c *ui.Context, p palette, cat category) {

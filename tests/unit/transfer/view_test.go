@@ -3,6 +3,7 @@ package transfer_test
 import (
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -443,5 +444,43 @@ func TestSettingsChangeQueueAndPrioritizeWaitingCard(t *testing.T) {
 	apply()
 	if len(f.commands) != 1 || f.commands[0] != application.Prioritize {
 		t.Fatal("priority action lost")
+	}
+}
+
+func TestBatchPauseShowsEachFailedTaskAndItsOwnReason(t *testing.T) {
+	next := 0
+	svc := application.New(&partialPauseEngine{}, &fakeRepo{}, t.TempDir(), func() string {
+		next++
+		return strconv.Itoa(next)
+	})
+	_, err := svc.Add(t.Context(), "https://example.test/locked.zip\nhttps://example.test/okay.zip\nhttps://example.test/unavailable.zip", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	updates := make(chan func(), 1)
+	view := presentation.New(svc, presentation.Actions{Context: t.Context(), Dispatch: func(fn func()) { updates <- fn }})
+	view.Snapshot = svc.Snapshot()
+	scene := interactionScene(view, 800, 560)
+	scene.SetLocale("en")
+	chooseSource(t, scene, "Pause 3 tasks")
+	select {
+	case update := <-updates:
+		update()
+		scene.Frame()
+	case <-time.After(time.Second):
+		t.Fatal("no batch result")
+	}
+	if got := view.Snapshot.Tasks[1].Status; got != "paused" {
+		t.Fatalf("successful task status = %s", got)
+	}
+	for _, tc := range []struct{ locale, first, second string }{
+		{"en", "locked.zip: Could not connect to the download engine", "unavailable.zip: This action is unavailable for the current task"},
+		{"zh-CN", "locked.zip：无法连接下载引擎", "unavailable.zip：当前任务无法执行此操作"},
+	} {
+		scene.SetLocale(tc.locale)
+		feedback := tc.first + "\n" + tc.second
+		if !scene.HasText(feedback) {
+			t.Errorf("%s batch result does not identify both failures: %v", tc.locale, scene.Texts())
+		}
 	}
 }

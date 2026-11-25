@@ -200,8 +200,13 @@ func TestRefreshAppliesEngineProgressWithoutChangingTaskIdentity(t *testing.T) {
 type partialPauseEngine struct{ fakeEngine }
 
 func (e *partialPauseEngine) Execute(ctx context.Context, id string, command application.Command) error {
-	if id == "1" && command == application.Pause {
-		return errors.New("引擎拒绝暂停")
+	if command == application.Pause {
+		switch id {
+		case "1":
+			return application.ErrEngineConnection
+		case "3":
+			return application.ErrCommandUnavailable
+		}
 	}
 	return e.fakeEngine.Execute(ctx, id, command)
 }
