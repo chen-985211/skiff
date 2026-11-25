@@ -317,6 +317,44 @@ func TestBTRelocateVerifiedFilesMoveAndResumeSeeding(t *testing.T) {
 	awaitTask(t, s, id, func(task application.TaskDTO) bool { return task.Status == "paused" })
 }
 
+func TestBTMoveNamesTheConflictingDestinationFile(t *testing.T) {
+	svc, _, origin := btService(t)
+	ctx := t.Context()
+	source, _ := btFixture(t)
+	meta, err := svc.PrepareTorrent(ctx, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := svc.AddTorrent(ctx, meta.Hash, origin, []int{1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTask(t, svc, id, func(task application.TaskDTO) bool { return task.Status == "complete" })
+	destination := t.TempDir()
+	const conflict = "set/sub/b.txt"
+	path := filepath.Join(destination, filepath.FromSlash(conflict))
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("keep existing file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	err = svc.UseTorrentFiles(ctx, id, destination, true, false)
+	var named application.NamedError
+	if application.CodeOf(err) != application.ErrTorrentMoveConflict || !errors.As(err, &named) || named.Name != conflict || !errors.Is(err, os.ErrExist) {
+		t.Errorf("move conflict lost its stable code, relative name or OS cause: %v", err)
+	}
+	if contents, err := os.ReadFile(path); err != nil || string(contents) != "keep existing file" {
+		t.Errorf("move did not preserve the existing file: %q, %v", contents, err)
+	}
+	if task := svc.Snapshot().Tasks[0]; task.Directory != origin {
+		t.Errorf("failed move changed the saved location: %q", task.Directory)
+	}
+	if _, err := os.Stat(filepath.Join(destination, "set", "a.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("failed move kept an uncommitted copy: %v", err)
+	}
+}
+
 func TestBTSeedingStopsAtConfiguredMinute(t *testing.T) {
 	s, _, dir := btService(t)
 	ctx := t.Context()

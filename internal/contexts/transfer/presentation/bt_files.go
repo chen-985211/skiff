@@ -79,7 +79,10 @@ func (v *View) btFileActions(c *ui.Context, p palette) {
 func btFileError(c *ui.Context, p palette, err error) {
 	var cleanup *application.TorrentMoveCleanupError
 	if application.CodeOf(err) != application.ErrTorrentMoveCleanup || !errors.As(err, &cleanup) {
-		inlineError(c, err)
+		if message := errorText(c.Locale(), err); message != "" {
+			ui.Text(c.Key("bt-file-error"), message).FillWidth().MaxLines(3).Tooltip(message).
+				Transition(pageFade).ContentTransition(textChange).FontSize(12).TextColor(c.Theme().Danger)
+		}
 		return
 	}
 	const rowHeight = 22

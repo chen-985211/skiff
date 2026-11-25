@@ -145,13 +145,14 @@ func TestInvalidTorrentPeerLimitShowsTheAllowedRange(t *testing.T) {
 	}
 }
 
-func TestBTFileVerificationIdentifiesTheFileInBothLanguages(t *testing.T) {
+func TestBTFileActionsIdentifyTheFileInBothLanguages(t *testing.T) {
 	for _, tc := range []struct {
 		code             application.ErrorCode
 		chinese, english string
 	}{
 		{application.ErrTorrentFileMismatch, "文件 sample/folder/a.txt 的大小或类型不匹配", "File sample/folder/a.txt has an unexpected size or type"},
 		{application.ErrTorrentFileMissing, "缺少文件 sample/folder/a.txt。请补齐后重试。", "File sample/folder/a.txt is missing. Restore it and try again."},
+		{application.ErrTorrentMoveConflict, "请选择其他目录。当前目标目录已有 sample/folder/a.txt。", "Choose a different folder. The destination already contains sample/folder/a.txt."},
 	} {
 		t.Run(string(tc.code), func(t *testing.T) {
 			api := delayedBTFileAPI{
@@ -161,12 +162,21 @@ func TestBTFileVerificationIdentifiesTheFileInBothLanguages(t *testing.T) {
 				}}},
 				verifyErr: application.NamedError{Code: tc.code, Name: "sample/folder/a.txt"},
 			}
+			action := "Verify Files"
+			if tc.code == application.ErrTorrentMoveConflict {
+				action = "Move Files To…"
+				api.started, api.finish = make(chan bool, 1), make(chan struct{})
+				api.moveErr = api.verifyErr
+				close(api.finish)
+			}
 			updates := make(chan func(), 2)
+			dir := t.TempDir()
 			view := presentation.New(api, presentation.Actions{
 				Context: t.Context(), Dispatch: func(fn func()) { updates <- fn },
+				PickDirectory: func(_ string, done func(string, error)) { done(dir, nil) },
 			})
 			view.Snapshot = api.Snapshot()
-			scene := interactionScene(view, 1020, 680)
+			scene := interactionScene(view, 800, 560)
 			scene.SetLocale("en")
 			applyUpdate := func() {
 				t.Helper()
@@ -182,10 +192,15 @@ func TestBTFileVerificationIdentifiesTheFileInBothLanguages(t *testing.T) {
 			chooseSource(t, scene, "BitTorrent Details")
 			applyUpdate()
 			chooseSource(t, scene, "Torrent file actions")
-			chooseSource(t, scene, "Verify Files")
+			chooseSource(t, scene, action)
 			applyUpdate()
 			if !scene.HasText(tc.english) {
 				t.Errorf("missing the affected file in English: %v", scene.Texts())
+			}
+			if tc.code == application.ErrTorrentMoveConflict {
+				if bounds := sourceBounds(t, scene, ui.RoleText, tc.english); bounds.H < 25 {
+					t.Errorf("the destination and recovery instructions are clipped: %v", bounds)
+				}
 			}
 			scene.SetLocale("zh-CN")
 			if !scene.HasText(tc.chinese) {

@@ -97,6 +97,7 @@ var transferErrorMessages = map[application.ErrorCode]string{
 	application.ErrTorrentSourceChanged:       "error.torrentSourceChanged",
 	application.ErrTorrentDestinationChanged:  "error.torrentDestinationChanged",
 	application.ErrTorrentMoveCleanup:         "error.torrentMoveCleanup",
+	application.ErrTorrentMoveConflict:        "error.torrentMoveConflict",
 	application.ErrTorrentFileMissing:         "error.torrentFileMissing",
 	application.ErrTorrentFileMismatch:        "error.torrentFileMismatch",
 	application.ErrTorrentFileChanged:         "error.torrentFileChanged",

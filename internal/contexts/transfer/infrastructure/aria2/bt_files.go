@@ -206,6 +206,9 @@ func (m *fileMove) copyOne(ctx context.Context, name string, size int64) error {
 	defer in.Close()
 	out, err := m.to.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return application.NamedError{Code: application.ErrTorrentMoveConflict, Name: filepath.ToSlash(name), Cause: err}
+		}
 		return err
 	}
 	dst, err := out.Stat()

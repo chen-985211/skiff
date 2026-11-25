@@ -242,6 +242,8 @@
   "error.torrentInvalid": "种子文件无效或超过 16 MiB",
   "error.torrentMoveCleanup": "任务已切换到新目录，部分原文件未清理。",
   "error.torrentMoveCleanupVerify": "任务已切换到新目录。有目标文件已变化，请先校验新目录中的文件，再清理原文件。",
+  "error.torrentMoveConflict": "目标目录已有同名文件，请选择其他目录。",
+  "error.torrentMoveConflictNamed": "请选择其他目录。当前目标目录已有 {name}。",
   "error.torrentName": "种子文件名无效",
   "error.torrentNotFound": "找不到 BT 任务",
   "error.torrentPath": "种子包含无效路径",

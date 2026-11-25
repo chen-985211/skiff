@@ -242,6 +242,8 @@
   "error.torrentInvalid": "The torrent is invalid or is larger than 16 MiB",
   "error.torrentMoveCleanup": "The task now uses the new folder. Some original files were not removed.",
   "error.torrentMoveCleanupVerify": "The task uses the new folder. A destination file changed. Verify the new files before removing any originals.",
+  "error.torrentMoveConflict": "The destination contains a conflicting file. Choose a different folder.",
+  "error.torrentMoveConflictNamed": "Choose a different folder. The destination already contains {name}.",
   "error.torrentName": "The torrent filename is invalid",
   "error.torrentNotFound": "Torrent task not found",
   "error.torrentPath": "The torrent contains an invalid path",

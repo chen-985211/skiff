@@ -89,6 +89,8 @@ func errorText(locale string, err error) string {
 			return i18n.Format(locale, "error.torrentFileChangedNamed", args)
 		case application.ErrTorrentDestinationChanged:
 			return i18n.Format(locale, "error.torrentDestinationChangedNamed", args)
+		case application.ErrTorrentMoveConflict:
+			return i18n.Format(locale, "error.torrentMoveConflictNamed", args)
 		case application.ErrTorrentSourceChanged:
 			return i18n.Format(locale, "error.torrentSourceChangedNamed", args)
 		}
