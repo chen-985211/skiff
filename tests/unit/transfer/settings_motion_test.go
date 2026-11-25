@@ -3,6 +3,7 @@ package transfer_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -504,5 +505,64 @@ func TestRenderConcurrencySelectionTravelsBetweenPresets(t *testing.T) {
 	tt.Advance(time.Second)
 	if !passed || tt.Image().RGBAAt(x, y) != unchanged {
 		t.Fatal("selection did not travel across the intermediate preset and settle")
+	}
+}
+
+func TestRenderConcurrencyHintStaysAlignedWhileChangingLanguage(t *testing.T) {
+	locales := []struct{ tag, title, hint, preset, field string }{
+		{"zh-CN", "同时下载数", "1–200 项，超出后排队", "同时下载 1 项", "自定义同时下载数"},
+		{"en", "Concurrent downloads", "1–200 at once. The rest are queued.", "Download 1 at a time", "Custom concurrent downloads"},
+	}
+	for _, size := range [][2]int{{800, 560}, {1020, 680}} {
+		for _, reduced := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%dx%d/reduced_motion=%t", size[0], size[1], reduced), func(t *testing.T) {
+				view := presentation.New(service(t, &fakeEngine{}, &fakeRepo{}), presentation.Actions{})
+				view.Snapshot.Preferences.StaticBackground = true
+				scene := ui.NewTesterWith(view.Render, size[0], size[1], ui.TesterOptions{Preferences: ui.Preferences{
+					ReduceMotion: reduced, ReduceTransparency: true,
+				}})
+				scene.SetLocale("zh-CN")
+				chooseSource(t, scene, "设置")
+				scene.Advance(time.Second)
+				first := locales[0]
+				initialTitle := sourceBounds(t, scene, ui.RoleText, first.title)
+				initialHint := sourceBounds(t, scene, ui.RoleText, first.hint)
+				initialPreset := sourceBounds(t, scene, ui.RoleButton, first.preset)
+				initialField := sourceBounds(t, scene, ui.RoleTextField, first.field)
+				pixels := func() []byte {
+					img := scene.Image()
+					var sample []byte
+					for y := int(initialHint.Y); y < int(initialHint.Y+initialHint.H); y++ {
+						for x := int(initialHint.X); x < int(initialPreset.X)-8; x++ {
+							p := img.RGBAAt(x, y)
+							sample = append(sample, p.R, p.G, p.B)
+						}
+					}
+					return sample
+				}
+				for _, locale := range []int{1, 0} {
+					current := locales[locale]
+					before := pixels()
+					scene.SetLocale(current.tag)
+					scene.Advance(72 * time.Millisecond)
+					middle := pixels()
+					for _, remaining := range []time.Duration{0, time.Second} {
+						scene.Advance(remaining)
+						title := sourceBounds(t, scene, ui.RoleText, current.title)
+						hint := sourceBounds(t, scene, ui.RoleText, current.hint)
+						preset := sourceBounds(t, scene, ui.RoleButton, current.preset)
+						field := sourceBounds(t, scene, ui.RoleTextField, current.field)
+						if title.Y != initialTitle.Y || hint.Y != initialHint.Y || hint.H != initialHint.H ||
+							preset != initialPreset || field != initialField || field.X+field.W > float32(size[0]) || hint.X+hint.W > preset.X || hint.H <= 0 {
+							t.Errorf("%s moved or wrapped the subtitle or controls: title %v, hint %v, preset %v, field %v", current.tag, title, hint, preset, field)
+						}
+					}
+					after := pixels()
+					if bytes.Equal(before, after) || (!reduced && (bytes.Equal(before, middle) || bytes.Equal(middle, after))) {
+						t.Errorf("%s subtitle has no visible in-place transition", current.tag)
+					}
+				}
+			})
+		}
 	}
 }

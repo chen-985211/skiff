@@ -310,7 +310,7 @@
   "settings.changeDefaultFolder": "Change default download folder",
   "settings.concurrency": "Concurrent downloads",
   "settings.concurrencyError": "Enter a whole number from 1 to {limit}",
-  "settings.concurrencyHint": "1–{limit} at a time. Additional downloads are queued.",
+  "settings.concurrencyHint": "1–{limit} at once. The rest are queued.",
   "settings.concurrencyPreset": "Download {count} at a time",
   "settings.concurrencyPresets": "Concurrent download presets",
   "settings.customConcurrency": "Custom concurrent downloads",

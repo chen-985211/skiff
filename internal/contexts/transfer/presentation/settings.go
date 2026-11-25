@@ -116,15 +116,26 @@ func settingsRow(c *ui.Context, row ui.Element, icon, name, hint string, err err
 			ui.Icon(c, icons[icon]).FontSize(18).TextColor(p.muted)
 		})
 		var label ui.Element
-		ui.Column(c).MinWidth(0).Gap(3).Children(func() {
+		labels := ui.Column(c).MinWidth(0).Gap(3)
+		if hint != "" {
+			labels.Grow(1).ClipX()
+		}
+		labels.Children(func() {
 			label = ui.Text(c, name).FontSize(14).FontWeight(600).Shrink(0)
 			if err == nil && hint != "" {
-				ui.Text(c.Key("setting-hint"), hint).Transition(pageFade).FontSize(12).TextColor(p.muted)
+				ui.Text(c.Key("setting-hint"), hint).FillWidth().SingleLine().Tooltip(hint).
+					Transition(pageFade).ContentTransition(textChange).FontSize(12).TextColor(p.muted)
 			} else {
 				inlineError(c, err)
 			}
 		})
-		ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Center).Justify(ui.End).Gap(10).Children(func() {
+		controls := ui.Row(c).MinWidth(0).AlignItems(ui.Center).Justify(ui.End).Gap(10)
+		if hint != "" {
+			controls.Shrink(0)
+		} else {
+			controls.Grow(1)
+		}
+		controls.Children(func() {
 			control(label)
 		})
 	})
