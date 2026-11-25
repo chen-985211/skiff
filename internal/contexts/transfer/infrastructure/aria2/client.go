@@ -88,12 +88,12 @@ func (c *Client) Execute(ctx context.Context, id string, cmd application.Command
 	case application.Resume:
 		return c.call(ctx, "aria2.unpause", []any{id}, nil)
 	case application.Remove, application.Retry, application.Restart:
-		c.routes.remove(id)
 		var status struct {
 			Status string `json:"status"`
 		}
 		if err := c.call(ctx, "aria2.tellStatus", []any{id, []string{"status"}}, &status); err != nil {
 			if missingGID(err, id) {
+				c.routes.remove(id)
 				return nil
 			}
 			return err
@@ -102,12 +102,13 @@ func (c *Client) Execute(ctx context.Context, id string, cmd application.Command
 			if err := c.call(ctx, "aria2.forceRemove", []any{id}, nil); err != nil {
 				return err
 			}
+			c.routes.remove(id)
 		}
-		err := c.call(ctx, "aria2.removeDownloadResult", []any{id}, nil)
-		if missingGID(err, id) {
-			return nil
+		if err := c.call(ctx, "aria2.removeDownloadResult", []any{id}, nil); err != nil && !missingGID(err, id) {
+			return err
 		}
-		return err
+		c.routes.remove(id)
+		return nil
 	}
 	return application.ErrCommandUnavailable
 }

@@ -3,6 +3,8 @@
 package transfer_test
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -58,7 +60,7 @@ func TestForwardedDownloadKeepsRedirectFailureUntilRetry(t *testing.T) {
 		http.Error(w, "source unavailable", http.StatusBadGateway)
 	}))
 	defer server.Close()
-	svc := downloadService(t)
+	svc, engine := downloadServiceWithClient(t)
 	_, err := svc.AddWithOptions(t.Context(), server.URL+"/loop", svc.Snapshot().Directory, application.AddOptions{Headers: "X-Example: forwarded"})
 	if err != nil {
 		t.Fatal(err)
@@ -69,6 +71,14 @@ func TestForwardedDownloadKeepsRedirectFailureUntilRetry(t *testing.T) {
 		if task := awaitTask(t, svc, id, failed); task.Failure != string(application.ErrTooManyRedirects) {
 			t.Errorf("forwarded task lost its redirect failure: %q", task.Failure)
 		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := engine.Execute(ctx, id, application.Retry); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected the retry RPC to fail: %v", err)
+	}
+	if task := awaitTask(t, svc, id, failed); task.Failure != string(application.ErrTooManyRedirects) {
+		t.Errorf("rejected retry changed the previous failure: %q", task.Failure)
 	}
 	loop.Store(false)
 	if err := svc.Execute(t.Context(), id, application.Retry); err != nil {
