@@ -8,7 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func directoryWriteAccess(dir string) error {
+func directoryWriteAccess(dir string, _ bool) error {
 	return unix.Access(dir, unix.W_OK|unix.X_OK)
 }
 

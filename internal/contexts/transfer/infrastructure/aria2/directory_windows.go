@@ -7,7 +7,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func directoryWriteAccess(dir string) error {
+func directoryWriteAccess(dir string, createSubdirectory bool) error {
 	// Use the extended Win32 spelling for absolute paths, including long UNC paths.
 	switch {
 	case strings.HasPrefix(dir, `\\?\`), strings.HasPrefix(dir, `\\.\`):
@@ -20,8 +20,12 @@ func directoryWriteAccess(dir string) error {
 	if err != nil {
 		return err
 	}
-	// FILE_WRITE_DATA on a directory grants permission to create child files.
-	handle, err := windows.CreateFile(path, windows.FILE_WRITE_DATA, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
+	// The file write and append rights on directories allow adding files and subdirectories.
+	access := uint32(windows.FILE_WRITE_DATA)
+	if createSubdirectory {
+		access = windows.FILE_APPEND_DATA
+	}
+	handle, err := windows.CreateFile(path, access, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
 		nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS, 0)
 	if err != nil {
 		return err

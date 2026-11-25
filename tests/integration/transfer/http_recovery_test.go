@@ -62,9 +62,13 @@ func TestAddRejectsReadableButUnwritableDirectoryBeforeQueuing(t *testing.T) {
 	}))
 	defer server.Close()
 	svc := downloadService(t)
-	result, err := svc.AddBatch(t.Context(), server.URL+"/payload", dir)
-	if result.Added != 0 || len(svc.Snapshot().Tasks) != 0 || application.CodeOf(err) != application.ErrDirectoryUnavailable || !errors.Is(err, os.ErrPermission) {
-		t.Fatalf("unwritable directory created tasks or lost the actionable cause: %+v, %v", result, err)
+	for _, tc := range []struct{ name, target string }{{"existing", dir}, {"missing", filepath.Join(dir, "child", "grandchild")}} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := svc.AddBatch(t.Context(), server.URL+"/payload", tc.target)
+			if result.Added != 0 || len(svc.Snapshot().Tasks) != 0 || application.CodeOf(err) != application.ErrDirectoryUnavailable || !errors.Is(err, os.ErrPermission) {
+				t.Fatalf("unwritable directory created tasks or lost the actionable cause: %+v, %v", result, err)
+			}
+		})
 	}
 }
 

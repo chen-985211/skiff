@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"skiff/internal/contexts/transfer/application"
@@ -162,18 +163,18 @@ func (c *Client) HasPartial(ctx context.Context, r domain.Record) (bool, error) 
 // destination contains checkpoints, pin an unused output before enqueue so a
 // newly submitted task never claims the bytes of a removed or foreign task.
 func (c *Client) ProtectCheckpoints(ctx context.Context, dir string, candidates []application.OutputCandidate) (map[string]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+		return nil, checkMissingDownloadDirectory(ctx, dir)
 	}
 	if err != nil {
 		return nil, downloadDirectoryError(err)
 	}
-	if err := ctx.Err(); err != nil {
+	if err := checkDirectoryWrite(dir, false); err != nil {
 		return nil, err
-	}
-	if err := directoryWriteAccess(dir); err != nil {
-		return nil, downloadDirectoryError(&os.PathError{Op: "check directory write access", Path: dir, Err: err})
 	}
 	hasCheckpoint := false
 	for _, entry := range entries {
@@ -207,4 +208,36 @@ func (c *Client) ProtectCheckpoints(ctx context.Context, dir string, candidates 
 		occupied[strings.ToLower(name)] = true
 	}
 	return chosen, nil
+}
+
+func checkMissingDownloadDirectory(ctx context.Context, dir string) error {
+	for path := dir; ; path = filepath.Dir(path) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		info, err := os.Stat(path)
+		if err == nil {
+			if !info.IsDir() {
+				return downloadDirectoryError(&os.PathError{Op: "stat download directory", Path: path, Err: syscall.ENOTDIR})
+			}
+			return checkDirectoryWrite(path, path != dir)
+		}
+		if !errors.Is(err, os.ErrNotExist) || filepath.Dir(path) == path {
+			return downloadDirectoryError(err)
+		}
+		// A broken symlink already occupies this path and blocks creating it.
+		if _, linkErr := os.Lstat(path); !errors.Is(linkErr, os.ErrNotExist) {
+			if linkErr != nil {
+				return downloadDirectoryError(linkErr)
+			}
+			return downloadDirectoryError(err)
+		}
+	}
+}
+
+func checkDirectoryWrite(path string, createSubdirectory bool) error {
+	if err := directoryWriteAccess(path, createSubdirectory); err != nil {
+		return downloadDirectoryError(&os.PathError{Op: "check directory write access", Path: path, Err: err})
+	}
+	return nil
 }
