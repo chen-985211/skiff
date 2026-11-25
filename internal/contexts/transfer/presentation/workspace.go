@@ -178,7 +178,7 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 					v.Actions.DownloadEngine()
 				}
 			} else {
-				trigger = primaryAction(c, "新建下载", "plus", !v.Ready || v.Busy).KeyShortcuts(ui.Cmd, ui.KeyN)
+				trigger = primaryAction(c, tr(c, "download.new"), "plus", !v.Ready || v.Busy).KeyShortcuts(ui.Cmd, ui.KeyN)
 				if trigger.Clicked() {
 					v.OpenNew()
 				}

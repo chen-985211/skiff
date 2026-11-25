@@ -34,6 +34,7 @@ type Actions struct {
 	Reveal         func(string) error
 }
 type View struct {
+	locale                                         string
 	btNetwork                                      btNetworkPanel
 	btInfo                                         btInspector
 	bt                                             torrentDraft
@@ -114,6 +115,7 @@ func (v *View) OpenNew() {
 	}
 }
 func (v *View) Render(c *ui.Context) {
+	v.locale = c.Locale()
 	defer v.forgetHiddenTransfers()
 	if !v.DialogOpen {
 		v.bt.stopLookup()

@@ -1,4 +1,4 @@
-.PHONY: run dev test test-integration test-race format-check check-ui check package
+.PHONY: run dev test test-integration test-race format-check check-i18n check-ui check package
 
 run:
 	go run ./cmd/skiff
@@ -17,6 +17,9 @@ test-race:
 
 format-check:
 	@test -z "$$(gofmt -l cmd internal tests)" || (gofmt -l cmd internal tests; exit 1)
+
+check-i18n:
+	go test -count=1 ./tests/contract -run '^TestI18n'
 
 check-ui:
 	go test -count=1 ./tests/contract -run '^TestInterfacePolicy'

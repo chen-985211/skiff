@@ -23,6 +23,10 @@
 
 先完成 HTTP/HTTPS 下载主流程。不要将 BT、浏览器接管、云同步或插件系统混入基础版。移除下载任务只清理任务，不删除用户文件。测试必须使用独立临时目录、本地 HTTP 服务和独立 aria2 进程。
 
+## 国际化
+
+界面文案使用简体中文基准词库，新增键同步维护英文和相同的命名参数。规则见 [国际化规范](docs/engineering/i18n.md)，门禁使用 `make check-i18n`。
+
 ## 界面与动效
 
 修改或审查 MyGo 界面时使用项目技能 [液态玻璃界面](.agents/skills/liquid-glass-interface/SKILL.md)，通过 `make check-ui` 验证配色与动效契约。

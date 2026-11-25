@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"skiff/internal/contexts/transfer/application"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 	"strconv"
 	"strings"
 	"time"
@@ -73,7 +74,7 @@ func (v *View) submit() {
 			v.URLs = strings.Join(result.Remaining, "\n")
 			v.selectCategory("all")
 			v.Query = ""
-			summary := fmt.Sprintf("新增 %d · 重复 %d · 无效 %d", result.Added, result.Duplicates, result.Invalid)
+			summary := i18n.Format(v.locale, "batch.summary", i18n.Args{"added": result.Added, "duplicates": result.Duplicates, "invalid": result.Invalid})
 			if result.Deferred > 0 {
 				summary += fmt.Sprintf(" · 待下批 %d", result.Deferred)
 			}
