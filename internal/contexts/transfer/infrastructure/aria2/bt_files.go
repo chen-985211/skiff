@@ -208,6 +208,9 @@ func moveDirectoryError(root *os.Root, dir string, cause error) error {
 			}
 			break
 		}
+		if entry, err := root.Lstat(path); err == nil && !entry.IsDir() {
+			return moveConflict(path, cause)
+		}
 	}
 	return cause
 }

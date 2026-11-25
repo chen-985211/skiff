@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -330,23 +331,43 @@ func TestBTMoveNamesTheConflictingDestinationFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	awaitTask(t, svc, id, func(task application.TaskDTO) bool { return task.Status == "complete" })
-	for _, conflict := range []string{"set/sub/b.txt", "set/sub", "set"} {
-		t.Run(conflict, func(t *testing.T) {
+	for _, tc := range []struct {
+		name, conflict string
+		danglingLink   bool
+	}{
+		{"same file", "set/sub/b.txt", false},
+		{"parent file", "set/sub", false},
+		{"root file", "set", false},
+		{"dangling parent link", "set/sub", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			destination := t.TempDir()
-			path := filepath.Join(destination, filepath.FromSlash(conflict))
+			path := filepath.Join(destination, filepath.FromSlash(tc.conflict))
 			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(path, []byte("keep existing file"), 0600); err != nil {
+			const linkTarget = "missing"
+			if tc.danglingLink {
+				if err := os.Symlink(linkTarget, path); err != nil {
+					if runtime.GOOS == "windows" {
+						t.Skipf("symlink creation unavailable: %v", err)
+					}
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(path, []byte("keep existing file"), 0600); err != nil {
 				t.Fatal(err)
 			}
 			err := svc.UseTorrentFiles(ctx, id, destination, true, false)
 			var named application.NamedError
 			var cause *os.PathError
-			if application.CodeOf(err) != application.ErrTorrentMoveConflict || !errors.As(err, &named) || named.Name != conflict || !errors.As(err, &cause) {
+			if application.CodeOf(err) != application.ErrTorrentMoveConflict || !errors.As(err, &named) || named.Name != tc.conflict || !errors.As(err, &cause) {
 				t.Errorf("move conflict lost its stable code, relative name or OS cause: %v", err)
 			}
-			if contents, err := os.ReadFile(path); err != nil || string(contents) != "keep existing file" {
+			if tc.danglingLink {
+				if link, err := os.Readlink(path); err != nil || link != linkTarget {
+					t.Errorf("move did not preserve the existing link: %q, %v", link, err)
+				}
+			} else if contents, err := os.ReadFile(path); err != nil || string(contents) != "keep existing file" {
 				t.Errorf("move did not preserve the existing file: %q, %v", contents, err)
 			}
 			if task := svc.Snapshot().Tasks[0]; task.Directory != origin {
