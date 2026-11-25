@@ -40,6 +40,15 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 				block.Children(body)
 			}
 
+			section(tr(c, "settings.appearance"), func() {
+				settingsRow(c, ui.Row(c), "theme", tr(c, "settings.theme"), "", v.themeSave.err, p, func(ui.Element) { v.themeSelector(c, p) })
+				settingsDivider(c, p)
+				settingsRow(c, ui.Row(c), "light", tr(c, "settings.background"), "", v.flowSave.err, p, func(label ui.Element) { v.lightSwitch(c, p, label) })
+				if v.Actions.ChosenLocale != nil && v.Actions.SetLocale != nil {
+					settingsDivider(c, p)
+					settingsRow(c, ui.Row(c), "network", tr(c, "language.title"), "", nil, p, func(ui.Element) { v.languageSelector(c, p) })
+				}
+			})
 			section(tr(c, "settings.downloads"), func() {
 				row := ui.ButtonBase(c.Key("directory-setting")).Label(tr(c, "settings.changeDefaultFolder")).Description(v.Snapshot.Directory).Tooltip(v.Snapshot.Directory).Disabled(v.Busy || !v.Ready || v.Actions.PickDirectory == nil).Radius(cornerAction).Transition(controlMotion)
 				if row.Hovered() {
@@ -82,15 +91,6 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 					if v.settingsLink(c, p, "network", "bt.network", tr(c, "bt.networkHint")) {
 						v.openBTNetwork()
 					}
-				}
-			})
-			section(tr(c, "settings.appearance"), func() {
-				settingsRow(c, ui.Row(c), "theme", tr(c, "settings.theme"), "", v.themeSave.err, p, func(ui.Element) { v.themeSelector(c, p) })
-				settingsDivider(c, p)
-				settingsRow(c, ui.Row(c), "light", tr(c, "settings.background"), "", v.flowSave.err, p, func(label ui.Element) { v.lightSwitch(c, p, label) })
-				if v.Actions.ChosenLocale != nil && v.Actions.SetLocale != nil {
-					settingsDivider(c, p)
-					settingsRow(c, ui.Row(c), "network", tr(c, "language.title"), "", nil, p, func(ui.Element) { v.languageSelector(c, p) })
 				}
 			})
 		})

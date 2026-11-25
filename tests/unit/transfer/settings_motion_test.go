@@ -27,7 +27,7 @@ func TestSettingsListAlignsRowsAndKeepsFullPathAccessible(t *testing.T) {
 		flow, switchOK := tt.AccessByRole(ui.RoleSwitch, "背景流光")
 		theme, groupOK := tt.AccessByRole(ui.RoleRadioGroup, "主题")
 		if !ok || !switchOK || !groupOK || dir.Description != v.Snapshot.Directory ||
-			dir.Bounds.H > 95 || theme.Bounds.Y < dir.Bounds.Y+dir.Bounds.H || flow.Bounds.Y <= theme.Bounds.Y+theme.Bounds.H ||
+			dir.Bounds.H > 95 || flow.Bounds.Y <= theme.Bounds.Y+theme.Bounds.H || dir.Bounds.Y < flow.Bounds.Y+flow.Bounds.H ||
 			math.Abs(float64(theme.Bounds.X+theme.Bounds.W-flow.Bounds.X-flow.Bounds.W)) > 2 ||
 			!flow.Disabled || !tt.HasText("默认保存目录") {
 			t.Fatalf("width %d: directory %v, theme %v, switch %v", width, dir.Bounds, theme.Bounds, flow.Bounds)
