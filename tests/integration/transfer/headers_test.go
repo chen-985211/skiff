@@ -11,6 +11,7 @@ import (
 	"skiff/internal/contexts/transfer/application"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestPrivateHeadersStopAtOriginOnBothProbeAndDownload(t *testing.T) {
@@ -53,6 +54,12 @@ func TestForwardedDownloadKeepsRedirectFailureUntilRetry(t *testing.T) {
 	var loop atomic.Bool
 	loop.Store(true)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Range") == "bytes=123-123" {
+			w.Header().Set("Content-Range", "bytes 123-123/124")
+			w.WriteHeader(http.StatusPartialContent)
+			_, _ = w.Write([]byte("x"))
+			return
+		}
 		if loop.Load() {
 			http.Redirect(w, r, "/loop", http.StatusFound)
 			return
@@ -60,12 +67,28 @@ func TestForwardedDownloadKeepsRedirectFailureUntilRetry(t *testing.T) {
 		http.Error(w, "source unavailable", http.StatusBadGateway)
 	}))
 	defer server.Close()
-	svc, engine := downloadServiceWithClient(t)
+	svc, engine, state := downloadServiceWithClient(t)
 	_, err := svc.AddWithOptions(t.Context(), server.URL+"/loop", svc.Snapshot().Directory, application.AddOptions{Headers: "X-Example: forwarded"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	id := svc.Snapshot().Tasks[0].ID
+	// Send a successful segment through the same local route after the failing
+	// response, before the service observes and removes the route.
+	uri := awaitFailedAria2URI(t, state, id)
+	probe, err := http.NewRequestWithContext(t.Context(), http.MethodGet, uri, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe.Header.Set("Range", "bytes=123-123")
+	resp, err := http.DefaultClient.Do(probe)
+	if err != nil {
+		t.Fatal("could not send a later request to the local route")
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusPartialContent {
+		t.Fatalf("the later segment was not successful: %d", resp.StatusCode)
+	}
 	failed := func(task application.TaskDTO) bool { return task.Status == "error" }
 	for range 2 {
 		if task := awaitTask(t, svc, id, failed); task.Failure != string(application.ErrTooManyRedirects) {
@@ -86,5 +109,32 @@ func TestForwardedDownloadKeepsRedirectFailureUntilRetry(t *testing.T) {
 	}
 	if task := awaitTask(t, svc, id, failed); task.Failure != application.FailureSourceUnavailable {
 		t.Errorf("retry reused the previous redirect failure: %q", task.Failure)
+	}
+}
+
+func awaitFailedAria2URI(t *testing.T, state, id string) string {
+	t.Helper()
+	rpc := testAria2RPC(t, state)
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	poll := time.NewTicker(25 * time.Millisecond)
+	defer poll.Stop()
+	for {
+		var task struct {
+			Status string
+			Files  []struct{ URIs []struct{ URI string } }
+		}
+		rpc("tellStatus", &task, id, []string{"status", "files"})
+		if task.Status == "error" {
+			if len(task.Files) == 0 || len(task.Files[0].URIs) == 0 {
+				t.Fatal("aria2 stopped reporting the local route")
+			}
+			return task.Files[0].URIs[0].URI
+		}
+		select {
+		case <-deadline.C:
+			t.Fatal("aria2 did not report a failed download")
+		case <-poll.C:
+		}
 	}
 }

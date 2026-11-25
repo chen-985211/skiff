@@ -23,14 +23,11 @@ type downloadRoutes struct {
 	mu      sync.Mutex
 	server  *http.Server
 	base    string
-	byID    map[string]routeState
+	byID    map[string]string
 	byToken map[string]application.TransferSpec
 }
 
-type routeState struct {
-	token   string
-	failure application.ErrorCode
-}
+const redirectLimitQuery = "redirect-limit"
 
 func (g *downloadRoutes) register(s application.TransferSpec) (string, error) {
 	g.mu.Lock()
@@ -42,40 +39,21 @@ func (g *downloadRoutes) register(s application.TransferSpec) (string, error) {
 		}
 		g.base = "http://" + l.Addr().String()
 		g.server = &http.Server{Handler: http.HandlerFunc(g.serve), ReadHeaderTimeout: 5 * time.Second}
-		g.byID = make(map[string]routeState)
+		g.byID = make(map[string]string)
 		g.byToken = make(map[string]application.TransferSpec)
 		go g.server.Serve(l)
 	}
-	delete(g.byToken, g.byID[s.ID].token)
+	delete(g.byToken, g.byID[s.ID])
 	token := rand.Text()
-	g.byID[s.ID] = routeState{token: token}
+	g.byID[s.ID] = token
 	g.byToken[token] = s
 	return g.base + "/_skiff_transfer/" + token, nil
 }
 func (g *downloadRoutes) remove(id string) {
-	g.finish(id, false)
-}
-
-func (g *downloadRoutes) finish(id string, keepFailure bool) application.ErrorCode {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	state := g.byID[id]
-	delete(g.byToken, state.token)
-	if keepFailure && state.failure != "" {
-		// Repeated polls need the code, while the retired route must stop serving credentials.
-		g.byID[id] = routeState{failure: state.failure}
-		return state.failure
-	}
+	delete(g.byToken, g.byID[id])
 	delete(g.byID, id)
-	return ""
-}
-
-func (g *downloadRoutes) setFailure(id, token string, code application.ErrorCode) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if g.byID[id].token == token {
-		g.byID[id] = routeState{token: token, failure: code}
-	}
 }
 func (g *downloadRoutes) close() {
 	g.mu.Lock()
@@ -120,6 +98,10 @@ func (g *downloadRoutes) serve(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if r.URL.RawQuery == redirectLimitQuery {
+		redirectAtLimit(w, r)
+		return
+	}
 	upstream, err := http.NewRequestWithContext(r.Context(), r.Method, s.URL, nil)
 	if err != nil {
 		http.Error(w, "invalid source", 400)
@@ -133,16 +115,13 @@ func (g *downloadRoutes) serve(w http.ResponseWriter, r *http.Request) {
 	upstream.Header.Set("Accept-Encoding", "identity")
 	applyHeaders(upstream, s.Headers)
 	resp, err := sourceClient(s).Do(upstream)
-	if r.Context().Err() == nil {
-		var failure application.ErrorCode
-		if errors.Is(err, application.ErrTooManyRedirects) {
-			failure = application.ErrTooManyRedirects
-		}
-		g.setFailure(s.ID, token, failure)
-	}
 	if err != nil {
 		if r.Context().Err() == nil {
-			http.Error(w, "source unavailable", 502)
+			if errors.Is(err, application.ErrTooManyRedirects) {
+				redirectAtLimit(w, r)
+			} else {
+				http.Error(w, "source unavailable", 502)
+			}
 		}
 		return
 	}
@@ -166,4 +145,10 @@ func (g *downloadRoutes) serve(w http.ResponseWriter, r *http.Request) {
 			panic(http.ErrAbortHandler)
 		}
 	}
+}
+
+func redirectAtLimit(w http.ResponseWriter, r *http.Request) {
+	// Skiff handles the remaining redirects locally so aria2 reports its own redirect-limit code.
+	w.Header().Set("Location", r.URL.Path+"?"+redirectLimitQuery)
+	w.WriteHeader(http.StatusFound)
 }

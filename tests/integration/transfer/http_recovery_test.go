@@ -22,11 +22,11 @@ import (
 
 func downloadService(t *testing.T) *application.Service {
 	t.Helper()
-	service, _ := downloadServiceWithClient(t)
+	service, _, _ := downloadServiceWithClient(t)
 	return service
 }
 
-func downloadServiceWithClient(t *testing.T) (*application.Service, *aria2.Client) {
+func downloadServiceWithClient(t *testing.T) (*application.Service, *aria2.Client, string) {
 	t.Helper()
 	binary, err := aria2.FindBinary()
 	if err != nil {
@@ -49,7 +49,7 @@ func downloadServiceWithClient(t *testing.T) (*application.Service, *aria2.Clien
 	if err := service.Open(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	return service, proc.Client
+	return service, proc.Client, state
 }
 
 func TestAddRejectsReadableButUnwritableDirectoryBeforeQueuing(t *testing.T) {

@@ -44,6 +44,19 @@ func configuredService(t *testing.T, prefs application.Preferences) (*applicatio
 	if err := s.Open(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+	rpc := testAria2RPC(t, dir)
+	return s, func(method string, args ...any) map[string]string {
+		var result map[string]string
+		rpc(method, &result, args...)
+		if result == nil {
+			t.Fatalf("missing aria2 %s result", method)
+		}
+		return result
+	}
+}
+
+func testAria2RPC(t *testing.T, dir string) func(string, any, ...any) {
+	t.Helper()
 	conf, err := os.ReadFile(filepath.Join(dir, "aria2.conf"))
 	if err != nil {
 		t.Fatal(err)
@@ -53,20 +66,23 @@ func configuredService(t *testing.T, prefs application.Preferences) (*applicatio
 		k, v, _ := strings.Cut(strings.TrimSpace(line), "=")
 		cfg[k] = v
 	}
-	return s, func(method string, args ...any) map[string]string {
+	client := &http.Client{Timeout: 4 * time.Second}
+	return func(method string, result any, args ...any) {
 		t.Helper()
 		params := append([]any{"token:" + cfg["rpc-secret"]}, args...)
 		body, _ := json.Marshal(map[string]any{"id": "test", "jsonrpc": "2.0", "method": "aria2." + method, "params": params})
-		resp, e := http.Post("http://127.0.0.1:"+cfg["rpc-listen-port"]+"/jsonrpc", "application/json", bytes.NewReader(body))
+		resp, e := client.Post("http://127.0.0.1:"+cfg["rpc-listen-port"]+"/jsonrpc", "application/json", bytes.NewReader(body))
 		if e != nil {
 			t.Fatal(e)
 		}
 		defer resp.Body.Close()
-		var out struct{ Result map[string]string }
-		if e := json.NewDecoder(resp.Body).Decode(&out); e != nil || out.Result == nil {
+		var out struct{ Result json.RawMessage }
+		if e := json.NewDecoder(resp.Body).Decode(&out); e != nil {
 			t.Fatal(method, e)
 		}
-		return out.Result
+		if e := json.Unmarshal(out.Result, result); e != nil {
+			t.Fatal(method, e)
+		}
 	}
 }
 func TestDiskSettingsReachEngine(t *testing.T) {
