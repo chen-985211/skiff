@@ -230,52 +230,45 @@ func TestRealDownloadPauseRestartResumeAndRemoveKeepsFile(t *testing.T) {
 	}
 }
 func TestRealHTTPFailureCanRetrySuccessfully(t *testing.T) {
-	binary, err := aria2.FindBinary()
-	if err != nil {
-		t.Fatal(err)
+	cases := []struct {
+		path, failure string
+		status        int
+	}{
+		{"/missing", string(application.ErrDownloadNotFound), http.StatusNotFound},
+		{"/gone", string(application.ErrDownloadNotFound), http.StatusGone},
+		{"/unavailable", application.FailureSourceUnavailable, http.StatusServiceUnavailable},
 	}
 	var ready atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !ready.Load() {
-			http.NotFound(w, r)
-			return
+			for _, tc := range cases {
+				if r.URL.Path == tc.path {
+					http.Error(w, http.StatusText(tc.status), tc.status)
+					return
+				}
+			}
 		}
 		fmt.Fprint(w, "retried successfully")
 	}))
 	defer server.Close()
-	stateDir := t.TempDir()
-	target := t.TempDir()
-	proc, err := aria2.Start(context.Background(), stateDir, binary)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := proc.Close(ctx); err != nil {
-			t.Error(err)
+	svc := downloadService(t)
+	for _, tc := range cases {
+		if _, err := svc.Add(t.Context(), server.URL+tc.path, svc.Snapshot().Directory); err != nil {
+			t.Fatal(err)
 		}
-	}()
-	svc := application.New(proc.Client, persistence.Repository{Path: filepath.Join(stateDir, "tasks.json")}, target, func() string { return "1234567890abcdef" })
-	if err := svc.Open(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.Add(context.Background(), server.URL+"/retry.txt", target); err != nil {
-		t.Fatal(err)
-	}
-	id := svc.Snapshot().Tasks[0].ID
-	failed := awaitTask(t, svc, id, func(task application.TaskDTO) bool { return task.CanRetry })
-	if failed.Failure != string(application.ErrDownloadNotFound) {
-		t.Errorf("HTTP 404 did not keep its specific failure: %q", failed.Failure)
-	}
-	if failed.Error == "" {
-		t.Fatal("HTTP failure has no explanation")
+		tasks := svc.Snapshot().Tasks
+		failed := awaitTask(t, svc, tasks[len(tasks)-1].ID, func(task application.TaskDTO) bool { return task.CanRetry })
+		if failed.Failure != tc.failure || failed.Error == "" {
+			t.Errorf("HTTP %d failure = %q, want %q with an explanation", tc.status, failed.Failure, tc.failure)
+		}
 	}
 	ready.Store(true)
-	if err := svc.Execute(context.Background(), id, application.Retry); err != nil {
-		t.Fatal(err)
+	for _, task := range svc.Snapshot().Tasks {
+		if err := svc.Execute(t.Context(), task.ID, application.Retry); err != nil {
+			t.Fatal(err)
+		}
+		awaitTask(t, svc, task.ID, func(task application.TaskDTO) bool { return task.Status == "complete" })
 	}
-	awaitTask(t, svc, id, func(task application.TaskDTO) bool { return task.Status == "complete" })
 }
 
 func TestFailedHistoryWithoutEngineEntryCanRecover(t *testing.T) {

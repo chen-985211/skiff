@@ -158,10 +158,16 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 				firstWaiting = false
 			}
 			switch t.ErrorCode {
-			case "1", "2", "5", "6", "7", "19", "21", "22", "29":
+			case "1", "2", "5", "6", "7", "19", "21", "29":
 				o.Failure = domain.SourceUnavailable
 			case "3", "4":
 				o.Failure = string(application.ErrDownloadNotFound)
+			case "22":
+				o.Failure = domain.SourceUnavailable
+				// aria2 reports the HTTP status in its generic protocol error.
+				if strings.HasSuffix(strings.TrimSpace(t.Error), " status=410") {
+					o.Failure = string(application.ErrDownloadNotFound)
+				}
 			case "9":
 				o.Failure = string(application.ErrInsufficientDiskSpace)
 			case "16":
