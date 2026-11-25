@@ -100,6 +100,7 @@ const (
 	ErrTorrentSourceEmpty         ErrorCode = "TORRENT_SOURCE_EMPTY"
 	ErrTorrentSourceChanged       ErrorCode = "TORRENT_SOURCE_CHANGED"
 	ErrTorrentDestinationChanged  ErrorCode = "TORRENT_DESTINATION_CHANGED"
+	ErrTorrentMoveCleanup         ErrorCode = "TORRENT_MOVE_CLEANUP"
 	ErrTorrentFileMissing         ErrorCode = "TORRENT_FILE_MISSING"
 	ErrTorrentFileMismatch        ErrorCode = "TORRENT_FILE_MISMATCH"
 	ErrTorrentFileChanged         ErrorCode = "TORRENT_FILE_CHANGED"

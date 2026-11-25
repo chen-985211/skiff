@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"skiff/internal/contexts/transfer/domain"
+	"strings"
 )
 
 // A staged move retains both copies until the new library location is durable.
@@ -12,6 +13,23 @@ type TorrentMove interface{ Finish(bool) error }
 type TorrentFiles interface {
 	VerifyFiles(context.Context, string, string) error
 	CopyFiles(context.Context, string, string, string) (TorrentMove, error)
+}
+
+// TorrentMoveCleanupError reports originals Skiff could not remove after adopting the new folder.
+type TorrentMoveCleanupError struct {
+	Originals []string
+	Cause     error
+}
+
+func (e *TorrentMoveCleanupError) Error() string {
+	return string(ErrTorrentMoveCleanup) + ": " + strings.Join(e.Originals, ", ")
+}
+
+func (e *TorrentMoveCleanupError) Unwrap() []error {
+	if e.Cause != nil {
+		return []error{ErrTorrentMoveCleanup, e.Cause}
+	}
+	return []error{ErrTorrentMoveCleanup}
 }
 
 func (s *Service) torrentRecord(id string) (domain.Record, error) {

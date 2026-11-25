@@ -233,6 +233,8 @@
   "error.torrentFiles": "Verification failed. The files do not match the torrent.",
   "error.torrentHashChanged": "The torrent fingerprint has changed",
   "error.torrentInvalid": "The torrent is invalid or is larger than 16 MiB",
+  "error.torrentMoveCleanup": "The task now uses the new folder. Some original files were not removed.",
+  "error.torrentMoveCleanupFiles": "The task now uses the new folder. Skiff did not remove these original files:\n{files}",
   "error.torrentName": "The torrent filename is invalid",
   "error.torrentNotFound": "Torrent task not found",
   "error.torrentPath": "The torrent contains an invalid path",

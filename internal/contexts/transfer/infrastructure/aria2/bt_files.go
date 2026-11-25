@@ -131,24 +131,37 @@ func (m *fileMove) Finish(commit bool) error {
 	defer m.from.Close()
 	defer m.to.Close()
 	var errs []error
+	var originals []string
+	record := func(name string, err error) {
+		if err != nil {
+			errs = append(errs, err)
+			if commit {
+				originals = append(originals, filepath.ToSlash(name))
+			}
+		}
+	}
 	for _, f := range m.files {
 		root, expected := m.to, f.dst
 		if commit {
 			saved, e := m.to.Lstat(f.name)
 			if e != nil || !os.SameFile(saved, f.dst) || saved.Size() != f.dst.Size() || !saved.ModTime().Equal(f.dst.ModTime()) {
-				errs = append(errs, application.NamedError{Code: application.ErrTorrentDestinationChanged, Name: filepath.ToSlash(f.name)})
+				record(f.name, application.NamedError{Code: application.ErrTorrentDestinationChanged, Name: filepath.ToSlash(f.name), Cause: e})
 				continue
 			}
 			root, expected = m.from, f.src
 		}
 		st, err := root.Lstat(f.name)
 		if err != nil || !os.SameFile(st, expected) || (commit && (st.Size() != expected.Size() || !st.ModTime().Equal(expected.ModTime()))) {
-			errs = append(errs, application.NamedError{Code: application.ErrTorrentFileChanged, Name: filepath.ToSlash(f.name)})
+			record(f.name, application.NamedError{Code: application.ErrTorrentFileChanged, Name: filepath.ToSlash(f.name), Cause: err})
 			continue
 		}
-		errs = append(errs, root.Remove(f.name))
+		record(f.name, root.Remove(f.name))
 	}
-	return errors.Join(errs...)
+	cause := errors.Join(errs...)
+	if len(originals) > 0 {
+		return &application.TorrentMoveCleanupError{Originals: originals, Cause: cause}
+	}
+	return cause
 }
 func (c *Client) CopyFiles(ctx context.Context, hash, src, dst string) (_ application.TorrentMove, err error) {
 	meta, err := c.CachedTorrent(hash)

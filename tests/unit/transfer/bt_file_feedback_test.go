@@ -2,6 +2,7 @@ package transfer_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ type delayedBTFileAPI struct {
 	finish    chan struct{}
 	snapshot  application.Snapshot
 	verifyErr error
+	moveErr   error
 }
 
 func (a delayedBTFileAPI) Snapshot() application.Snapshot { return a.snapshot }
@@ -33,7 +35,7 @@ func (a delayedBTFileAPI) UseTorrentFiles(ctx context.Context, _ string, _ strin
 	a.started <- move
 	select {
 	case <-a.finish:
-		return nil
+		return a.moveErr
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -189,5 +191,60 @@ func TestBTFileVerificationIdentifiesTheFileInBothLanguages(t *testing.T) {
 				t.Errorf("missing the affected file in Chinese: %v", scene.Texts())
 			}
 		})
+	}
+}
+
+func TestBTMoveFeedbackExplainsThatTheNewFolderIsAlreadyInUse(t *testing.T) {
+	api := delayedBTFileAPI{
+		Service: service(t, &fakeEngine{}, &fakeRepo{}),
+		started: make(chan bool, 1),
+		finish:  make(chan struct{}),
+		snapshot: application.Snapshot{Tasks: []application.TaskDTO{{
+			ID: "task", Name: "sample.torrent", TorrentHash: "hash", Status: "complete",
+		}}},
+		moveErr: &application.TorrentMoveCleanupError{
+			Originals: []string{"set/a.txt", "set/sub/b.txt"},
+			Cause:     errors.New("private transport or filesystem detail"),
+		},
+	}
+	updates := make(chan func(), 2)
+	var picked func(string, error)
+	view := presentation.New(api, presentation.Actions{
+		Context:       t.Context(),
+		Dispatch:      func(fn func()) { updates <- fn },
+		PickDirectory: func(_ string, done func(string, error)) { picked = done },
+	})
+	view.Snapshot = api.Snapshot()
+	scene := interactionScene(view, 1020, 680)
+	scene.SetLocale("en")
+	applyUpdate := func() {
+		t.Helper()
+		select {
+		case update := <-updates:
+			update()
+			scene.Frame()
+		case <-time.After(time.Second):
+			t.Fatal("no inspector update")
+		}
+	}
+	chooseSource(t, scene, "View details for sample.torrent")
+	chooseSource(t, scene, "BitTorrent Details")
+	applyUpdate()
+	chooseSource(t, scene, "Torrent file actions")
+	chooseSource(t, scene, "Move Files To…")
+	if picked == nil {
+		t.Fatal("move did not ask for a folder")
+	}
+	picked(t.TempDir(), nil)
+	close(api.finish)
+	applyUpdate()
+	english := "The task now uses the new folder. Skiff did not remove these original files:\nset/a.txt\nset/sub/b.txt"
+	if !scene.HasText(english) {
+		t.Errorf("missing full English move feedback: %v", scene.Texts())
+	}
+	scene.SetLocale("zh-CN")
+	chinese := "任务已切换到新目录。Skiff 未清理以下原文件：\nset/a.txt\nset/sub/b.txt"
+	if !scene.HasText(chinese) {
+		t.Errorf("missing full Chinese move feedback: %v", scene.Texts())
 	}
 }

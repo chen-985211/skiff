@@ -30,6 +30,11 @@ import (
 
 func btService(t *testing.T) (*application.Service, *aria2.Process, string) {
 	t.Helper()
+	return btServiceWithRepository(t, nil)
+}
+
+func btServiceWithRepository(t *testing.T, wrap func(application.Repository) application.Repository) (*application.Service, *aria2.Process, string) {
+	t.Helper()
 	bin, err := aria2.FindBinary()
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +53,11 @@ func btService(t *testing.T) (*application.Service, *aria2.Process, string) {
 		}
 	})
 	var seq int
-	s := application.New(p.Client, persistence.Repository{Path: filepath.Join(data, "tasks.json")}, dir, func() string { seq++; return fmt.Sprintf("%016x", seq) })
+	var repo application.Repository = persistence.Repository{Path: filepath.Join(data, "tasks.json")}
+	if wrap != nil {
+		repo = wrap(repo)
+	}
+	s := application.New(p.Client, repo, dir, func() string { seq++; return fmt.Sprintf("%016x", seq) })
 	if err := s.Open(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -485,5 +494,70 @@ func TestBTCreateCancellationKeepsSourceAndSkipsOutput(t *testing.T) {
 	restored, err := os.ReadFile(source)
 	if err != nil || string(restored) != "leave whole" {
 		t.Fatal("source was touched")
+	}
+}
+
+type btMoveRepository struct {
+	application.Repository
+	afterSave func(application.State)
+}
+
+func (r *btMoveRepository) Save(ctx context.Context, state application.State) error {
+	if err := r.Repository.Save(ctx, state); err != nil {
+		return err
+	}
+	if r.afterSave != nil {
+		r.afterSave(state)
+	}
+	return nil
+}
+
+func TestBTMoveReportsEveryOriginalThatRemainsAfterCommit(t *testing.T) {
+	repo := &btMoveRepository{}
+	svc, _, origin := btServiceWithRepository(t, func(base application.Repository) application.Repository {
+		repo.Repository = base
+		return repo
+	})
+	ctx := t.Context()
+	source, _ := btFixture(t)
+	meta, err := svc.PrepareTorrent(ctx, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := svc.AddTorrent(ctx, meta.Hash, origin, []int{1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitTask(t, svc, id, func(task application.TaskDTO) bool { return task.Status == "complete" })
+
+	dest := t.TempDir()
+	const first = "set/a.txt"
+	const second = "set/sub/b.txt"
+	repo.afterSave = func(state application.State) {
+		if state.Tasks[0].Directory != dest {
+			return
+		}
+		// Change different sides after the queue commits and before original cleanup.
+		for _, name := range []string{filepath.Join(origin, first), filepath.Join(dest, second)} {
+			if err := os.WriteFile(name, []byte("changed"), 0600); err != nil {
+				t.Error(err)
+			}
+		}
+	}
+	err = svc.UseTorrentFiles(ctx, id, dest, true, false)
+	if application.CodeOf(err) != application.ErrTorrentMoveCleanup || !errors.Is(err, application.ErrTorrentFileChanged) || !errors.Is(err, application.ErrTorrentDestinationChanged) {
+		t.Errorf("move did not distinguish committed cleanup: %v", err)
+	}
+	var cleanup *application.TorrentMoveCleanupError
+	if !errors.As(err, &cleanup) || len(cleanup.Originals) != 2 || cleanup.Originals[0] != first || cleanup.Originals[1] != second {
+		t.Errorf("move did not report both original files: %+v", cleanup)
+	}
+	if got := svc.Snapshot().Tasks[0].Directory; got != dest {
+		t.Errorf("task directory = %q, want %q", got, dest)
+	}
+	for _, path := range []string{first, second} {
+		if _, err := os.Stat(filepath.Join(origin, path)); err != nil {
+			t.Errorf("original %q was not preserved: %v", path, err)
+		}
 	}
 }

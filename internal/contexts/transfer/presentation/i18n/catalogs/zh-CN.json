@@ -233,6 +233,8 @@
   "error.torrentFiles": "分片校验失败，文件内容与种子不匹配",
   "error.torrentHashChanged": "种子指纹已变化",
   "error.torrentInvalid": "种子文件无效或超过 16 MiB",
+  "error.torrentMoveCleanup": "任务已切换到新目录，部分原文件未清理。",
+  "error.torrentMoveCleanupFiles": "任务已切换到新目录。Skiff 未清理以下原文件：\n{files}",
   "error.torrentName": "种子文件名无效",
   "error.torrentNotFound": "找不到 BT 任务",
   "error.torrentPath": "种子包含无效路径",
