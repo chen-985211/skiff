@@ -2,7 +2,11 @@ package presentation
 
 import (
 	"context"
+	"errors"
+
 	"github.com/egoist/mygo/ui"
+
+	"skiff/internal/contexts/transfer/application"
 )
 
 type btFileAPI interface {
@@ -67,7 +71,30 @@ func (v *View) btFileActions(c *ui.Context, p palette) {
 		if b.fileMessageKey != "" {
 			ui.Text(c, tr(c, b.fileMessageKey)).Transition(pageFade).ContentTransition(textChange).FontSize(12).TextColor(p.muted)
 		}
-		inlineError(c, b.fileErr)
+		btFileError(c, p, b.fileErr)
 		return
 	}
+}
+
+func btFileError(c *ui.Context, p palette, err error) {
+	var cleanup *application.TorrentMoveCleanupError
+	if application.CodeOf(err) != application.ErrTorrentMoveCleanup || !errors.As(err, &cleanup) {
+		inlineError(c, err)
+		return
+	}
+	const rowHeight = 22
+	ui.Column(c.Key("move-cleanup")).FillWidth().Gap(6).Transition(pageFade).Children(func() {
+		ui.Text(c, tr(c, "error.torrentMoveCleanup")).FontSize(12).TextColor(c.Theme().Danger)
+		ui.Scroll(c.Key(cleanup)).Height(float32(min(3, len(cleanup.Originals)) * rowHeight)).FillWidth().
+			Role(ui.RoleList).Label(tr(c, "bt.moveOriginals")).Focusable().FocusRing(true).Radius(cornerSmall).
+			ScrollbarStyle(settingsScrollbar(c, p)).Transition(panelMotion).Children(func() {
+			ui.Column(c).FillWidth().Padding(0, settingsScrollGutter, 0, 0).Children(func() {
+				for _, name := range cleanup.Originals {
+					ui.Row(c.Key(name)).Role(ui.RoleListItem).MinHeight(rowHeight).FillWidth().Children(func() {
+						ui.Text(c, name).Grow(1).MinWidth(0).Padding(3, 4).FontSize(12).TextColor(p.muted).Selectable().Tooltip(name)
+					})
+				}
+			})
+		})
+	})
 }

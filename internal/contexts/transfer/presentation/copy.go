@@ -2,7 +2,6 @@ package presentation
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/egoist/mygo/ui"
 
@@ -57,10 +56,6 @@ func errorText(locale string, err error) string {
 		return message.text(locale)
 	}
 	code := application.CodeOf(err)
-	var cleanup *application.TorrentMoveCleanupError
-	if code == application.ErrTorrentMoveCleanup && errors.As(err, &cleanup) {
-		return i18n.Format(locale, "error.torrentMoveCleanupFiles", i18n.Args{"files": strings.Join(cleanup.Originals, "\n")})
-	}
 	var named application.NamedError
 	if errors.As(err, &named) && named.Code == code {
 		args := i18n.Args{"name": named.Name}

@@ -3,6 +3,7 @@ package transfer_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -194,7 +195,11 @@ func TestBTFileVerificationIdentifiesTheFileInBothLanguages(t *testing.T) {
 	}
 }
 
-func TestBTMoveFeedbackExplainsThatTheNewFolderIsAlreadyInUse(t *testing.T) {
+func TestRenderBTMoveFeedbackShowsAndScrollsTheOriginalFileList(t *testing.T) {
+	var originals []string
+	for i := range 12 {
+		originals = append(originals, fmt.Sprintf("set/sub/file-%02d.txt", i))
+	}
 	api := delayedBTFileAPI{
 		Service: service(t, &fakeEngine{}, &fakeRepo{}),
 		started: make(chan bool, 1),
@@ -203,7 +208,7 @@ func TestBTMoveFeedbackExplainsThatTheNewFolderIsAlreadyInUse(t *testing.T) {
 			ID: "task", Name: "sample.torrent", TorrentHash: "hash", Status: "complete",
 		}}},
 		moveErr: &application.TorrentMoveCleanupError{
-			Originals: []string{"set/a.txt", "set/sub/b.txt"},
+			Originals: originals,
 			Cause:     errors.New("private transport or filesystem detail"),
 		},
 	}
@@ -215,7 +220,7 @@ func TestBTMoveFeedbackExplainsThatTheNewFolderIsAlreadyInUse(t *testing.T) {
 		PickDirectory: func(_ string, done func(string, error)) { picked = done },
 	})
 	view.Snapshot = api.Snapshot()
-	scene := interactionScene(view, 1020, 680)
+	scene := interactionScene(view, 800, 560)
 	scene.SetLocale("en")
 	applyUpdate := func() {
 		t.Helper()
@@ -238,13 +243,36 @@ func TestBTMoveFeedbackExplainsThatTheNewFolderIsAlreadyInUse(t *testing.T) {
 	picked(t.TempDir(), nil)
 	close(api.finish)
 	applyUpdate()
-	english := "The task now uses the new folder. Skiff did not remove these original files:\nset/a.txt\nset/sub/b.txt"
-	if !scene.HasText(english) {
-		t.Errorf("missing full English move feedback: %v", scene.Texts())
+	const label = "Original files not removed"
+	if !scene.HasText("The task now uses the new folder. Some original files were not removed.") {
+		t.Errorf("missing the English move explanation: %v", scene.Texts())
+	}
+	list := sourceBounds(t, scene, ui.RoleList, label)
+	panel := sourceBounds(t, scene, ui.RoleDialog, "BitTorrent Details")
+	first := sourceBounds(t, scene, ui.RoleText, originals[0])
+	second := sourceBounds(t, scene, ui.RoleText, originals[1])
+	if panel.Y < 0 || list.Y < panel.Y || list.Y+list.H > panel.Y+panel.H || panel.Y+panel.H > 560 ||
+		first.H <= 0 || first.Y < list.Y || second.Y <= first.Y || second.Y+second.H > list.Y+list.H {
+		t.Fatalf("file rows are not visible inside the dialog: %v %v, list %v, dialog %v", first, second, list, panel)
+	}
+	for range 12 {
+		node, _ := scene.AccessByRole(ui.RoleList, label)
+		if node.Focused {
+			break
+		}
+		scene.Key(0, ui.KeyTab)
+	}
+	if node, _ := scene.AccessByRole(ui.RoleList, label); !node.Focused {
+		t.Fatal("file list is unreachable by keyboard")
+	}
+	scene.Key(0, ui.KeyEnd)
+	last := sourceBounds(t, scene, ui.RoleText, originals[len(originals)-1])
+	if last.H <= 0 || last.Y < list.Y || last.Y+last.H > list.Y+list.H {
+		t.Errorf("keyboard scrolling did not reveal the last file: %v, list %v", last, list)
 	}
 	scene.SetLocale("zh-CN")
-	chinese := "任务已切换到新目录。Skiff 未清理以下原文件：\nset/a.txt\nset/sub/b.txt"
-	if !scene.HasText(chinese) {
-		t.Errorf("missing full Chinese move feedback: %v", scene.Texts())
+	if !scene.HasText("任务已切换到新目录，部分原文件未清理。") {
+		t.Errorf("missing the Chinese move explanation: %v", scene.Texts())
 	}
+	sourceBounds(t, scene, ui.RoleList, "未清理的原文件")
 }
