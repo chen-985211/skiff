@@ -38,6 +38,7 @@
   "bt.openDialog": "Open Torrent…",
   "bt.openLocal": "Open a local .torrent file",
   "bt.options": "BitTorrent options",
+  "bt.optionsCaption": "Options",
   "bt.pasteMagnet": "Paste magnet link",
   "bt.peerLimit": "Peer limit",
   "bt.pendingRefresh": "Awaiting refresh",

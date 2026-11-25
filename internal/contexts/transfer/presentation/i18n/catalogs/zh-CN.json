@@ -38,6 +38,7 @@
   "bt.openDialog": "打开种子…",
   "bt.openLocal": "打开本地 .torrent 文件",
   "bt.options": "BT 选项",
+  "bt.optionsCaption": "BT 选项",
   "bt.pasteMagnet": "粘贴磁力链接",
   "bt.peerLimit": "节点上限",
   "bt.pendingRefresh": "待更新",

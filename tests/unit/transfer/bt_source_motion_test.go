@@ -119,22 +119,33 @@ func TestRenderBTPreviewCaptionFitsOnOneLine(t *testing.T) {
 }
 
 func TestRenderBTOptionsShowsItsFullCaption(t *testing.T) {
-	v := presentation.New(service(t, &fakeEngine{}, &fakeRepo{}), presentation.Actions{})
-	v.OpenNew()
-	var caption float32
-	tt := ui.NewTesterWith(func(c *ui.Context) {
-		caption, _ = c.MeasureText(0, ui.Span{Text: "BT 选项", Size: 13})
-		v.Render(c)
-	}, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
-	chooseSource(t, tt, "BT")
-	button := sourceBounds(t, tt, ui.RoleMenuButton, "BT 选项")
-	field := sourceBounds(t, tt, ui.RoleTextField, "磁力链接")
-	// Reserve the rendered glyphs plus the dropdown's insets, gap and chevron.
-	if room := button.W - 2*(10+1) - 8 - 14; room < float32(math.Ceil(float64(caption))) {
-		t.Errorf("options trigger leaves %.2f points for a %.2f-point label", room, caption)
-	}
-	if button.X+button.W != field.X+field.W {
-		t.Errorf("options trigger and editor do not share their trailing edge: %v, %v", button, field)
+	for _, tc := range []struct{ locale, label, caption, field string }{
+		{"zh-CN", "BT 选项", "BT 选项", "磁力链接"},
+		{"en", "BitTorrent options", "Options", "Magnet link"},
+	} {
+		t.Run(tc.locale, func(t *testing.T) {
+			v := presentation.New(service(t, &fakeEngine{}, &fakeRepo{}), presentation.Actions{})
+			v.OpenNew()
+			var captionWidth float32
+			tt := ui.NewTesterWith(func(c *ui.Context) {
+				captionWidth, _ = c.MeasureText(0, ui.Span{Text: tc.caption, Size: 13, Weight: 520})
+				v.Render(c)
+			}, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+			tt.SetLocale(tc.locale)
+			chooseSource(t, tt, "BT")
+			button := sourceBounds(t, tt, ui.RoleMenuButton, tc.label)
+			field := sourceBounds(t, tt, ui.RoleTextField, tc.field)
+			if !tt.HasText(tc.caption) {
+				t.Errorf("expected visible caption %q in %v", tc.caption, tt.Texts())
+			}
+			// Reserve the rendered glyphs plus the dropdown's insets, gap and chevron.
+			if room := button.W - 2*(10+1) - 8 - 14; room < float32(math.Ceil(float64(captionWidth))) {
+				t.Errorf("options trigger leaves %.2f points for a %.2f-point label", room, captionWidth)
+			}
+			if button.X+button.W != field.X+field.W {
+				t.Errorf("options trigger and editor do not share their trailing edge: %v, %v", button, field)
+			}
+		})
 	}
 }
 
