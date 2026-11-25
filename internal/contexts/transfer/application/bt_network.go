@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"net/url"
 	"slices"
@@ -43,15 +42,15 @@ type BTNetwork interface {
 
 func (b BTSettings) Validate() error {
 	if b.Seed.Minutes < 0 || b.Seed.Ratio < 0 || math.IsNaN(b.Seed.Ratio) || math.IsInf(b.Seed.Ratio, 0) {
-		return errors.New("分享率和做种时长需要非负数值")
+		return ErrInvalidSeedPolicy
 	}
 	if b.ListenPort < 0 || b.ListenPort > 65535 || b.MaxPeers < 0 || b.MaxPeers > 65535 {
-		return errors.New("端口和节点上限应在 0–65535 之间")
+		return ErrBTPortRange
 	}
 	for _, src := range strings.Fields(b.Sources) {
 		u, err := url.Parse(src)
 		if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") {
-			return errors.New("订阅源需要 HTTP 或 HTTPS 地址")
+			return ErrBadSubscriptionURL
 		}
 	}
 	return nil
@@ -106,7 +105,7 @@ func (s *Service) RefreshBTSubscriptions(ctx context.Context, force bool) error 
 	}
 	engine, ok := s.engine.(BTNetwork)
 	if !ok {
-		return errors.New("当前引擎不支持 Tracker 订阅")
+		return ErrSubscriptionsUnsupported
 	}
 	var errs []error
 	for _, src := range sources {
@@ -149,11 +148,11 @@ func (s *Service) TorrentDetails(ctx context.Context, id string) (BTDetails, err
 	}
 	s.mu.Unlock()
 	if hash == "" {
-		return BTDetails{}, fmt.Errorf("找不到 BT 任务")
+		return BTDetails{}, ErrTorrentNotFound
 	}
 	api, ok := s.engine.(BTNetwork)
 	if !ok {
-		return BTDetails{}, errors.New("无法读取 BT 节点")
+		return BTDetails{}, ErrReadPeers
 	}
 	return api.ReadTorrentDetails(ctx, id, hash)
 }
@@ -170,7 +169,7 @@ func (s *Service) enqueue(ctx context.Context, spec TransferSpec) error {
 
 func (s *Service) SetTorrentPeerLimit(ctx context.Context, id string, limit int) error {
 	if limit < 0 || limit > 65535 {
-		return errors.New("节点上限应在 0–65535 之间")
+		return ErrBTPeerLimit
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -202,5 +201,5 @@ func (s *Service) SetTorrentPeerLimit(ctx context.Context, id string, limit int)
 		}
 		return nil
 	}
-	return errors.New("找不到 BT 任务")
+	return ErrTorrentNotFound
 }

@@ -41,9 +41,9 @@ func TestCardFailureActionsFitMinimumWindow(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		v := presentation.New(nil, presentation.Actions{})
 		v.Ready = true
-		v.Snapshot.Tasks = []application.TaskDTO{{ID: "f", Name: strings.Repeat("很长的文件名", 20) + ".zip", Status: "error", Error: "远端服务器暂时无法访问", CanRestart: true, CanRetry: true}}
+		v.Snapshot.Tasks = []application.TaskDTO{{ID: "f", Name: strings.Repeat("很长的文件名", 20) + ".zip", Status: "error", Failure: application.FailureSourceUnavailable, CanRestart: true, CanRetry: true}}
 		tt := ui.NewTesterWith(v.Render, 800, 528, ui.TesterOptions{Dark: dark, Preferences: ui.Preferences{ReduceMotion: true, ReduceTransparency: true}})
-		for _, label := range []string{"查看详情 " + v.Snapshot.Tasks[0].Name, "远端服务器暂时无法访问", "从头下载", "移除任务（保留文件）"} {
+		for _, label := range []string{"查看详情 " + v.Snapshot.Tasks[0].Name, "无法访问下载来源，请重试", "从头下载", "移除任务（保留文件）"} {
 			r, ok := tt.Find(label)
 			if !ok || r.W <= 0 || r.X < 0 || r.X+r.W > 800 || r.Y+r.H > 528 {
 				t.Errorf("dark=%v %s outside window: %+v", dark, label, r)
@@ -86,7 +86,7 @@ func TestRetryFailureIsReportedOnceOnItsCard(t *testing.T) {
 	if err = s.Refresh(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	f.addErr = errors.New("引擎暂时不可用")
+	f.addErr = application.ErrEngineConnection
 	updates := make(chan func(), 1)
 	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { updates <- fn }})
 	v.Snapshot = s.Snapshot()
@@ -103,7 +103,7 @@ func TestRetryFailureIsReportedOnceOnItsCard(t *testing.T) {
 	tt.Frame()
 	n := 0
 	for _, label := range tt.Texts() {
-		if label == f.addErr.Error() {
+		if label == "无法连接下载引擎" {
 			n++
 		}
 	}
@@ -133,13 +133,13 @@ func TestWorkspaceRemoveSaveFailureStaysInTaskList(t *testing.T) {
 		t.Fatal("remove did not finish")
 	}
 	tt.Frame()
-	if !tt.HasText("保存任务失败：disk full") {
+	if !tt.HasText("保存任务失败") {
 		t.Fatal("removing the card hid the persistence failure")
 	}
 	if err := tt.Click("设置"); err != nil {
 		t.Fatal(err)
 	}
-	if tt.HasText("保存任务失败：disk full") {
+	if tt.HasText("保存任务失败") {
 		t.Fatal("task list failure escaped into settings")
 	}
 }

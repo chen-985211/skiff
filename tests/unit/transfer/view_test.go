@@ -2,7 +2,6 @@ package transfer_test
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -36,13 +35,13 @@ func TestDownloadViewFiltersAndShowsActualTaskProgress(t *testing.T) {
 
 func TestEngineStartupErrorIsVisibleAndDisablesNewDownload(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
-	v.EngineError = errors.New("没有找到 aria2c")
+	v.EngineError = application.ErrEngineMissing
 	tt := interactionScene(v, 800, 560)
-	if !tt.HasText("没有找到 aria2c") {
+	if !tt.HasText("未安装下载引擎") {
 		t.Fatal("engine failure hidden")
 	}
 	title, ok := tt.Find("下载引擎未就绪")
-	reason, _ := tt.Find("没有找到 aria2c")
+	reason, _ := tt.Find("未安装下载引擎")
 	if !ok || reason.Y < title.Y+title.H {
 		t.Fatalf("engine failure should explain the empty state below its title: %v, %v", title, reason)
 	}

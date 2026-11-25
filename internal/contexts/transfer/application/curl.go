@@ -2,8 +2,6 @@ package application
 
 import (
 	"encoding/base64"
-	"errors"
-	"fmt"
 	"net/url"
 	"skiff/internal/contexts/transfer/domain"
 	"strings"
@@ -50,14 +48,14 @@ func curlWords(input string) ([]string, error) {
 				started = false
 			}
 		case strings.ContainsRune("|;&<>()`$", r):
-			return nil, errors.New("请粘贴单条浏览器下载请求")
+			return nil, ErrSingleCURLRequired
 		default:
 			word.WriteRune(r)
 			started = true
 		}
 	}
 	if escape || quote != 0 {
-		return nil, errors.New("cURL 引号或转义不完整")
+		return nil, ErrCURLQuoting
 	}
 	if started {
 		args = append(args, word.String())
@@ -80,7 +78,7 @@ func ImportCurl(text string) (ImportedRequest, bool, error) {
 		arg := args[i]
 		if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
 			if out.URL != "" {
-				return out, true, errors.New("每条 cURL 只能包含一个地址")
+				return out, true, ErrCURLMultipleURLs
 			}
 			out.URL = arg
 			continue
@@ -96,11 +94,11 @@ func ImportCurl(text string) (ImportedRequest, bool, error) {
 		switch option {
 		case "-H", "--header", "-A", "--user-agent", "-b", "--cookie", "-e", "--referer", "-u", "--user", "--url", "-X", "--request":
 		default:
-			return out, true, errors.New("该 cURL 包含普通文件下载不支持的操作")
+			return out, true, ErrCURLUnsupportedOperation
 		}
 		if !inline {
 			if i+1 == len(args) {
-				return out, true, errors.New("cURL 参数缺少值")
+				return out, true, ErrCURLMissingValue
 			}
 			i++
 			value = args[i]
@@ -108,17 +106,17 @@ func ImportCurl(text string) (ImportedRequest, bool, error) {
 		switch option {
 		case "--url":
 			if out.URL != "" {
-				return out, true, errors.New("每条 cURL 只能包含一个地址")
+				return out, true, ErrCURLMultipleURLs
 			}
 			out.URL = value
 		case "-X", "--request":
 			if !strings.EqualFold(value, "GET") {
-				return out, true, errors.New("仅支持 GET 下载请求")
+				return out, true, ErrCURLRequiresGET
 			}
 		case "-H", "--header":
 			key, _, ok := strings.Cut(value, ":")
 			if !ok || strings.HasPrefix(value, "@") {
-				return out, true, errors.New("请粘贴请求头内容")
+				return out, true, ErrCURLMissingHeader
 			}
 			switch strings.ToLower(key) {
 			case "accept-encoding", "content-length", "range", "connection", "host":
@@ -129,21 +127,21 @@ func ImportCurl(text string) (ImportedRequest, bool, error) {
 			headers = append(headers, "User-Agent: "+value)
 		case "-b", "--cookie":
 			if !strings.Contains(value, "=") || strings.HasPrefix(value, "@") {
-				return out, true, errors.New("请粘贴 Cookie 值")
+				return out, true, ErrCURLMissingCookie
 			}
 			headers = append(headers, "Cookie: "+value)
 		case "-e", "--referer":
 			headers = append(headers, "Referer: "+value)
 		case "-u", "--user":
 			if !strings.Contains(value, ":") {
-				return out, true, errors.New("cURL 未包含完整登录信息")
+				return out, true, ErrCURLMissingLogin
 			}
 			headers = append(headers, "Authorization: Basic "+base64.StdEncoding.EncodeToString([]byte(value)))
 		}
 	}
 	u, err := url.Parse(out.URL)
 	if err != nil || u.Hostname() == "" || u.Scheme != "https" && u.Scheme != "http" {
-		return out, true, fmt.Errorf("cURL 缺少有效 HTTP 文件地址")
+		return out, true, ErrCURLMissingFileURL
 	}
 	out.Headers, err = domain.NormalizeHeaders(strings.Join(headers, "\n"))
 	return out, true, err

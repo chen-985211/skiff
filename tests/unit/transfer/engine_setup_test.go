@@ -76,14 +76,14 @@ func TestWorkspaceOffersEngineDownloadInPlace(t *testing.T) {
 	if clicks != 1 {
 		t.Fatal("duplicate install")
 	}
-	v.OfferEngineDownload(errors.New("网络连接中断"))
+	v.OfferEngineDownload(application.ErrEngineDownload)
 	tt.Frame()
-	if _, offered := tt.AccessByRole(ui.RoleButton, "下载引擎"); !offered || !tt.HasText("网络连接中断") {
+	if _, offered := tt.AccessByRole(ui.RoleButton, "下载引擎"); !offered || !tt.HasText("无法下载引擎") {
 		t.Fatal(tt.Texts())
 	}
-	v.FinishEngineStartup(nil, application.Snapshot{}, errors.New("引擎无法启动"))
+	v.FinishEngineStartup(nil, application.Snapshot{}, application.ErrEngineStart)
 	tt.Frame()
-	if _, offered := tt.AccessByRole(ui.RoleButton, "下载引擎"); offered || !tt.HasText("引擎无法启动") {
+	if _, offered := tt.AccessByRole(ui.RoleButton, "下载引擎"); offered || !tt.HasText("aria2 启动失败，请查看数据目录内的 engine.log") {
 		t.Fatal(tt.Texts())
 	}
 	v.FinishEngineStartup(&application.Service{}, application.Snapshot{}, nil)

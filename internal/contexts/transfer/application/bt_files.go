@@ -21,7 +21,7 @@ func (s *Service) torrentRecord(id string) (domain.Record, error) {
 			return r, nil
 		}
 	}
-	return domain.Record{}, errors.New("找不到 BT 任务")
+	return domain.Record{}, ErrTorrentNotFound
 }
 func (s *Service) VerifyTorrentFiles(ctx context.Context, id string) error {
 	s.mu.Lock()
@@ -32,14 +32,14 @@ func (s *Service) VerifyTorrentFiles(ctx context.Context, id string) error {
 	}
 	lib, ok := s.engine.(TorrentFiles)
 	if !ok {
-		return errors.New("当前引擎不支持文件校验")
+		return ErrVerifyUnsupported
 	}
 	return lib.VerifyFiles(ctx, r.TorrentHash, r.Directory)
 }
 
 func (s *Service) UseTorrentFiles(ctx context.Context, id, dir string, move, seed bool) (err error) {
 	if !filepath.IsAbs(dir) {
-		return errors.New("请选择包含种子内容的保存目录")
+		return ErrTorrentDirectory
 	}
 	dir = filepath.Clean(dir)
 	s.mu.Lock()
@@ -49,11 +49,11 @@ func (s *Service) UseTorrentFiles(ctx context.Context, id, dir string, move, see
 		return err
 	}
 	if r.Status == domain.Active || r.Status == domain.Waiting {
-		return errors.New("请先暂停任务，再更改文件位置")
+		return ErrPauseBeforeMoving
 	}
 	lib, ok := s.engine.(TorrentFiles)
 	if !ok {
-		return errors.New("当前引擎不支持文件校验")
+		return ErrVerifyUnsupported
 	}
 	var staged TorrentMove
 	adopted := false
@@ -74,13 +74,13 @@ func (s *Service) UseTorrentFiles(ctx context.Context, id, dir string, move, see
 		return err
 	}
 	if current != r {
-		return errors.New("任务状态已变化，请重试")
+		return ErrTaskChanged
 	}
 	for i := range s.tasks {
 		task := &s.tasks[i]
 		entry := task.Record()
 		if entry.ID != id && entry.TorrentHash == r.TorrentHash && entry.Directory == dir {
-			return errors.New("目标位置已由另一任务使用")
+			return ErrDestinationInUse
 		}
 	}
 	for i := range s.tasks {
@@ -110,11 +110,11 @@ func (s *Service) UseTorrentFiles(ctx context.Context, id, dir string, move, see
 		adopted = true
 		if seed {
 			if err = s.enqueue(ctx, transferSpec(r, false)); err != nil {
-				task.Mark(domain.Failed, err.Error())
+				task.MarkFailure(CodeOf(err), err.Error())
 				return errors.Join(err, s.persist(ctx))
 			}
 		}
 		return nil
 	}
-	return errors.New("找不到 BT 任务")
+	return ErrTorrentNotFound
 }

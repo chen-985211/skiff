@@ -95,6 +95,7 @@ type TaskDTO struct {
 	CanPrioritize, NextInQueue                    bool
 	Connections, ConnectionLimit                  int
 	ID, URL, Name, Directory, Path, Status, Error string
+	Failure                                       string
 	Total, Completed, Speed                       int64
 	Progress                                      float64
 	CanPause, CanResume, CanRetry                 bool
@@ -221,7 +222,7 @@ func (s *Service) Open(ctx context.Context) error {
 		} else {
 			err := s.enqueue(ctx, transferSpec(r, true))
 			if err != nil {
-				task.Mark(domain.Failed, "恢复失败："+err.Error())
+				task.MarkFailure(CodeOf(err), err.Error())
 			} else {
 				task.Mark(domain.Paused, "")
 			}
@@ -234,7 +235,7 @@ func (s *Service) Execute(ctx context.Context, id string, command Command) error
 	defer s.mu.Unlock()
 	index := slices.IndexFunc(s.tasks, func(t domain.Task) bool { return t.Record().ID == id })
 	if index < 0 {
-		return errors.New("任务不存在")
+		return ErrTaskNotFound
 	}
 	return s.execute(ctx, index, command)
 }
@@ -264,7 +265,7 @@ func (s *Service) SetPaused(ctx context.Context, ids []string, paused bool) erro
 			continue
 		}
 		if err := s.execute(ctx, i, command); err != nil {
-			failures = append(failures, fmt.Errorf("%s：%w", record.Name, err))
+			failures = append(failures, fmt.Errorf("%s: %w", record.Name, err))
 		}
 	}
 	return errors.Join(failures...)
@@ -274,7 +275,7 @@ func (s *Service) SetPaused(ctx context.Context, ids []string, paused bool) erro
 func (s *Service) execute(ctx context.Context, index int, command Command) error {
 	task := &s.tasks[index]
 	if !task.Allows(command) {
-		return fmt.Errorf("当前任务不能执行 %s", command)
+		return ErrCommandUnavailable
 	}
 	r := task.Record()
 	id := r.ID
@@ -314,12 +315,12 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 			return err
 		}
 		if err := s.engine.Execute(ctx, id, Restart); err != nil {
-			task.Mark(domain.Failed, err.Error())
+			task.MarkFailure(CodeOf(err), err.Error())
 			_ = s.persist(ctx)
 			return err
 		}
 		if err := s.enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
-			task.Mark(domain.Failed, err.Error())
+			task.MarkFailure(CodeOf(err), err.Error())
 			_ = s.persist(ctx)
 			return err
 		}
@@ -328,7 +329,7 @@ func (s *Service) execute(ctx context.Context, index int, command Command) error
 			return err
 		}
 		if err := s.enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
-			task.Mark(domain.Failed, err.Error())
+			task.MarkFailure(CodeOf(err), err.Error())
 			_ = s.persist(ctx)
 			return err
 		}
@@ -448,7 +449,7 @@ func (s *Service) Snapshot() Snapshot {
 	snap := Snapshot{BTSubscriptions: s.btSources(), Directory: directory, Preferences: s.preferences}
 	for _, task := range s.tasks {
 		r := task.Record()
-		dto := TaskDTO{Seeding: task.Seeding(), PeerLimit: r.PeerLimit, TorrentHash: r.TorrentHash, DownloadLimit: r.DownloadLimit, MirrorSource: r.MirrorSource, NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: task.FailureDescription(), Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
+		dto := TaskDTO{Seeding: task.Seeding(), PeerLimit: r.PeerLimit, TorrentHash: r.TorrentHash, DownloadLimit: r.DownloadLimit, MirrorSource: r.MirrorSource, NeedsFTPLogin: r.Failure == domain.FTPLoginRequired, CanPrioritize: task.Allows(Prioritize), NextInQueue: task.NextInQueue(), Connections: task.Connections(), ConnectionLimit: r.ConnectionLimit, ID: r.ID, URL: r.URL, Name: r.Name, Directory: r.Directory, Path: r.Path, Status: string(r.Status), Error: r.Error, Failure: r.Failure, Total: r.Total, Completed: r.Completed, Speed: r.Speed, Progress: task.Progress(), CanPause: task.Allows(Pause), CanResume: task.Allows(Resume), CanRetry: task.Allows(Retry), CanRestart: task.Allows(Restart)}
 		snap.Tasks = append(snap.Tasks, dto)
 		if r.Status == domain.Active {
 			snap.Active++
@@ -466,7 +467,7 @@ func (s *Service) persist(ctx context.Context) error {
 	}
 	if err := s.repo.Save(ctx, state); err != nil {
 		s.dirty = true
-		return fmt.Errorf("保存任务失败：%w", err)
+		return Wrap(ErrSaveQueue, err)
 	}
 	s.dirty = false
 	s.lastSave = time.Now()
@@ -483,10 +484,10 @@ func (s *Service) RetryFTP(ctx context.Context, id, user, password string) error
 	defer s.mu.Unlock()
 	i := slices.IndexFunc(s.tasks, func(t domain.Task) bool { return t.Record().ID == id })
 	if i < 0 || s.tasks[i].Record().Failure != domain.FTPLoginRequired {
-		return errors.New("任务无需 FTP 登录")
+		return ErrFTPLoginUnneeded
 	}
 	if strings.TrimSpace(user) == "" || strings.ContainsAny(user+password, "\r\n\x00") {
-		return errors.New("请输入有效的 FTP 账号和密码")
+		return ErrInvalidFTPLogin
 	}
 	previous := s.tasks[i]
 	s.tasks[i].SetFTPLogin(user, password)

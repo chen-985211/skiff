@@ -33,7 +33,7 @@ func (v *View) createEditor(c *ui.Context, p palette) {
 								return
 							}
 							if err != nil {
-								v.FormError = err.Error()
+								v.FormError = errorText(v.locale, err)
 							} else if path != "" {
 								b.source = path
 								v.FormError = ""
@@ -64,7 +64,7 @@ func (v *View) createFooter(c *ui.Context, p palette) {
 			return
 		}
 		if err != nil {
-			v.FormError = err.Error()
+			v.FormError = errorText(v.locale, err)
 			return
 		}
 		if path == "" {
@@ -91,7 +91,7 @@ func (v *View) createFooter(c *ui.Context, p palette) {
 				if errors.Is(err, context.Canceled) {
 					return
 				}
-				v.FormError = err.Error()
+				v.FormError = errorText(v.locale, err)
 				return
 			}
 			b.open = false

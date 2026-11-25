@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"path/filepath"
 	"slices"
@@ -19,7 +18,7 @@ const MaxConnectionLimit = domain.MaxConnectionLimit
 func (s *Service) Add(ctx context.Context, text, directory string) (int, error) {
 	result, err := s.AddBatch(ctx, text, directory)
 	if err == nil && len(result.Remaining) > 0 {
-		err = fmt.Errorf("还有 %d 行待处理", len(result.Remaining))
+		err = ErrBatchRemaining
 	}
 	return result.Added, err
 }
@@ -55,7 +54,7 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 	}
 	limit := opts.ConnectionLimit
 	if limit < 0 || limit > MaxConnectionLimit {
-		return BatchResult{}, fmt.Errorf("连接上限应为 1 到 %d，留空使用自动设置", MaxConnectionLimit)
+		return BatchResult{}, ErrConnectionLimit
 	}
 	batch, err := domain.ParseBatch(text)
 	if err != nil {
@@ -63,18 +62,18 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 	}
 	name := strings.TrimSpace(opts.OutputName)
 	if name != "" && (len(batch.Sources) != 1 || len(batch.Remaining) > 0 || !filepath.IsLocal(name) || filepath.Base(name) != name || name == "." || strings.ContainsAny(name, `<>:"/\|?*`+"\x00\r\n")) {
-		return BatchResult{}, errors.New("请为单个下载输入有效的文件名")
+		return BatchResult{}, ErrInvalidOutputName
 	}
 	directory = filepath.Clean(strings.TrimSpace(directory))
 	if !filepath.IsAbs(directory) {
-		return BatchResult{}, errors.New("请选择绝对路径作为保存目录")
+		return BatchResult{}, ErrInvalidDirectory
 	}
 	result := BatchResult{Duplicates: batch.Duplicates, Invalid: batch.Invalid, Deferred: batch.Deferred, Remaining: batch.Remaining}
 	if len(batch.Sources) == 0 {
 		return result, nil
 	}
 	if opts.Mirrors != "" && (len(batch.Sources) != 1 || len(batch.Remaining) > 0 || strings.HasPrefix(batch.Sources[0], "ftp://")) {
-		return BatchResult{}, errors.New("请为单个 HTTP 下载添加备用地址")
+		return BatchResult{}, ErrSingleMirrorTask
 	}
 	mirrors, err := normalizeMirrors(opts.Mirrors, batch.Sources[0])
 	if err != nil {
@@ -103,7 +102,7 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 			u, _ := url.Parse(source)
 			current := strings.ToLower(u.Scheme + "://" + u.Host)
 			if u.Scheme == "ftp" || origin != "" && current != origin {
-				return BatchResult{}, errors.New("同一组请求头只能用于同一来源的 HTTP 下载")
+				return BatchResult{}, ErrMixedHeaderOrigins
 			}
 			origin = current
 		}
@@ -185,7 +184,7 @@ func (s *Service) AddWithOptions(ctx context.Context, text, directory string, op
 	for i := len(oldTasks); i < len(s.tasks); i++ {
 		task := &s.tasks[i]
 		if err := s.enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
-			task.Mark(domain.Failed, err.Error())
+			task.MarkFailure(CodeOf(err), err.Error())
 			failures = append(failures, err)
 		}
 	}

@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"net/url"
 	"path/filepath"
 	"skiff/internal/contexts/transfer/domain"
@@ -23,7 +22,7 @@ func normalizeMirrors(text string, primary string) (string, error) {
 		}
 		u, e := url.Parse(line)
 		if e != nil || u.Hostname() == "" || u.User != nil || u.Scheme != "http" && u.Scheme != "https" || strings.ContainsAny(line, " \t") {
-			return "", errors.New("备用地址须为 HTTP 或 HTTPS 文件链接")
+			return "", ErrInvalidMirrors
 		}
 		seen[line] = true
 		sources = append(sources, line)
@@ -80,7 +79,7 @@ func (s *Service) tryMirror(ctx context.Context, r domain.Record) error {
 		return err
 	}
 	if err := s.enqueue(ctx, transferSpec(task.Record(), false)); err != nil {
-		task.Mark(domain.Failed, err.Error())
+		task.MarkFailure(CodeOf(err), err.Error())
 		return s.persist(ctx)
 	}
 	return nil

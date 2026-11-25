@@ -34,7 +34,7 @@ func (v *View) submit() {
 	if err := network.Validate(); err != nil {
 		v.optionTab = proxyTab
 		v.advanced = true
-		v.FormError = err.Error()
+		v.FormError = errorText(v.locale, err)
 		return
 	}
 	if v.API == nil {
@@ -67,7 +67,7 @@ func (v *View) submit() {
 				v.advanced, v.focusLinks = false, true
 			}
 			if err != nil && result.Added == 0 {
-				v.FormError = err.Error()
+				v.FormError = errorText(v.locale, err)
 				return
 			}
 			v.URLs = strings.Join(result.Remaining, "\n")
@@ -79,7 +79,7 @@ func (v *View) submit() {
 			}
 			switch {
 			case err != nil:
-				v.FormError = i18n.Format(v.locale, "batch.partialFailure", i18n.Args{"added": result.Added, "reason": err.Error()})
+				v.FormError = i18n.Format(v.locale, "batch.partialFailure", i18n.Args{"added": result.Added, "reason": errorText(v.locale, err)})
 				if len(result.Remaining) > 0 || result.Duplicates > 0 {
 					v.FormError = summary + "\n" + v.FormError
 				}
@@ -123,9 +123,7 @@ func (v *View) setTaskError(id string, err error) {
 		if task.ID != id {
 			continue
 		}
-		if task.Error != err.Error() {
-			v.taskErrors[id] = err
-		}
+		v.taskErrors[id] = err
 		return
 	}
 	// A remove can take effect in the engine before saving the queue fails.

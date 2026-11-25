@@ -1,8 +1,11 @@
 package presentation
 
 import (
+	"errors"
+
 	"github.com/egoist/mygo/ui"
 
+	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/presentation/i18n"
 )
 
@@ -28,8 +31,16 @@ func copyError(key string, args i18n.Args) error {
 }
 
 func errorText(locale string, err error) string {
-	if message, ok := err.(messageError); ok {
+	if err == nil {
+		return ""
+	}
+	var message messageError
+	if errors.As(err, &message) {
 		return i18n.Format(locale, message.key, message.args)
 	}
-	return err.Error()
+	key := transferErrorMessages[application.CodeOf(err)]
+	if key == "" {
+		key = transferErrorMessages[application.ErrUnexpected]
+	}
+	return i18n.Text(locale, key)
 }

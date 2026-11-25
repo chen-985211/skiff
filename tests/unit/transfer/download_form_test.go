@@ -1,7 +1,6 @@
 package transfer_test
 
 import (
-	"errors"
 	"testing"
 	"time"
 
@@ -141,7 +140,7 @@ func TestSubmittingDialogKeepsResultVisibleUntilSubmissionReturns(t *testing.T) 
 }
 
 func TestWorkspacePartialCreationExplainsFailureInForm(t *testing.T) {
-	s := service(t, &fakeEngine{addErr: errors.New("引擎暂时不可用")}, &fakeRepo{})
+	s := service(t, &fakeEngine{addErr: application.ErrEngineConnection}, &fakeRepo{})
 	done := make(chan func(), 1)
 	v := presentation.New(s, presentation.Actions{Dispatch: func(fn func()) { done <- fn }})
 	v.OpenNew()
@@ -157,12 +156,12 @@ func TestWorkspacePartialCreationExplainsFailureInForm(t *testing.T) {
 		t.Fatal("creation did not finish")
 	}
 	tt.Frame()
-	message := "已创建 1 个任务，部分操作失败：引擎暂时不可用"
+	message := "已创建 1 个任务，部分操作失败：无法连接下载引擎"
 	if !v.DialogOpen || !tt.HasText(message) || v.URLs != "" || len(v.Snapshot.Tasks) != 1 {
 		t.Fatalf("partial creation left the wrong form state: %v", tt.Texts())
 	}
 	tt.Key(0, ui.KeyEscape)
-	if tt.HasText(message) || !tt.HasText("引擎暂时不可用") {
+	if tt.HasText(message) || !tt.HasText("无法连接下载引擎") {
 		t.Fatal("dismissing the form should leave the affected card's own error visible")
 	}
 }

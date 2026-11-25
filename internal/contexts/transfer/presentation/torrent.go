@@ -94,7 +94,7 @@ func (v *View) lookupTorrent(source string) {
 			}
 			b.cancel = nil
 			if err != nil {
-				v.FormError = err.Error()
+				v.FormError = errorText(v.locale, err)
 				return
 			}
 			b.meta = meta
@@ -214,7 +214,7 @@ func (v *View) torrentDownloadEditor(c *ui.Context, p palette) {
 				if pick.Clicked() {
 					v.Actions.PickTorrent(func(file string, err error) {
 						if err != nil {
-							v.FormError = err.Error()
+							v.FormError = errorText(v.locale, err)
 						} else if file != "" {
 							v.lookupTorrent(file)
 						}
@@ -296,7 +296,7 @@ func (v *View) submitTorrent() {
 	api := v.API.(torrentAPI)
 	v.run(func(ctx context.Context) error { _, err := api.AddTorrent(ctx, hash, dir, indexes); return err }, func(err error) {
 		if err != nil {
-			v.FormError = err.Error()
+			v.FormError = errorText(v.locale, err)
 			return
 		}
 		v.DialogOpen = false

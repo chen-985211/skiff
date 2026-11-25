@@ -2,8 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"path/filepath"
 )
 
@@ -38,7 +36,7 @@ type Preferences struct {
 
 func (s *Service) SetDefaultDirectory(ctx context.Context, path string) error {
 	if !filepath.IsAbs(path) {
-		return errors.New("请选择绝对路径作为默认保存目录")
+		return ErrInvalidDefaultDirectory
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -57,7 +55,7 @@ func (s *Service) SetStaticBackground(ctx context.Context, still bool) error {
 
 func (s *Service) SetTheme(ctx context.Context, mode ThemeMode) error {
 	if !mode.valid() {
-		return errors.New("未知的主题选项")
+		return ErrUnknownTheme
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -79,7 +77,7 @@ func (s *Service) savePreferences(ctx context.Context, next Preferences) error {
 
 func (s *Service) SetConcurrency(ctx context.Context, limit int) error {
 	if limit < 1 || limit > MaxConcurrency {
-		return fmt.Errorf("同时下载数应为 1 到 %d", MaxConcurrency)
+		return ErrConcurrencyRange
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -100,7 +98,7 @@ func (s *Service) applyConcurrency(ctx context.Context) error {
 		return nil
 	}
 	if err := s.engine.SetConcurrency(ctx, s.preferences.Concurrency); err != nil {
-		return fmt.Errorf("等待下载引擎应用并发设置：%w", err)
+		return Wrap(ErrApplyConcurrency, err)
 	}
 	s.concurrencyPending = false
 	return nil

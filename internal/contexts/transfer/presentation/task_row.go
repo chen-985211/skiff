@@ -228,9 +228,9 @@ func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, col
 		ui.Row(c).Height(18).AlignItems(ui.Center).Children(func() {
 			metric, ink := "", p.muted
 			if actionError != nil {
-				metric, ink = actionError.Error(), c.Theme().Danger
-			} else if t.Error != "" {
-				metric, ink = t.Error, c.Theme().Danger
+				metric, ink = errorText(c.Locale(), actionError), c.Theme().Danger
+			} else if reason := taskFailureText(c.Locale(), t); reason != "" {
+				metric, ink = reason, c.Theme().Danger
 			} else if t.Seeding {
 				metric = tr(c, "task.seeding")
 			} else if active && t.Speed > 0 {

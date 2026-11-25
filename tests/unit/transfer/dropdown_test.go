@@ -366,7 +366,7 @@ func TestRateSelectionsKeepLatestValueAndRollbackInPlace(t *testing.T) {
 	chooseSource(t, tt, "不限速")
 	apply()
 	sourceBounds(t, tt, ui.RoleMenuButton, "全局限速 · 2 MiB/s")
-	if !tt.HasText("保存任务失败：disk full") {
+	if !tt.HasText("保存任务失败") {
 		t.Error("missing local save error")
 	}
 	if _, ok := tt.AccessByRole(ui.RoleDialog, "全局限速"); ok {

@@ -33,19 +33,19 @@ func readTorrent(file string) ([]byte, application.Torrent, error) {
 		return nil, t, err
 	}
 	if !st.Mode().IsRegular() || st.Size() > maxMetadata {
-		return nil, t, errors.New("种子文件无效或超过 16 MiB")
+		return nil, t, application.ErrTorrentInvalid
 	}
 	data, err := io.ReadAll(io.LimitReader(f, maxMetadata+1))
 	if err != nil || len(data) > maxMetadata {
-		return nil, t, errors.New("无法读取种子")
+		return nil, t, application.ErrTorrentRead
 	}
 	m, err := metainfo.Load(bytes.NewReader(data))
 	if err != nil {
-		return nil, t, fmt.Errorf("无法读取种子：%w", err)
+		return nil, t, application.Wrap(application.ErrTorrentRead, err)
 	}
 	info, err := m.UnmarshalInfo()
 	if err != nil || info.MetaVersion > 1 || info.PieceLength <= 0 {
-		return nil, t, errors.New("请选择 BitTorrent v1 种子")
+		return nil, t, application.ErrTorrentVersion
 	}
 	safe := func(part string) bool {
 		return filepath.IsLocal(part) && part != "." && !strings.ContainsAny(part, "/\\:\x00")
@@ -100,7 +100,7 @@ func (c *Client) PrepareTorrent(ctx context.Context, source string) (application
 	if strings.HasPrefix(strings.ToLower(source), "magnet:") {
 		mag, err := metainfo.ParseMagnetUri(source)
 		if err != nil {
-			return t, fmt.Errorf("磁力链接无效：%w", err)
+			return t, application.Wrap(application.ErrMagnetInvalid, err)
 		}
 		expected = mag.InfoHash.HexString()
 		if t, err := c.CachedTorrent(expected); err == nil {
@@ -135,7 +135,7 @@ func (c *Client) PrepareTorrent(ctx context.Context, source string) (application
 				break
 			}
 			if status.Status == "error" || status.Status == "removed" {
-				return t, fmt.Errorf("未取得磁力元数据：%s", status.ErrorMessage)
+				return t, application.ErrMagnetMetadata
 			}
 			select {
 			case <-ctx.Done():
@@ -150,7 +150,7 @@ func (c *Client) PrepareTorrent(ctx context.Context, source string) (application
 		return t, err
 	}
 	if expected != "" && t.Hash != expected {
-		return t, errors.New("磁力元数据校验失败")
+		return t, application.ErrMagnetMetadata
 	}
 	target, err := c.metadataFile(t.Hash)
 	if err != nil {

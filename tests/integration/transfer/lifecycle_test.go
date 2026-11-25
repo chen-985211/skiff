@@ -15,7 +15,6 @@ import (
 	"skiff/internal/contexts/transfer/domain"
 	"skiff/internal/contexts/transfer/infrastructure/aria2"
 	"skiff/internal/contexts/transfer/infrastructure/persistence"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -72,7 +71,7 @@ func TestNonResumableServerRequiresFreshDownloadAndPreservesPartial(t *testing.T
 				t.Fatal(err)
 			}
 			failed := awaitTask(t, svc, id, func(task application.TaskDTO) bool { return task.Status == "error" })
-			if !failed.CanRestart || failed.CanRetry || !strings.Contains(failed.Error, "不支持断点续传") {
+			if !failed.CanRestart || failed.CanRetry || failed.Failure != application.FailureResumeUnsupported {
 				t.Fatalf("generic/unactionable failure: %+v", failed)
 			}
 			original, err := os.ReadFile(failed.Path)

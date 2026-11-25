@@ -156,7 +156,7 @@ func (v *View) trackerSubscriptions(c *ui.Context, p palette) {
 					} else if sub.Checked.IsZero() {
 						status = tr(c, "bt.pendingRefresh")
 					}
-					ui.Text(c, status).SingleLine().FontSize(12).TextColor(color).ContentTransition(textChange).Description(sub.Error).Tooltip(sub.Error)
+					ui.Text(c, status).SingleLine().FontSize(12).TextColor(color).ContentTransition(textChange)
 				})
 			}
 		})

@@ -162,7 +162,7 @@ func TestFTPLoginRequired(t *testing.T) {
 		t.Fatal(err)
 	}
 	task := awaitTask(t, svc, svc.Snapshot().Tasks[0].ID, func(v application.TaskDTO) bool { return v.Status == "error" })
-	if !task.NeedsFTPLogin || !strings.Contains(task.Error, "登录") {
+	if !task.NeedsFTPLogin || task.Failure != application.FailureFTPLoginRequired {
 		t.Fatal(task.Error)
 	}
 

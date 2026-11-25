@@ -54,7 +54,7 @@ func TestResumeFailureIsExplainedAndRestartGetsANewOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	task := s.Snapshot().Tasks[0]
-	if !strings.Contains(task.Error, "不支持断点续传") || !task.CanRestart || task.CanRetry {
+	if task.Failure != application.FailureResumeUnsupported || !task.CanRestart || task.CanRetry {
 		t.Fatalf("unhelpful failure: %+v", task)
 	}
 	if r.state.Tasks[0].Failure != "resume_unsupported" {
@@ -75,9 +75,9 @@ func TestResumeFailureIsExplainedAndRestartGetsANewOutput(t *testing.T) {
 func TestUnsupportedResumeViewExplainsAndConfirmsRestart(t *testing.T) {
 	v := presentation.New(nil, presentation.Actions{})
 	v.Ready = true
-	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "file.zip", Status: "error", Error: "服务器不支持断点续传，请从头下载", CanRestart: true}}
+	v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "file.zip", Status: "error", Failure: application.FailureResumeUnsupported, CanRestart: true}}
 	tt := interactionScene(v, 800, 560)
-	if !tt.HasText("服务器不支持断点续传，请从头下载") {
+	if !tt.HasText("服务器不支持断点续传，请选择从头下载") {
 		t.Fatal("resume failure is hidden")
 	}
 	if err := tt.Click("从头下载"); err != nil {

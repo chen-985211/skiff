@@ -141,10 +141,10 @@ func StartConfigured(ctx context.Context, dataDir, binary string, prefs applicat
 			p.kill()
 			return nil, ctx.Err()
 		case <-p.done:
-			return nil, errors.New("aria2 启动失败，请查看数据目录内的 engine.log")
+			return nil, application.ErrEngineStart
 		case <-timer.C:
 			p.kill()
-			return nil, errors.New("下载引擎启动超时")
+			return nil, application.ErrEngineTimeout
 		case <-ticker.C:
 		}
 	}
@@ -161,7 +161,7 @@ func (p *Process) Close(ctx context.Context) error {
 	defer p.Client.routes.close()
 	select {
 	case <-p.done:
-		return errors.New("下载引擎已意外退出")
+		return application.ErrEngineExited
 	default:
 	}
 	var failures []error

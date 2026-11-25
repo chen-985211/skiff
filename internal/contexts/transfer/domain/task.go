@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"errors"
 	"net/url"
 	"path"
 	"regexp"
@@ -143,6 +142,11 @@ func (t *Task) Mark(status Status, detail string) {
 	t.Observe(Observation{Status: status, Total: o.Total, Completed: o.Completed, Name: o.Name, Path: o.Path, Error: detail})
 }
 
+func (t *Task) MarkFailure(code ErrorCode, detail string) {
+	t.Mark(Failed, detail)
+	t.record.Failure = string(code)
+}
+
 func (t Task) Seeding() bool     { return t.seeding }
 func (t Task) NextInQueue() bool { return t.nextInQueue }
 func (t Task) Connections() int  { return t.connections }
@@ -168,23 +172,6 @@ func (t *Task) RestartAs(outputName string) {
 	t.record.Path, t.record.Error, t.record.Failure = "", "", ""
 	t.record.Total, t.record.Completed, t.record.Speed = 0, 0, 0
 	t.record.Status = Waiting
-}
-
-func (t Task) FailureDescription() string {
-	switch t.record.Failure {
-	case SourceUnverified:
-		return "无法确认远端文件版本。已保留部分文件，可从头下载"
-	case CheckpointUnverified:
-		return "无法校验本地下载记录。已保留部分文件，可从头下载"
-	case FTPLoginRequired:
-		return "FTP 服务器需要登录，请输入账号和密码"
-	case SourceChanged:
-		return "远端文件已变化。已保留原文件，可从头下载"
-	}
-	if t.record.Failure == ResumeUnsupported {
-		return "服务器不支持断点续传，请选择从头下载"
-	}
-	return t.record.Error
 }
 
 func NewTask(id, source, directory string) Task {
@@ -281,7 +268,7 @@ func ParseBatch(text string) (Batch, error) {
 		}
 	}
 	if len(batch.Sources) == 0 && batch.Invalid == 0 {
-		return batch, errors.New("请先输入下载链接")
+		return batch, ErrLinksRequired
 	}
 	return batch, nil
 }

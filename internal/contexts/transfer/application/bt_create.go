@@ -2,8 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -16,10 +14,10 @@ type TorrentWriter interface {
 func (s *Service) CreateTorrent(ctx context.Context, source, output string, trackers []string, seed bool) (Torrent, error) {
 	lib, ok := s.engine.(TorrentWriter)
 	if !ok {
-		return Torrent{}, errors.New("当前引擎不支持创建种子")
+		return Torrent{}, ErrTorrentCreationUnsupported
 	}
 	if !filepath.IsAbs(source) || !filepath.IsAbs(output) {
-		return Torrent{}, errors.New("请选择原文件和种子保存路径")
+		return Torrent{}, ErrTorrentPathsRequired
 	}
 	var announce []string
 	for _, line := range trackers {
@@ -29,7 +27,7 @@ func (s *Service) CreateTorrent(ctx context.Context, source, output string, trac
 		}
 		u, err := url.Parse(tr)
 		if err != nil || u.Hostname() == "" || strings.ContainsAny(tr, " \r\t\n") || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "udp") {
-			return Torrent{}, fmt.Errorf("Tracker 地址无效：%s", tr)
+			return Torrent{}, ErrInvalidTracker
 		}
 		announce = append(announce, tr)
 	}
@@ -59,7 +57,7 @@ func (s *Service) CreateTorrent(ctx context.Context, source, output string, trac
 		_, err = s.addTorrent(ctx, meta.Hash, dir, selected, true)
 	}
 	if err != nil {
-		return meta, fmt.Errorf("种子已保存，启动做种失败：%w", err)
+		return meta, Wrap(ErrTorrentSeed, err)
 	}
 	return meta, nil
 }

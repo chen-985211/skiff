@@ -11,7 +11,7 @@ import (
 // overall and task ceilings and accepts zero to remove a ceiling.
 func (s *Service) SetDownloadLimit(ctx context.Context, id string, rate int64) error {
 	if rate < 0 {
-		return errors.New("下载限速必须为非负数")
+		return ErrNegativeRate
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -21,7 +21,7 @@ func (s *Service) SetDownloadLimit(ctx context.Context, id string, rate int64) e
 	if id != "" {
 		i := slices.IndexFunc(s.tasks, func(t domain.Task) bool { return t.Record().ID == id })
 		if i < 0 {
-			return errors.New("任务不存在")
+			return ErrTaskNotFound
 		}
 		task = &s.tasks[i]
 		r := task.Record()

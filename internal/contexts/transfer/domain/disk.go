@@ -1,7 +1,5 @@
 package domain
 
-import "errors"
-
 type DiskSettings struct {
 	CacheMiB, SplitMiB int
 	DisableCache       bool
@@ -10,13 +8,13 @@ type DiskSettings struct {
 
 func (d DiskSettings) Validate() error {
 	if d.CacheMiB < 0 || d.CacheMiB > 4096 || d.SplitMiB < 0 || d.SplitMiB > 1024 {
-		return errors.New("缓存支持 0–4096 MiB，最小分段支持 1–1024 MiB")
+		return ErrDiskRange
 	}
 	switch d.Allocation {
 	case "", "none", "prealloc":
 		return nil
 	}
-	return errors.New("未知的预分配选项")
+	return ErrInvalidAllocation
 }
 func (d DiskSettings) CacheBytes() int64 {
 	if d.DisableCache {

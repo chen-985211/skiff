@@ -94,7 +94,7 @@ func (s *Installation) Find() (string, error) {
 	}
 	path, err := FindBinary()
 	if errors.Is(err, application.ErrEngineMissing) && s.Release.URL == "" {
-		return "", errors.New("请为当前平台安装 aria2 后重新打开 Skiff")
+		return "", application.ErrEnginePlatform
 	}
 	return path, err
 }
@@ -116,7 +116,7 @@ func (s *Installation) validBinary(path string) bool {
 
 func (s *Installation) Install(ctx context.Context) (string, error) {
 	if s.Release.URL == "" {
-		return "", errors.New("当前平台没有可下载的引擎")
+		return "", application.ErrEnginePlatform
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
@@ -126,11 +126,11 @@ func (s *Installation) Install(ctx context.Context) (string, error) {
 	}
 	resp, err := s.Client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("无法下载引擎：%w", err)
+		return "", application.Wrap(application.ErrEngineDownload, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("引擎下载失败（HTTP %d）", resp.StatusCode)
+		return "", fmt.Errorf("%w: HTTP status %d", application.ErrEngineDownload, resp.StatusCode)
 	}
 	// Verify the bounded archive before parsing it. Extract only the expected
 	// regular file; no archive-controlled path or mode is used on disk.
@@ -139,10 +139,10 @@ func (s *Installation) Install(ctx context.Context) (string, error) {
 		return "", canceled
 	}
 	if err != nil {
-		return "", fmt.Errorf("引擎下载中断：%w", err)
+		return "", application.Wrap(application.ErrEngineDownload, err)
 	}
 	if len(archive) > maxEngineBytes || fmt.Sprintf("%x", sha256.Sum256(archive)) != s.Release.ArchiveSHA256 {
-		return "", errors.New("引擎安装包校验失败，请重新下载")
+		return "", application.ErrEnginePackage
 	}
 	if err = os.MkdirAll(s.directory, 0700); err != nil {
 		return "", err
@@ -158,7 +158,7 @@ func (s *Installation) Install(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if hex.EncodeToString(hash.Sum(nil)) != s.Release.BinarySHA256 {
-		return "", errors.New("引擎文件校验失败，请重新下载")
+		return "", application.ErrEnginePackage
 	}
 	if err = tmp.Chmod(0700); err != nil {
 		return "", err
@@ -182,14 +182,14 @@ func (r EngineRelease) extract(archive []byte, dst io.Writer) error {
 	if strings.HasSuffix(r.URL, ".zip") {
 		z, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
 		if err != nil {
-			return fmt.Errorf("无法读取引擎安装包：%w", err)
+			return application.Wrap(application.ErrEnginePackage, err)
 		}
 		if len(z.File) != 1 {
-			return errors.New("引擎安装包内容无效")
+			return application.ErrEnginePackage
 		}
 		f := z.File[0]
 		if f.Name != r.binaryName() || !f.Mode().IsRegular() || f.UncompressedSize64 == 0 || f.UncompressedSize64 > maxEngineBytes {
-			return errors.New("引擎安装包内容无效")
+			return application.ErrEnginePackage
 		}
 		reader, err := f.Open()
 		if err != nil {
@@ -201,13 +201,13 @@ func (r EngineRelease) extract(archive []byte, dst io.Writer) error {
 	}
 	gz, err := gzip.NewReader(bytes.NewReader(archive))
 	if err != nil {
-		return fmt.Errorf("无法读取引擎安装包：%w", err)
+		return application.Wrap(application.ErrEnginePackage, err)
 	}
 	defer gz.Close()
 	tr := tar.NewReader(gz)
 	member, err := tr.Next()
 	if err != nil || member.Name != r.binaryName() || member.Typeflag != tar.TypeReg || member.Size <= 0 || member.Size > maxEngineBytes {
-		return errors.New("引擎安装包内容无效")
+		return application.ErrEnginePackage
 	}
 	_, err = io.Copy(dst, tr)
 	return err

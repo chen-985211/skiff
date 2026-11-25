@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"skiff/internal/contexts/transfer/application"
 	"sync/atomic"
 	"time"
 )
@@ -40,7 +41,7 @@ func (c *Client) call(ctx context.Context, method string, params []any, result a
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("无法连接下载引擎：%w", err)
+		return application.Wrap(application.ErrEngineConnection, err)
 	}
 	defer resp.Body.Close()
 	var envelope struct {
@@ -53,7 +54,7 @@ func (c *Client) call(ctx context.Context, method string, params []any, result a
 		return envelope.Error
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("下载引擎 HTTP 状态 %d", resp.StatusCode)
+		return fmt.Errorf("%w: HTTP status %d", application.ErrEngineConnection, resp.StatusCode)
 	}
 	if err != nil {
 		return err

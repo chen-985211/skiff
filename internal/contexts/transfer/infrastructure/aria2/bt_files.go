@@ -84,7 +84,7 @@ func (c *Client) VerifyFiles(ctx context.Context, hash, dir string) error {
 		return err
 	}
 	if !bytes.Equal(expected, info.Pieces) {
-		return errors.New("分片校验失败，文件内容与种子不匹配")
+		return application.ErrTorrentFiles
 	}
 	return ctx.Err()
 }

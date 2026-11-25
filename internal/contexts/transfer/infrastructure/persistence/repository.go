@@ -25,10 +25,10 @@ func (r Repository) Load(ctx context.Context) (application.State, error) {
 	}
 	var state application.State
 	if err := json.Unmarshal(data, &state); err != nil {
-		return state, fmt.Errorf("任务记录损坏，已保留原文件：%w", err)
+		return state, application.Wrap(application.ErrCorruptQueue, err)
 	}
 	if state.Version != 1 {
-		return state, fmt.Errorf("不支持任务记录版本 %d", state.Version)
+		return state, fmt.Errorf("%w: version %d", application.ErrQueueVersion, state.Version)
 	}
 	return state, nil
 }

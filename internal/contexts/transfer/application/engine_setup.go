@@ -5,8 +5,6 @@ import (
 	"errors"
 )
 
-var ErrEngineMissing = errors.New("未安装下载引擎")
-
 type EngineInstallation interface {
 	Find() (string, error)
 	Install(context.Context) (string, error)

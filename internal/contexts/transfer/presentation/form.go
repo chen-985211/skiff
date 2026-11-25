@@ -303,7 +303,7 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 		pick := func() {
 			v.Actions.PickDirectory(v.Directory, func(path string, err error) {
 				if err != nil {
-					v.FormError = err.Error()
+					v.FormError = errorText(v.locale, err)
 				} else if path != "" {
 					v.Directory, v.FormError = path, ""
 				}

@@ -89,9 +89,9 @@ func Run() error {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.Text(mygo.App.Locale(), "bt.chooseSource"), Directory: folder})
 					win.Update(func() {
 						if len(paths) > 0 {
-							done(paths[0], err)
+							done(paths[0], application.Wrap(application.ErrFileDialog, err))
 						} else {
-							done("", err)
+							done("", application.Wrap(application.ErrFileDialog, err))
 						}
 					})
 				}()
@@ -99,7 +99,7 @@ func Run() error {
 			SaveTorrent: func(path string, done func(string, error)) {
 				go func() {
 					out, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: i18n.Text(mygo.App.Locale(), "native.saveTorrent"), DefaultPath: path, CreateDirectories: true, Filters: []mygo.FileFilter{{Name: i18n.Text(mygo.App.Locale(), "native.torrentFilter"), Extensions: []string{"torrent"}}}})
-					win.Update(func() { done(out, err) })
+					win.Update(func() { done(out, application.Wrap(application.ErrFileDialog, err)) })
 				}()
 			},
 			PickTorrent: func(done func(string, error)) {
@@ -107,7 +107,7 @@ func Run() error {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.Text(mygo.App.Locale(), "bt.open"), Filters: []mygo.FileFilter{{Name: i18n.Text(mygo.App.Locale(), "native.torrentFilter"), Extensions: []string{"torrent"}}}})
 					win.Update(func() {
 						if err != nil {
-							done("", err)
+							done("", application.Wrap(application.ErrFileDialog, err))
 						} else if len(paths) > 0 {
 							done(paths[0], nil)
 						}
@@ -132,7 +132,7 @@ func Run() error {
 						err = mygo.Shell.OpenPath(path)
 					}
 					if err != nil {
-						err = fmt.Errorf("open download directory: %w", err)
+						err = application.Wrap(application.ErrFolderOpen, err)
 					}
 					win.Update(func() { done(err) })
 				}()
@@ -143,7 +143,7 @@ func Run() error {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.Text(mygo.App.Locale(), "native.pickDirectory"), DefaultPath: current, Directory: true, CreateDirectories: true, ButtonLabel: i18n.Text(mygo.App.Locale(), "native.pickFolder")})
 					win.Update(func() {
 						if err != nil {
-							done("", err)
+							done("", application.Wrap(application.ErrFileDialog, err))
 						} else if len(paths) > 0 {
 							done(paths[0], nil)
 						}
@@ -153,7 +153,7 @@ func Run() error {
 			Reveal: func(path string) error {
 				if _, err := os.Stat(path); err != nil {
 					if os.IsNotExist(err) {
-						return errors.New("file or directory not found")
+						return application.Wrap(application.ErrFileMissing, err)
 					}
 					return err
 				}

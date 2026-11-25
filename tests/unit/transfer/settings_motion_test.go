@@ -253,11 +253,11 @@ func TestSettingsThemeKeepsLatestChoiceDuringSaveAndRevertsOnFailure(t *testing.
 	click("深色")
 	wait()
 	item, _ := tt.AccessByRole(ui.RoleRadio, "浅色")
-	if !item.Checked || !tt.HasText("保存任务失败：disk full") {
+	if !item.Checked || !tt.HasText("保存任务失败") {
 		t.Fatal("failed save did not restore and explain the previous theme")
 	}
 	click("全部任务")
-	if tt.HasText("保存任务失败：disk full") {
+	if tt.HasText("保存任务失败") {
 		t.Error("theme save failure escaped the settings page")
 	}
 }
@@ -399,7 +399,7 @@ func TestSettingsFlowKeepsLatestChoiceAndRestoresLastSaveOnError(t *testing.T) {
 	click("背景流光")
 	wait()
 	sw, _ := tt.AccessByRole(ui.RoleSwitch, "背景流光")
-	if !sw.Checked || !tt.HasText("保存任务失败：disk full") {
+	if !sw.Checked || !tt.HasText("保存任务失败") {
 		t.Fatal("failed save did not restore the switch and explain the error")
 	}
 }

@@ -1,0 +1,107 @@
+package presentation
+
+import (
+	"skiff/internal/contexts/transfer/application"
+	"skiff/internal/contexts/transfer/presentation/i18n"
+)
+
+var transferErrorMessages = map[application.ErrorCode]string{
+	application.ErrInvalidHeaders:             "error.invalidHeaders",
+	application.ErrManagedHeader:              "error.managedHeader",
+	application.ErrUnknownProxyMode:           "error.unknownProxyMode",
+	application.ErrUnknownDNSMode:             "error.unknownDNSMode",
+	application.ErrInvalidProxyAddress:        "error.invalidProxyAddress",
+	application.ErrInvalidProxyValue:          "error.invalidProxyValue",
+	application.ErrLinksRequired:              "error.linksRequired",
+	application.ErrDiskRange:                  "error.diskRange",
+	application.ErrInvalidAllocation:          "error.invalidAllocation",
+	application.ErrInvalidMirrors:             "error.invalidMirrors",
+	application.ErrTorrentNotFound:            "error.torrentNotFound",
+	application.ErrVerifyUnsupported:          "error.verifyUnsupported",
+	application.ErrTorrentDirectory:           "error.torrentDirectory",
+	application.ErrPauseBeforeMoving:          "error.pauseBeforeMoving",
+	application.ErrTaskChanged:                "error.taskChanged",
+	application.ErrDestinationInUse:           "error.destinationInUse",
+	application.ErrEngineMissing:              "error.engineMissing",
+	application.ErrTorrentCreationUnsupported: "error.torrentCreationUnsupported",
+	application.ErrTorrentPathsRequired:       "error.torrentPathsRequired",
+	application.ErrInvalidTracker:             "error.invalidTracker",
+	application.ErrTorrentSeed:                "error.torrentSeed",
+	application.ErrNegativeRate:               "error.negativeRate",
+	application.ErrTaskNotFound:               "error.taskNotFound",
+	application.ErrSingleCURLRequired:         "error.singleCURLRequired",
+	application.ErrCURLQuoting:                "error.curlQuoting",
+	application.ErrCURLMultipleURLs:           "error.curlMultipleURLs",
+	application.ErrCURLUnsupportedOperation:   "error.curlUnsupportedOperation",
+	application.ErrCURLMissingValue:           "error.curlMissingValue",
+	application.ErrCURLRequiresGET:            "error.curlRequiresGET",
+	application.ErrCURLMissingHeader:          "error.curlMissingHeader",
+	application.ErrCURLMissingCookie:          "error.curlMissingCookie",
+	application.ErrCURLMissingLogin:           "error.curlMissingLogin",
+	application.ErrCURLMissingFileURL:         "error.curlMissingFileURL",
+	application.ErrBTUnsupported:              "error.btUnsupported",
+	application.ErrTorrentSelection:           "error.torrentSelection",
+	application.ErrStaleTorrentSelection:      "error.staleTorrentSelection",
+	application.ErrDuplicateTorrent:           "error.duplicateTorrent",
+	application.ErrBatchRemaining:             "error.batchRemaining",
+	application.ErrConnectionLimit:            "error.connectionLimit",
+	application.ErrInvalidOutputName:          "error.invalidOutputName",
+	application.ErrInvalidDirectory:           "error.invalidDirectory",
+	application.ErrSingleMirrorTask:           "error.singleMirrorTask",
+	application.ErrMixedHeaderOrigins:         "error.mixedHeaderOrigins",
+	application.ErrInvalidDefaultDirectory:    "error.invalidDefaultDirectory",
+	application.ErrUnknownTheme:               "error.unknownTheme",
+	application.ErrConcurrencyRange:           "error.concurrencyRange",
+	application.ErrApplyConcurrency:           "error.applyConcurrency",
+	application.ErrInvalidSeedPolicy:          "error.invalidSeedPolicy",
+	application.ErrBTPortRange:                "error.btPortRange",
+	application.ErrBadSubscriptionURL:         "error.badSubscriptionURL",
+	application.ErrSubscriptionsUnsupported:   "error.subscriptionsUnsupported",
+	application.ErrReadPeers:                  "error.readPeers",
+	application.ErrBTPeerLimit:                "error.btPeerLimit",
+	application.ErrCommandUnavailable:         "error.commandUnavailable",
+	application.ErrSaveQueue:                  "error.saveQueue",
+	application.ErrFTPLoginUnneeded:           "error.ftpLoginUnneeded",
+	application.ErrInvalidFTPLogin:            "error.invalidFTPLogin",
+	application.ErrCorruptQueue:               "error.corruptQueue",
+	application.ErrQueueVersion:               "error.queueVersion",
+	application.ErrEnginePlatform:             "error.enginePlatform",
+	application.ErrEngineDownload:             "error.engineDownload",
+	application.ErrEnginePackage:              "error.enginePackage",
+	application.ErrEngineStart:                "error.engineStart",
+	application.ErrEngineTimeout:              "error.engineTimeout",
+	application.ErrEngineExited:               "error.engineExited",
+	application.ErrEngineConnection:           "error.engineConnection",
+	application.ErrFolderOpen:                 "error.folderOpen",
+	application.ErrFileMissing:                "error.fileMissing",
+	application.ErrFileDialog:                 "error.fileDialog",
+	application.ErrTorrentRead:                "error.torrentRead",
+	application.ErrTorrentInvalid:             "error.torrentInvalid",
+	application.ErrTorrentVersion:             "error.torrentVersion",
+	application.ErrMagnetInvalid:              "error.magnetInvalid",
+	application.ErrMagnetMetadata:             "error.magnetMetadata",
+	application.ErrTorrentFiles:               "error.torrentFiles",
+	application.ErrUnexpected:                 "error.unexpected",
+}
+
+var taskFailureMessages = map[string]string{
+	application.FailureResumeUnsupported:    "task.resumeUnsupported",
+	application.FailureSourceUnverified:     "task.sourceUnverified",
+	application.FailureCheckpointUnverified: "task.checkpointUnverified",
+	application.FailureFTPLoginRequired:     "task.ftpLoginRequired",
+	application.FailureSourceChanged:        "task.sourceChanged",
+	application.FailureSourceUnavailable:    "task.sourceUnavailable",
+}
+
+func taskFailureText(locale string, task application.TaskDTO) string {
+	if key := taskFailureMessages[task.Failure]; key != "" {
+		return i18n.Text(locale, key)
+	}
+	if key := transferErrorMessages[application.ErrorCode(task.Failure)]; key != "" {
+		return i18n.Text(locale, key)
+	}
+	if task.Status == "error" {
+		return i18n.Text(locale, "task.genericFailure")
+	}
+	return ""
+}

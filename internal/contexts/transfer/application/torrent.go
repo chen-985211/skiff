@@ -31,7 +31,7 @@ type TorrentLibrary interface {
 func (s *Service) PrepareTorrent(ctx context.Context, source string) (Torrent, error) {
 	lib, ok := s.engine.(TorrentLibrary)
 	if !ok {
-		return Torrent{}, errors.New("当前引擎不支持 BT")
+		return Torrent{}, ErrBTUnsupported
 	}
 	source = strings.TrimSpace(source)
 	if u, err := url.Parse(source); err == nil && u.Scheme == "magnet" && u.Query().Get("tr") == "" {
@@ -55,14 +55,14 @@ func (s *Service) AddTorrent(ctx context.Context, hash, dir string, files []int)
 func (s *Service) addTorrent(ctx context.Context, hash, dir string, files []int, seed bool) (string, error) {
 	lib, ok := s.engine.(TorrentLibrary)
 	if !ok {
-		return "", errors.New("当前引擎不支持 BT")
+		return "", ErrBTUnsupported
 	}
 	meta, err := lib.CachedTorrent(hash)
 	if err != nil {
 		return "", err
 	}
 	if !filepath.IsAbs(dir) || len(files) == 0 {
-		return "", errors.New("请选择保存目录和至少一个文件")
+		return "", ErrTorrentSelection
 	}
 	dir = filepath.Clean(dir)
 	selected := slices.Clone(files)
@@ -72,7 +72,7 @@ func (s *Service) addTorrent(ctx context.Context, hash, dir string, files []int,
 	var size int64
 	for _, i := range selected {
 		if i < 1 || i > len(meta.Files) {
-			return "", errors.New("所选文件已失效")
+			return "", ErrStaleTorrentSelection
 		}
 		parts = append(parts, strconv.Itoa(i))
 		size += meta.Files[i-1].Size
@@ -82,7 +82,7 @@ func (s *Service) addTorrent(ctx context.Context, hash, dir string, files []int,
 	for _, t := range s.tasks {
 		r := t.Record()
 		if r.TorrentHash == hash && r.Directory == dir {
-			return "", errors.New("此种子已在该目录的任务列表中")
+			return "", ErrDuplicateTorrent
 		}
 	}
 	id := s.nextID()
@@ -97,7 +97,7 @@ func (s *Service) addTorrent(ctx context.Context, hash, dir string, files []int,
 		return "", err
 	}
 	if err = s.enqueue(ctx, transferSpec(rec, false)); err != nil {
-		s.tasks[len(s.tasks)-1].Mark(domain.Failed, err.Error())
+		s.tasks[len(s.tasks)-1].MarkFailure(CodeOf(err), err.Error())
 		return id, errors.Join(err, s.persist(ctx))
 	}
 	return id, nil
