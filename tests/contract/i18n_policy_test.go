@@ -31,7 +31,7 @@ func render(c *toolkit.Context) {
 	_ = desktop.MenuItem{Label: tr(c, "download.new")}
 }
 `
-	issues, err := checkInterfaceCopy("fixture.go", []byte(fixture))
+	issues, err := checkInterfaceCopy("fixture.go", []byte(fixture), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func render(c *toolkit.Context) {
 	}
 }
 
-func checkInterfaceCopy(path string, source []byte) ([]string, error) {
+func checkInterfaceCopy(path string, source []byte, messages map[string]map[string]string) ([]string, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, source, 0)
 	if err != nil {
@@ -130,6 +130,11 @@ func checkInterfaceCopy(path string, source []byte) ([]string, error) {
 	})
 	var issues []string
 	ast.Inspect(file, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok && messages != nil {
+			if message := checkMessageCall(call, imports, messages); message != "" {
+				issues = append(issues, fmt.Sprintf("%s: %s", fset.Position(call.Pos()), message))
+			}
+		}
 		literal, ok := n.(*ast.BasicLit)
 		if !ok || literal.Kind != token.STRING {
 			return true
@@ -164,6 +169,7 @@ func isProse(value string) bool {
 
 func TestI18nPresentationCopy(t *testing.T) {
 	root := i18nRepositoryRoot()
+	messages := readMessages(t, filepath.Join(root, "internal", "contexts", "transfer", "presentation", "i18n", "catalogs", "zh-CN.json"))
 	for _, dir := range []string{"internal/contexts", "internal/platform/desktop"} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, entry fs.DirEntry, err error) error {
 			if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
@@ -181,7 +187,7 @@ func TestI18nPresentationCopy(t *testing.T) {
 			if dir == "internal/contexts" && !strings.Contains(relative, "/presentation/") {
 				return nil
 			}
-			issues, err := checkInterfaceCopy(relative, data)
+			issues, err := checkInterfaceCopy(relative, data, messages)
 			for _, issue := range issues {
 				t.Error(issue)
 			}
@@ -191,4 +197,112 @@ func TestI18nPresentationCopy(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func TestI18nPolicyChecksStaticMessageReferences(t *testing.T) {
+	const fixture = `package sample
+import locale "skiff/internal/contexts/transfer/presentation/i18n"
+func render(c any, key string) {
+	_ = tr(c, "missing.text")
+	_ = trf(c, "known.format", locale.Args{"wrong": 3})
+	_ = tr(c, "known.format")
+	_ = trf(c, "known.format", locale.Args{"count": 3})
+	_ = tr(c, key)
+}
+`
+	issues, err := checkInterfaceCopy("fixture.go", []byte(fixture), map[string]map[string]string{
+		"known.format": {"count": "plural"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 3 {
+		t.Fatalf("got %d violations, want 3: %v", len(issues), issues)
+	}
+}
+
+func checkMessageCall(call *ast.CallExpr, imports map[string]string, messages map[string]map[string]string) string {
+	keyIndex, argsIndex := 1, -1
+	switch function := call.Fun.(type) {
+	case *ast.Ident:
+		if function.Obj != nil {
+			return ""
+		}
+		switch function.Name {
+		case "tr":
+		case "trf":
+			argsIndex = 2
+		case "copyError":
+			keyIndex, argsIndex = 0, 1
+		default:
+			return ""
+		}
+	case *ast.SelectorExpr:
+		if packageOf(function, imports) != "skiff/internal/contexts/transfer/presentation/i18n" {
+			return ""
+		}
+		switch function.Sel.Name {
+		case "Text":
+		case "Format":
+			argsIndex = 2
+		default:
+			return ""
+		}
+	default:
+		return ""
+	}
+	if len(call.Args) <= keyIndex {
+		return ""
+	}
+	key, static := stringLiteral(call.Args[keyIndex])
+	if !static {
+		return ""
+	}
+	required, found := messages[key]
+	if !found {
+		return fmt.Sprintf("unknown i18n message key %q", key)
+	}
+	provided := map[string]bool{}
+	if argsIndex >= 0 && len(call.Args) > argsIndex {
+		switch args := call.Args[argsIndex].(type) {
+		case *ast.CompositeLit:
+			for _, expr := range args.Elts {
+				pair, ok := expr.(*ast.KeyValueExpr)
+				if !ok {
+					return ""
+				}
+				name, ok := stringLiteral(pair.Key)
+				if !ok {
+					return ""
+				}
+				provided[name] = true
+			}
+		case *ast.Ident:
+			if args.Name != "nil" {
+				return ""
+			}
+		default:
+			return ""
+		}
+	}
+	for name := range required {
+		if !provided[name] {
+			return fmt.Sprintf("i18n message %q is missing parameter %q", key, name)
+		}
+	}
+	for name := range provided {
+		if _, ok := required[name]; !ok {
+			return fmt.Sprintf("i18n message %q has unknown parameter %q", key, name)
+		}
+	}
+	return ""
+}
+
+func stringLiteral(expr ast.Expr) (string, bool) {
+	lit, ok := expr.(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", false
+	}
+	value, err := strconv.Unquote(lit.Value)
+	return value, err == nil
 }

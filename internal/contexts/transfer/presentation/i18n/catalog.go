@@ -34,6 +34,9 @@ func Languages() []string {
 }
 
 func LanguageName(locale string) string {
+	if locale == Source {
+		return native.Autonym("zh-Hans")
+	}
 	return native.Autonym(locale)
 }
 

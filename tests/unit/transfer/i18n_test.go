@@ -47,6 +47,9 @@ func TestDownloadWorkspaceChangesLanguageWithoutResettingSearch(t *testing.T) {
 }
 
 func TestLanguageDropdownUsesSharedSelectionAndPreservesSettings(t *testing.T) {
+	if got := i18n.LanguageName(i18n.Source); got != "简体中文" {
+		t.Fatalf("Chinese locale name = %q", got)
+	}
 	var chosen string
 	view := presentation.New(nil, presentation.Actions{
 		ChosenLocale: func() string { return chosen },
