@@ -66,6 +66,7 @@ func checkInterfaceCopy(path string, source []byte, messages map[string]map[stri
 		imports[name] = path
 	}
 	visible := map[*ast.BasicLit]bool{}
+	literalTypes := map[*ast.CompositeLit]string{}
 	var mark func(ast.Expr)
 	mark = func(expr ast.Expr) {
 		switch node := expr.(type) {
@@ -115,8 +116,24 @@ func checkInterfaceCopy(path string, source []byte, messages map[string]map[stri
 				}
 			}
 		case *ast.CompositeLit:
-			sel, ok := node.Type.(*ast.SelectorExpr)
-			if !ok || packageOf(sel, imports) != "github.com/egoist/mygo" {
+			if collection, ok := node.Type.(*ast.ArrayType); ok {
+				if name := nativeStructType(collection.Elt, imports); name != "" {
+					for _, element := range node.Elts {
+						if indexed, ok := element.(*ast.KeyValueExpr); ok {
+							element = indexed.Value
+						}
+						if literal, ok := element.(*ast.CompositeLit); ok && literal.Type == nil {
+							literalTypes[literal] = name
+						}
+					}
+				}
+				break
+			}
+			name := nativeStructType(node.Type, imports)
+			if node.Type == nil {
+				name = literalTypes[node]
+			}
+			if name == "" {
 				break
 			}
 			for _, element := range node.Elts {
@@ -126,7 +143,7 @@ func checkInterfaceCopy(path string, source []byte, messages map[string]map[stri
 						case "Title", "Message", "Label", "ButtonLabel":
 							mark(field.Value)
 						case "Name":
-							if sel.Sel.Name == "FileFilter" {
+							if name == "FileFilter" {
 								mark(field.Value)
 							}
 						}
@@ -156,6 +173,16 @@ func checkInterfaceCopy(path string, source []byte, messages map[string]map[stri
 		return true
 	})
 	return issues, nil
+}
+
+func nativeStructType(expr ast.Expr, imports map[string]string) string {
+	if pointer, ok := expr.(*ast.StarExpr); ok {
+		expr = pointer.X
+	}
+	if sel, ok := expr.(*ast.SelectorExpr); ok && packageOf(sel, imports) == "github.com/egoist/mygo" {
+		return sel.Sel.Name
+	}
+	return ""
 }
 
 func packageOf(sel *ast.SelectorExpr, imports map[string]string) string {
@@ -319,4 +346,33 @@ func hasChineseCopy(value string) bool {
 	return strings.ContainsFunc(value, func(r rune) bool {
 		return unicode.Is(unicode.Han, r) || strings.ContainsRune("。，；：！？（）", r)
 	})
+}
+
+func TestI18nPolicyChecksNativeMenuAndFileFilterCollections(t *testing.T) {
+	const fixture = `package sample
+import desktop "github.com/egoist/mygo"
+var menu = []*desktop.MenuItem{
+	{Label: "File", Submenu: []*desktop.MenuItem{
+		{Label: "New Download"},
+		{Label: tr(c, "download.new")},
+	}},
+}
+var dialog = desktop.OpenDialogOptions{Filters: []desktop.FileFilter{
+	{Name: "BitTorrent files", Extensions: []string{"torrent"}},
+	{Name: tr(c, "bt.files")},
+}}
+`
+	issues, err := checkInterfaceCopy("collections.go", []byte(fixture), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"collections.go:4:", "collections.go:5:", "collections.go:10:"}
+	if len(issues) != len(want) {
+		t.Fatalf("issues = %v, want locations %v", issues, want)
+	}
+	for i, issue := range issues {
+		if !strings.HasPrefix(issue, want[i]) {
+			t.Errorf("issue %d = %s, want location %s", i, issue, want[i])
+		}
+	}
 }
