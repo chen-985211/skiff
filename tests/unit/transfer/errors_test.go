@@ -53,6 +53,7 @@ func TestDiskSpaceFailureExplainsRecoveryInBothLanguages(t *testing.T) {
 
 func TestDownloadFailureReasonsAreDistinctInBothLanguages(t *testing.T) {
 	for _, tc := range []struct{ code, chinese, english string }{
+		{string(application.ErrDownloadNotFound), "找不到下载资源。请检查链接或更换下载来源。", "The download resource was not found. Check the link or use another source."},
 		{string(application.ErrTooManyRedirects), "重定向次数过多", "The server redirected the download too many times"},
 		{string(application.ErrDownloadAuthorization), "服务器拒绝下载授权。请检查凭据后重试。", "The server rejected the download credentials. Check them and try again."},
 		{string(application.ErrDownloadChecksum), "文件校验和不匹配。请重试或更换下载来源。", "The file checksum did not match. Try again or use another download source."},

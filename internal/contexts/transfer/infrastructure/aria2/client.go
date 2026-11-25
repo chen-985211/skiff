@@ -158,8 +158,10 @@ func (c *Client) Observe(ctx context.Context) ([]application.Observation, error)
 				firstWaiting = false
 			}
 			switch t.ErrorCode {
-			case "1", "2", "3", "4", "5", "6", "7", "19", "21", "22", "29":
+			case "1", "2", "5", "6", "7", "19", "21", "22", "29":
 				o.Failure = domain.SourceUnavailable
+			case "3", "4":
+				o.Failure = string(application.ErrDownloadNotFound)
 			case "9":
 				o.Failure = string(application.ErrInsufficientDiskSpace)
 			case "16":

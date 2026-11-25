@@ -118,6 +118,7 @@ const (
 	ErrReadQueue                  ErrorCode = "READ_QUEUE_FAILED"
 	ErrDownloadAuthorization      ErrorCode = "DOWNLOAD_AUTHORIZATION_FAILED"
 	ErrDownloadChecksum           ErrorCode = "DOWNLOAD_CHECKSUM_MISMATCH"
+	ErrDownloadNotFound           ErrorCode = "DOWNLOAD_NOT_FOUND"
 	ErrCreateDownloadFile         ErrorCode = "DOWNLOAD_FILE_CREATE_FAILED"
 	ErrInsufficientDiskSpace      ErrorCode = "INSUFFICIENT_DISK_SPACE"
 	ErrUnexpected                 ErrorCode = "UNEXPECTED_ERROR"

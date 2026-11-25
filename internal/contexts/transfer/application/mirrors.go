@@ -37,7 +37,7 @@ func sameOrigin(a, b string) bool {
 func canFallBackToMirror(failure string) bool {
 	switch failure {
 	case domain.SourceUnavailable, ResumeUnsupported, domain.SourceChanged,
-		string(ErrTooManyRedirects), string(ErrDownloadAuthorization), string(ErrDownloadChecksum):
+		string(ErrTooManyRedirects), string(ErrDownloadAuthorization), string(ErrDownloadChecksum), string(ErrDownloadNotFound):
 		return true
 	default:
 		return false

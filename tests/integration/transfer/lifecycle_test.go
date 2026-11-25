@@ -265,6 +265,9 @@ func TestRealHTTPFailureCanRetrySuccessfully(t *testing.T) {
 	}
 	id := svc.Snapshot().Tasks[0].ID
 	failed := awaitTask(t, svc, id, func(task application.TaskDTO) bool { return task.CanRetry })
+	if failed.Failure != string(application.ErrDownloadNotFound) {
+		t.Errorf("HTTP 404 did not keep its specific failure: %q", failed.Failure)
+	}
 	if failed.Error == "" {
 		t.Fatal("HTTP failure has no explanation")
 	}

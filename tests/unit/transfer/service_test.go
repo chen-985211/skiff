@@ -296,7 +296,7 @@ func TestQueuePreferenceSurvivesRestartAndEngineRetry(t *testing.T) {
 }
 
 func TestMirrorFallbackRetainsSpecificSourceFailures(t *testing.T) {
-	for _, failure := range []string{string(application.ErrTooManyRedirects), string(application.ErrDownloadAuthorization), string(application.ErrDownloadChecksum)} {
+	for _, failure := range []string{string(application.ErrDownloadNotFound), string(application.ErrTooManyRedirects), string(application.ErrDownloadAuthorization), string(application.ErrDownloadChecksum)} {
 		t.Run(failure, func(t *testing.T) {
 			engine := &fakeEngine{}
 			svc := service(t, engine, &fakeRepo{})
