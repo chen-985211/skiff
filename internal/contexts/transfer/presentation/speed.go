@@ -2,8 +2,11 @@ package presentation
 
 import (
 	"context"
-	"github.com/egoist/mygo/ui"
 	"strconv"
+
+	"github.com/egoist/mygo/ui"
+
+	"skiff/internal/contexts/transfer/presentation/i18n"
 )
 
 func rateLabel(c *ui.Context, rate int64) string {
@@ -32,13 +35,15 @@ func (v *View) speedSelector(c *ui.Context, p palette, id string, current int64)
 	}
 	key := rateScope(id)
 	label, display := tr(c, key), rateLabel(c, current)
-	title := display
+	name := trf(c, "limit.summary", i18n.Args{"scope": label, "value": display})
+	caption, tip := display, display
 	width := float32(112)
 	if id != "" {
-		title = label + " · " + display
+		caption = trf(c, "limit.taskCaption", i18n.Args{"value": display})
+		tip = name
 		width = 176
 	}
-	dropdown(c.Key(key), p, label+" · "+display, title, !v.Ready || v.Busy, func(m *ui.Menu) {
+	dropdown(c.Key(key), p, name, caption, !v.Ready || v.Busy, func(m *ui.Menu) {
 		for _, rate := range []int64{0, 512 << 10, 1 << 20, 2 << 20, 5 << 20, 10 << 20} {
 			if m.Item(rateLabel(c, rate)).Checked(rate == current).Chosen() && rate != current {
 				v.saveRate(id, rate)
@@ -51,7 +56,7 @@ func (v *View) speedSelector(c *ui.Context, p palette, id string, current int64)
 			v.rateErr = nil
 			v.rateOpen = true
 		}
-	}).Width(width).Tooltip(title)
+	}).Width(width).Tooltip(tip)
 }
 
 // Resolve the field by task ID at completion: a refresh can replace or reorder

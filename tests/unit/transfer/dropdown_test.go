@@ -373,3 +373,29 @@ func TestRateSelectionsKeepLatestValueAndRollbackInPlace(t *testing.T) {
 		t.Error("failure unexpectedly opened a modal")
 	}
 }
+
+func TestRenderEnglishTaskRateCaptionFitsWithFullAccessibleName(t *testing.T) {
+	view := presentation.New(nil, presentation.Actions{})
+	view.Ready = true
+	view.Snapshot.Tasks = []application.TaskDTO{{ID: "one", Name: "one.zip", Status: "active"}}
+	var textWidth float32
+	caption := "Limit · Unlimited"
+	scene := ui.NewTesterWith(func(c *ui.Context) {
+		textWidth, _ = c.MeasureText(0, ui.Span{Text: caption, Size: 13, Weight: 520})
+		view.Render(c)
+	}, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+	scene.SetLocale("en")
+	chooseSource(t, scene, "View details for one.zip")
+	for _, tc := range []struct {
+		rate int64
+		text string
+	}{{0, "Unlimited"}, {512 << 10, "512 KiB/s"}} {
+		view.Snapshot.Tasks[0].DownloadLimit = tc.rate
+		caption = "Limit · " + tc.text
+		scene.Frame()
+		button := sourceBounds(t, scene, ui.RoleMenuButton, "Task speed limit · "+tc.text)
+		if room := button.W - 2*(10+1) - 8 - 14; !scene.HasText(caption) || room < float32(math.Ceil(float64(textWidth))) {
+			t.Errorf("%q is missing or needs %.1f pt with %.1f pt available: %v", caption, textWidth, room, scene.Texts())
+		}
+	}
+}
