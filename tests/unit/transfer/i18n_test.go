@@ -16,6 +16,7 @@ func TestDownloadTranslationsUseNamedValues(t *testing.T) {
 		{"en-GB", "New Download", "Added 1 · Duplicates 2 · Invalid 3"},
 		{"zh-TW", "新增下載", "新增 1 · 重複 2 · 無效 3"},
 		{"zh-HK", "新增下載", "新增 1 · 重複 2 · 無效 3"},
+		{"ja-JP", "新規ダウンロード", "追加 1 · 重複 2 · 無効 3"},
 		{"", "新建下载", "新增 1 · 重复 2 · 无效 3"},
 	} {
 		if got := i18n.Text(test.locale, "download.new"); got != test.title {
@@ -95,6 +96,7 @@ func TestAdditionalLanguageSwitchKeepsSettingsOpen(t *testing.T) {
 		locale, name, language, appearance, hint string
 	}{
 		{"zh-Hant", "繁體中文", "介面語言", "外觀", "1–200 項，超過時排入佇列"},
+		{"ja", "日本語", "表示言語", "外観", "1～200 件。超過分は待機"},
 	} {
 		t.Run(tc.locale, func(t *testing.T) {
 			var chosen string
@@ -125,6 +127,7 @@ func TestLanguageDropdownShowsTheMatchedNativePreference(t *testing.T) {
 	}{
 		{"zh-Hans", "zh-CN", "设置", "界面语言", "简体中文", "跟随系统"},
 		{"zh-TW", "zh-Hant", "設定", "介面語言", "繁體中文", "跟隨系統"},
+		{"ja-JP", "ja", "設定", "表示言語", "日本語", "システム"},
 		{"en-GB", "en", "Settings", "Language", "English", "System"},
 		{"fr-CA", "en", "Settings", "Language", "English", "System"},
 		{"", "zh-CN", "设置", "界面语言", "跟随系统", "跟随系统"},
@@ -148,5 +151,17 @@ func TestLanguageDropdownShowsTheMatchedNativePreference(t *testing.T) {
 				t.Errorf("system choice does not reflect explicit preference %q: %+v", tc.preference, system)
 			}
 		})
+	}
+}
+
+func TestJapaneseTrackerTabUsesLocalizedName(t *testing.T) {
+	view := presentation.New(service(t, &fakeEngine{}, &fakeRepo{}), presentation.Actions{})
+	scene := interactionScene(view, 800, 560)
+	scene.SetLocale("ja-JP")
+	for _, label := range []string{"設定", "BitTorrent ネットワーク", "トラッカー"} {
+		chooseSource(t, scene, label)
+	}
+	if !scene.HasText("購読 URL") {
+		t.Fatalf("Japanese Tracker settings did not open: %v", scene.Texts())
 	}
 }

@@ -512,6 +512,8 @@ func TestRenderConcurrencyHintStaysAlignedWhileChangingLanguage(t *testing.T) {
 	locales := []struct{ tag, title, hint, preset, field string }{
 		{"zh-CN", "同时下载数", "1–200 项，超出后排队", "同时下载 1 项", "自定义同时下载数"},
 		{"en", "Concurrent downloads", "1–200 at once. The rest are queued.", "Download 1 at a time", "Custom concurrent downloads"},
+		{"zh-Hant", "同時下載數", "1–200 項，超過時排入佇列", "同時下載 1 項", "自訂同時下載數"},
+		{"ja", "同時ダウンロード数", "1～200 件。超過分は待機", "同時に 1 件ダウンロード", "同時ダウンロード数を指定"},
 	}
 	for _, size := range [][2]int{{800, 560}, {1020, 680}} {
 		for _, reduced := range []bool{false, true} {
@@ -540,7 +542,7 @@ func TestRenderConcurrencyHintStaysAlignedWhileChangingLanguage(t *testing.T) {
 					}
 					return sample
 				}
-				for _, locale := range []int{1, 0} {
+				for _, locale := range []int{1, 0, 2, 0, 3, 0} {
 					current := locales[locale]
 					before := pixels()
 					scene.SetLocale(current.tag)

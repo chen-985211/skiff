@@ -66,7 +66,7 @@ const (
 )
 
 var btNetworkTabs = [...]optionTabItem{
-	{"common.connection", "common.connection", "network"}, {"Tracker", "Tracker", "list"}, {"bt.seeding", "bt.seeding", "upload"},
+	{"common.connection", "common.connection", "network"}, {"bt.trackerTab", "bt.trackerTab", "list"}, {"bt.seeding", "bt.seeding", "upload"},
 }
 
 func (v *View) renderBTNetwork(c *ui.Context, p palette, stage ui.Element) {

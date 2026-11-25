@@ -78,6 +78,7 @@
   "bt.trackerCount": "{count, plural, other {# 個 Tracker}}",
   "bt.trackerHint": "Tracker 網址（可選，每行一個）",
   "bt.trackerSubscriptions": "Tracker 訂閱源",
+  "bt.trackerTab": "Tracker",
   "bt.trackersHeading": "Tracker · {count}",
   "bt.verified": "全部分塊驗證通過",
   "bt.verifiedSeeding": "檔案已驗證，已提交做種",

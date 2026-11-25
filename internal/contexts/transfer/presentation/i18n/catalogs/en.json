@@ -78,6 +78,7 @@
   "bt.trackerCount": "{count, plural, one {# tracker} other {# trackers}}",
   "bt.trackerHint": "Tracker URLs (optional, one per line)",
   "bt.trackerSubscriptions": "Tracker subscriptions",
+  "bt.trackerTab": "Tracker",
   "bt.trackersHeading": "Trackers · {count}",
   "bt.verified": "All pieces verified",
   "bt.verifiedSeeding": "Files verified and queued for seeding",
