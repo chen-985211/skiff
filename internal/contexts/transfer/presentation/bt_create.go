@@ -46,16 +46,16 @@ func (v *View) createEditor(c *ui.Context, p palette) {
 		ui.TextAreaBase(c, &b.trackers).Transition(controlMotion).Label(tr(c, "bt.createTrackers")).Placeholder(tr(c, "bt.trackerHint")).FillWidth().Height(56).Padding(8).Border(1, p.border).Radius(cornerSmall).Disabled(v.Busy)
 	})
 }
-func (v *View) createFooter(c *ui.Context, p palette) {
+func (v *View) createFooter(c *ui.Context, p palette, width float32) {
 	b := &v.bt.creator
 	ui.Checkbox(c, &b.seed, tr(c, "bt.seedOriginal")).Transition(controlMotion).Grow(1).Disabled(v.Busy)
 	if b.cancel != nil {
-		if secondaryAction(c, tr(c, "bt.cancelCreate")).Width(composePrimaryWidth).Shrink(0).Clicked() {
+		if secondaryAction(c, tr(c, "bt.cancelCreate")).Width(width).Shrink(0).Clicked() {
 			b.cancel()
 		}
 		return
 	}
-	if !primaryAction(c, tr(c, "bt.save"), "file", v.Busy || strings.TrimSpace(b.source) == "" || v.Actions.SaveTorrent == nil).Width(composePrimaryWidth).Shrink(0).Clicked() {
+	if !primaryAction(c, tr(c, "bt.save"), "file", v.Busy || strings.TrimSpace(b.source) == "" || v.Actions.SaveTorrent == nil).Width(width).Shrink(0).Clicked() {
 		return
 	}
 	source, trackers, seed := filepath.Clean(strings.TrimSpace(b.source)), strings.Fields(b.trackers), b.seed

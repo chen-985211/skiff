@@ -1,6 +1,8 @@
 package presentation
 
 import (
+	"math"
+
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 )
@@ -95,9 +97,25 @@ func iconButton(c *ui.Context, name, label string, disabled bool) bool {
 	return b.Clicked()
 }
 
+const (
+	primaryActionInset      = 12
+	primaryActionGap        = 7
+	primaryActionIconSize   = 15
+	primaryActionFontSize   = 13
+	primaryActionFontWeight = 600
+)
+
+func primaryActionWidth(c *ui.Context, minimum float32, captions ...string) float32 {
+	for _, caption := range captions {
+		textWidth, _ := c.MeasureText(0, ui.Span{Text: caption, Size: primaryActionFontSize, Weight: primaryActionFontWeight})
+		minimum = max(minimum, float32(math.Ceil(float64(textWidth)))+2*primaryActionInset+primaryActionGap+primaryActionIconSize)
+	}
+	return minimum
+}
+
 func primaryAction(c *ui.Context, title, icon string, disabled bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label(title).Disabled(disabled).Height(36).PaddingX(12).Radius(cornerPrimary).Transition(controlMotion)
+	b := ui.ButtonBase(c).Label(title).Disabled(disabled).Height(36).PaddingX(primaryActionInset).Radius(cornerPrimary).Transition(controlMotion)
 	fill := t.Accent
 	if b.Pressed() {
 		fill = t.AccentPressed
@@ -105,9 +123,9 @@ func primaryAction(c *ui.Context, title, icon string, disabled bool) ui.Element 
 		fill = t.AccentHover
 	}
 	return b.Background(fill).Children(func() {
-		ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(7).Children(func() {
-			ui.Icon(c, icons[icon]).FontSize(15).TextColor(t.AccentText)
-			ui.Text(c, title).SingleLine().FontSize(13).FontWeight(600).TextColor(t.AccentText).ContentTransition(textChange)
+		ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Gap(primaryActionGap).Children(func() {
+			ui.Icon(c, icons[icon]).FontSize(primaryActionIconSize).TextColor(t.AccentText)
+			ui.Text(c, title).SingleLine().FontSize(primaryActionFontSize).FontWeight(primaryActionFontWeight).TextColor(t.AccentText).ContentTransition(textChange)
 		})
 	})
 }

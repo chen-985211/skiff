@@ -235,8 +235,10 @@ func (v *View) composeFooter(c *ui.Context, p palette) {
 	footer := ui.Box(c.Key("compose-footer")).FillWidth().Height(formFooterHeight)
 	creating := v.bt.tab == 1 && v.bt.creator.open
 	ink := footer.AnimateTo("creator", amount(creating), colorFade)
+	width := primaryActionWidth(c, composePrimaryWidth, tr(c, "download.start"), tr(c, "bt.readFiles"),
+		tr(c, "bt.cancelFetch"), tr(c, "bt.save"), tr(c, "bt.cancelCreate"))
 	footer.Children(func() {
-		for i, render := range []func(*ui.Context, palette){v.downloadFooter, v.createFooter} {
+		for i, render := range []func(*ui.Context, palette, float32){v.downloadFooter, v.createFooter} {
 			active := (i == 1) == creating
 			weight := pageWeight(i, ink)
 			if !active && weight == 0 {
@@ -244,12 +246,12 @@ func (v *View) composeFooter(c *ui.Context, p palette) {
 			}
 			row := ui.Row(c.Key(i)).Absolute().Left(0).Right(0).Top(0).Bottom(0).AlignItems(ui.Center).Gap(12).
 				Opacity(editorOpacity(weight)).IgnoreInput(!active).AccessHidden(!active)
-			row.Children(func() { render(c, p) })
+			row.Children(func() { render(c, p, width) })
 		}
 	})
 }
 
-func (v *View) downloadFooter(c *ui.Context, p palette) {
+func (v *View) downloadFooter(c *ui.Context, p palette, width float32) {
 	v.composeDestination(c, p)
 	caption := tr(c, "download.start")
 	if v.bt.tab == 1 && v.bt.meta.Hash == "" {
@@ -258,7 +260,7 @@ func (v *View) downloadFooter(c *ui.Context, p palette) {
 			caption = tr(c, "bt.cancelFetch")
 		}
 	}
-	if primaryAction(c, caption, "download", v.Busy).Width(composePrimaryWidth).Shrink(0).FocusRing(true).Clicked() {
+	if primaryAction(c, caption, "download", v.Busy).Width(width).Shrink(0).FocusRing(true).Clicked() {
 		v.submit()
 	}
 }

@@ -240,3 +240,46 @@ func TestBTSourceKeyboardFocusFollowsSelection(t *testing.T) {
 		sourceBounds(t, tt, ui.RoleTextField, step.field)
 	}
 }
+
+func TestRenderEnglishPrimaryDownloadActionsFitWithoutMoving(t *testing.T) {
+	verifyWidth := func(t *testing.T, scene *ui.Tester, label string, textWidth float32) ui.Rect {
+		t.Helper()
+		bounds := sourceBounds(t, scene, ui.RoleButton, label)
+		if room := bounds.W - 2*12 - 7 - 15; room < float32(math.Ceil(float64(textWidth))) {
+			t.Errorf("%q needs %.1f pt with %.1f pt available", label, textWidth, room)
+		}
+		return bounds
+	}
+	t.Run("getting engine", func(t *testing.T) {
+		view := presentation.New(nil, presentation.Actions{DownloadEngine: func() {}})
+		view.OfferEngineDownload(nil)
+		var textWidth float32
+		scene := ui.NewTesterWith(func(c *ui.Context) {
+			textWidth, _ = c.MeasureText(0, ui.Span{Text: "Getting engine…", Size: 13, Weight: 600})
+			view.Render(c)
+		}, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+		scene.SetLocale("en")
+		before := sourceBounds(t, scene, ui.RoleButton, "Get Engine")
+		chooseSource(t, scene, "Get Engine")
+		if after := verifyWidth(t, scene, "Getting engine…", textWidth); before != after {
+			t.Errorf("engine action moved when its caption changed: %v to %v", before, after)
+		}
+	})
+	t.Run("saving torrent", func(t *testing.T) {
+		view := presentation.New(service(t, &fakeEngine{}, &fakeRepo{}), presentation.Actions{})
+		view.OpenNew()
+		var textWidth float32
+		scene := ui.NewTesterWith(func(c *ui.Context) {
+			textWidth, _ = c.MeasureText(0, ui.Span{Text: "Save Torrent…", Size: 13, Weight: 600})
+			view.Render(c)
+		}, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
+		scene.SetLocale("en")
+		chooseSource(t, scene, "BT")
+		before := sourceBounds(t, scene, ui.RoleButton, "Fetch Files")
+		chooseSource(t, scene, "BitTorrent options")
+		chooseSource(t, scene, "Create Torrent…")
+		if after := verifyWidth(t, scene, "Save Torrent…", textWidth); before.X != after.X || before.W != after.W {
+			t.Errorf("composer action moved horizontally between editors: %v to %v", before, after)
+		}
+	})
+}

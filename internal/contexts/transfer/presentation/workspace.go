@@ -183,10 +183,7 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 					v.OpenNew()
 				}
 			}
-			width := float32(composeButtonWidth)
-			if c.Locale() == "en" {
-				width = 146
-			}
+			width := primaryActionWidth(c, composeButtonWidth, tr(c, "download.new"), tr(c, "engine.download"), tr(c, "engine.downloading"))
 			trigger.Width(width).Shrink(0).FillHeight().Radius(cornerDock)
 		})
 	})
