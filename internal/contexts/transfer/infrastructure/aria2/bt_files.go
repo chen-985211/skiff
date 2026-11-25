@@ -131,13 +131,15 @@ func (m *fileMove) Finish(commit bool) error {
 	defer m.from.Close()
 	defer m.to.Close()
 	var errs []error
-	var originals []string
+	var originals []application.TorrentMoveOriginal
 	record := func(name string, err error) {
-		if err != nil {
+		if err == nil {
+			return
+		}
+		if commit {
+			originals = append(originals, application.TorrentMoveOriginal{Name: filepath.ToSlash(name), Cause: err})
+		} else {
 			errs = append(errs, err)
-			if commit {
-				originals = append(originals, filepath.ToSlash(name))
-			}
 		}
 	}
 	for _, f := range m.files {
@@ -157,11 +159,10 @@ func (m *fileMove) Finish(commit bool) error {
 		}
 		record(f.name, root.Remove(f.name))
 	}
-	cause := errors.Join(errs...)
 	if len(originals) > 0 {
-		return &application.TorrentMoveCleanupError{Originals: originals, Cause: cause}
+		return &application.TorrentMoveCleanupError{Originals: originals}
 	}
-	return cause
+	return errors.Join(errs...)
 }
 func (c *Client) CopyFiles(ctx context.Context, hash, src, dst string) (_ application.TorrentMove, err error) {
 	meta, err := c.CachedTorrent(hash)

@@ -200,6 +200,12 @@ func TestRenderBTMoveFeedbackShowsAndScrollsTheOriginalFileList(t *testing.T) {
 	for i := range 12 {
 		originals = append(originals, fmt.Sprintf("set/sub/file-%02d.txt", i))
 	}
+	leftovers := make([]application.TorrentMoveOriginal, 0, len(originals))
+	for _, name := range originals {
+		leftovers = append(leftovers, application.TorrentMoveOriginal{Name: name, Cause: errors.New("private filesystem detail")})
+	}
+	leftovers[0].Cause = application.ErrTorrentFileChanged
+	leftovers[1].Cause = application.ErrTorrentDestinationChanged
 	api := delayedBTFileAPI{
 		Service: service(t, &fakeEngine{}, &fakeRepo{}),
 		started: make(chan bool, 1),
@@ -207,10 +213,7 @@ func TestRenderBTMoveFeedbackShowsAndScrollsTheOriginalFileList(t *testing.T) {
 		snapshot: application.Snapshot{Tasks: []application.TaskDTO{{
 			ID: "task", Name: "sample.torrent", TorrentHash: "hash", Status: "complete",
 		}}},
-		moveErr: &application.TorrentMoveCleanupError{
-			Originals: originals,
-			Cause:     errors.New("private transport or filesystem detail"),
-		},
+		moveErr: &application.TorrentMoveCleanupError{Originals: leftovers},
 	}
 	updates := make(chan func(), 2)
 	var picked func(string, error)
@@ -244,13 +247,23 @@ func TestRenderBTMoveFeedbackShowsAndScrollsTheOriginalFileList(t *testing.T) {
 	close(api.finish)
 	applyUpdate()
 	const label = "Original files not removed"
-	if !scene.HasText("The task now uses the new folder. Some original files were not removed.") {
+	if !scene.HasText("The task uses the new folder. A destination file changed. Verify the new files before removing any originals.") {
 		t.Errorf("missing the English move explanation: %v", scene.Texts())
 	}
 	list := sourceBounds(t, scene, ui.RoleList, label)
 	panel := sourceBounds(t, scene, ui.RoleDialog, "BitTorrent Details")
 	first := sourceBounds(t, scene, ui.RoleText, originals[0])
 	second := sourceBounds(t, scene, ui.RoleText, originals[1])
+	for i, reason := range []string{"Original file changed", "Destination file changed", "Could not remove original"} {
+		nameBounds := sourceBounds(t, scene, ui.RoleText, originals[i])
+		reasonBounds := sourceBounds(t, scene, ui.RoleText, reason)
+		if reasonBounds.Y < nameBounds.Y || reasonBounds.Y >= nameBounds.Y+nameBounds.H || reasonBounds.X <= nameBounds.X {
+			t.Errorf("%q is not aligned with original %q: %v %v", reason, originals[i], reasonBounds, nameBounds)
+		}
+	}
+	if scene.HasText("private filesystem detail") {
+		t.Error("move feedback exposed raw filesystem details")
+	}
 	if panel.Y < 0 || list.Y < panel.Y || list.Y+list.H > panel.Y+panel.H || panel.Y+panel.H > 560 ||
 		first.H <= 0 || first.Y < list.Y || second.Y <= first.Y || second.Y+second.H > list.Y+list.H {
 		t.Fatalf("file rows are not visible inside the dialog: %v %v, list %v, dialog %v", first, second, list, panel)
@@ -271,8 +284,14 @@ func TestRenderBTMoveFeedbackShowsAndScrollsTheOriginalFileList(t *testing.T) {
 		t.Errorf("keyboard scrolling did not reveal the last file: %v, list %v", last, list)
 	}
 	scene.SetLocale("zh-CN")
-	if !scene.HasText("任务已切换到新目录，部分原文件未清理。") {
+	if !scene.HasText("任务已切换到新目录。有目标文件已变化，请先校验新目录中的文件，再清理原文件。") {
 		t.Errorf("missing the Chinese move explanation: %v", scene.Texts())
 	}
 	sourceBounds(t, scene, ui.RoleList, "未清理的原文件")
+	scene.Key(0, ui.KeyHome)
+	for _, reason := range []string{"原文件已变化", "目标文件已变化", "无法清理原文件"} {
+		if !scene.HasText(reason) {
+			t.Errorf("missing the Chinese cleanup reason %q: %v", reason, scene.Texts())
+		}
+	}
 }

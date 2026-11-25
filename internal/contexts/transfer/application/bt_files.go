@@ -17,19 +17,30 @@ type TorrentFiles interface {
 
 // TorrentMoveCleanupError reports originals Skiff could not remove after adopting the new folder.
 type TorrentMoveCleanupError struct {
-	Originals []string
-	Cause     error
+	Originals []TorrentMoveOriginal
+}
+
+type TorrentMoveOriginal struct {
+	Name  string
+	Cause error
 }
 
 func (e *TorrentMoveCleanupError) Error() string {
-	return string(ErrTorrentMoveCleanup) + ": " + strings.Join(e.Originals, ", ")
+	names := make([]string, 0, len(e.Originals))
+	for _, original := range e.Originals {
+		names = append(names, original.Name)
+	}
+	return string(ErrTorrentMoveCleanup) + ": " + strings.Join(names, ", ")
 }
 
 func (e *TorrentMoveCleanupError) Unwrap() []error {
-	if e.Cause != nil {
-		return []error{ErrTorrentMoveCleanup, e.Cause}
+	causes := []error{ErrTorrentMoveCleanup}
+	for _, original := range e.Originals {
+		if original.Cause != nil {
+			causes = append(causes, original.Cause)
+		}
 	}
-	return []error{ErrTorrentMoveCleanup}
+	return causes
 }
 
 func (s *Service) torrentRecord(id string) (domain.Record, error) {

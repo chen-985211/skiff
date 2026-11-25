@@ -549,8 +549,14 @@ func TestBTMoveReportsEveryOriginalThatRemainsAfterCommit(t *testing.T) {
 		t.Errorf("move did not distinguish committed cleanup: %v", err)
 	}
 	var cleanup *application.TorrentMoveCleanupError
-	if !errors.As(err, &cleanup) || len(cleanup.Originals) != 2 || cleanup.Originals[0] != first || cleanup.Originals[1] != second {
-		t.Errorf("move did not report both original files: %+v", cleanup)
+	if !errors.As(err, &cleanup) || len(cleanup.Originals) != 2 {
+		t.Fatalf("move did not report both original files: %+v", cleanup)
+	}
+	if original := cleanup.Originals[0]; original.Name != first || application.CodeOf(original.Cause) != application.ErrTorrentFileChanged {
+		t.Errorf("move did not report why %q was preserved: %+v", first, original)
+	}
+	if original := cleanup.Originals[1]; original.Name != second || application.CodeOf(original.Cause) != application.ErrTorrentDestinationChanged {
+		t.Errorf("move did not report why %q was preserved: %+v", second, original)
 	}
 	if got := svc.Snapshot().Tasks[0].Directory; got != dest {
 		t.Errorf("task directory = %q, want %q", got, dest)
