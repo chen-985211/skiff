@@ -64,11 +64,11 @@ func Run(logger *diagnostics.Logger) error {
 			defer cancel()
 			if service != nil {
 				operation := logger.Start("transfer.queue", "flush")
-				reportFailure(logger, operation, service.Flush(ctx))
+				logger.TransferFailure(operation, service.Flush(ctx))
 			}
 			if process != nil {
 				operation := logger.Start("transfer.engine", "close")
-				reportFailure(logger, operation, process.Close(ctx))
+				logger.TransferFailure(operation, process.Close(ctx))
 			}
 			mygo.RunOnMain(func() { closed = true; mygo.App.Quit() })
 		}()
@@ -197,7 +197,7 @@ func Run(logger *diagnostics.Logger) error {
 			close(initialized)
 			if err != nil {
 				if pollCtx.Err() == nil {
-					reportFailure(logger, startup, err)
+					logger.TransferFailure(startup, err)
 					win.Update(func() { view.FinishEngineStartup(nil, application.Snapshot{}, err) })
 				}
 				return
@@ -211,7 +211,7 @@ func Run(logger *diagnostics.Logger) error {
 				for {
 					operation := logger.Start("transfer.tracker", "refresh_subscriptions")
 					if err := service.RefreshBTSubscriptions(pollCtx, false); err != nil && pollCtx.Err() == nil {
-						reportFailure(logger, operation, err)
+						logger.TransferFailure(operation, err)
 					}
 					select {
 					case <-pollCtx.Done():
@@ -239,7 +239,7 @@ func Run(logger *diagnostics.Logger) error {
 						return
 					}
 					if !hadError {
-						reportFailure(logger, operation, err)
+						logger.TransferFailure(operation, err)
 						win.Update(func() { view.EngineError = err })
 					}
 					hadError = true

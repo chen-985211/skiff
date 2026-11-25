@@ -41,6 +41,18 @@ type BTNetwork interface {
 	ReadTorrentDetails(context.Context, string, string) (BTDetails, error)
 }
 
+// SubscriptionRefreshError preserves independent fetch and persistence failures from one refresh.
+type SubscriptionRefreshError struct{ failures []error }
+
+func (e *SubscriptionRefreshError) Error() string {
+	if joined := errors.Join(e.failures...); joined != nil {
+		return joined.Error()
+	}
+	return ""
+}
+
+func (e *SubscriptionRefreshError) Unwrap() []error { return e.failures }
+
 func (b BTSettings) Validate() error {
 	if b.Seed.Minutes < 0 || b.Seed.Ratio < 0 || math.IsNaN(b.Seed.Ratio) || math.IsInf(b.Seed.Ratio, 0) {
 		return ErrInvalidSeedPolicy
@@ -132,11 +144,16 @@ func (s *Service) RefreshBTSubscriptions(ctx context.Context, force bool) error 
 		s.mu.Lock()
 		if slices.Contains(strings.Fields(s.preferences.BT.Sources), src.URL) {
 			s.subscriptions[src.URL] = src
-			errs = append(errs, s.persist(ctx))
+			if err := s.persist(ctx); err != nil {
+				errs = append(errs, err)
+			}
 		}
 		s.mu.Unlock()
 	}
-	return errors.Join(errs...)
+	if len(errs) == 0 {
+		return nil
+	}
+	return &SubscriptionRefreshError{failures: errs}
 }
 func (s *Service) TorrentDetails(ctx context.Context, id string) (BTDetails, error) {
 	s.mu.Lock()

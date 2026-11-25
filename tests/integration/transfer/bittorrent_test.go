@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha1"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -26,6 +27,7 @@ import (
 	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/infrastructure/aria2"
 	"skiff/internal/contexts/transfer/infrastructure/persistence"
+	"skiff/internal/platform/diagnostics"
 )
 
 func btService(t *testing.T) (*application.Service, *aria2.Process, string) {
@@ -187,7 +189,7 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 		fmt.Fprintln(w, "udp://127.0.0.1:9090/announce\n\nhttp://127.0.0.1:7070/announce\nudp://127.0.0.1:9090/announce")
 	}))
 	defer server.Close()
-	cfg := application.BTSettings{Sources: server.URL + "\n" + server.URL + "/empty", MaxPeers: 12, ListenPort: 9870}
+	cfg := application.BTSettings{Sources: server.URL + "/empty\n" + server.URL, MaxPeers: 12, ListenPort: 9870}
 	if err := s.SetBTSettings(t.Context(), cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -199,12 +201,39 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 		t.Fatal(sub)
 	}
 	broken.Store(true)
-	if err := s.RefreshBTSubscriptions(t.Context(), true); !errors.Is(err, application.ErrReadSubscription) || !errors.Is(err, application.ErrEmptySubscription) {
+	err := s.RefreshBTSubscriptions(t.Context(), true)
+	if !errors.Is(err, application.ErrReadSubscription) || !errors.Is(err, application.ErrEmptySubscription) {
 		t.Fatalf("refresh did not return both subscription errors: %v", err)
 	}
 	sub = s.Snapshot().BTSubscriptions
-	if len(sub[0].Trackers) != 2 || len(sub[1].Trackers) != 2 || sub[0].Failure != application.ErrReadSubscription || sub[1].Failure != application.ErrEmptySubscription {
+	if len(sub[0].Trackers) != 2 || len(sub[1].Trackers) != 2 || sub[0].Failure != application.ErrEmptySubscription || sub[1].Failure != application.ErrReadSubscription {
 		t.Fatal("lost cached trackers or health", sub)
+	}
+	var output bytes.Buffer
+	logger := diagnostics.New(&output)
+	logger.TransferFailure(logger.Start("transfer.tracker", "refresh_subscriptions"), err)
+	if strings.Contains(output.String(), server.URL) {
+		t.Fatal("tracker URL leaked into diagnostics", output.String())
+	}
+	decoder := json.NewDecoder(&output)
+	var correlationID string
+	for _, tc := range []struct {
+		code  application.ErrorCode
+		level string
+	}{{application.ErrEmptySubscription, "warn"}, {application.ErrReadSubscription, "error"}} {
+		var entry struct {
+			Level, Scope, Operation, CorrelationID string
+			Error                                  struct{ Code application.ErrorCode }
+		}
+		if err := decoder.Decode(&entry); err != nil {
+			t.Fatalf("missing diagnostic for %s: %v", tc.code, err)
+		}
+		if entry.Level != tc.level || entry.Error.Code != tc.code || entry.CorrelationID == "" ||
+			entry.Scope != "transfer.tracker" || entry.Operation != "refresh_subscriptions" ||
+			(correlationID != "" && correlationID != entry.CorrelationID) {
+			t.Fatalf("invalid diagnostic for %s: %+v", tc.code, entry)
+		}
+		correlationID = entry.CorrelationID
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/platform/diagnostics"
 )
 
@@ -53,5 +54,21 @@ func TestDiagnosticFailureDoesNotIncludeRawCause(t *testing.T) {
 
 	if result := output.String(); strings.Contains(result, "synthetic-secret") || strings.Contains(result, "/home/user/private") || !strings.Contains(result, "UNEXPECTED_ERROR") {
 		t.Fatalf("unexpected fields in failure record: %s", result)
+	}
+}
+
+func TestTransferDiagnosticUsesOnlyTheCodeOfAWrappedFailure(t *testing.T) {
+	var output bytes.Buffer
+	logger := diagnostics.New(&output)
+	cause := errors.Join(application.ErrEngineConnection, errors.New("private repository data"))
+	logger.TransferFailure(logger.Start("transfer.queue", "save"), application.Wrap(application.ErrSaveQueue, cause))
+	var entry struct {
+		Error struct{ Code application.ErrorCode }
+	}
+	if err := json.Unmarshal(output.Bytes(), &entry); err != nil {
+		t.Fatalf("expected one diagnostic record: %v", err)
+	}
+	if entry.Error.Code != application.ErrSaveQueue || strings.Contains(output.String(), "private repository data") {
+		t.Fatalf("wrapped cause leaked or changed the diagnostic code: %s", output.String())
 	}
 }
