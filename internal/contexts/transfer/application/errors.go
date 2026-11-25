@@ -57,6 +57,7 @@ const (
 	ErrConnectionLimit            ErrorCode = "CONNECTION_LIMIT"
 	ErrInvalidOutputName          ErrorCode = "INVALID_OUTPUT_NAME"
 	ErrInvalidDirectory           ErrorCode = "INVALID_DIRECTORY"
+	ErrDirectoryUnavailable       ErrorCode = "DOWNLOAD_DIRECTORY_UNAVAILABLE"
 	ErrSingleMirrorTask           ErrorCode = "SINGLE_MIRROR_TASK"
 	ErrMixedHeaderOrigins         ErrorCode = "MIXED_HEADER_ORIGINS"
 	ErrInvalidDefaultDirectory    ErrorCode = "INVALID_DEFAULT_DIRECTORY"

@@ -17,7 +17,7 @@ func (c *Client) Enqueue(ctx context.Context, s application.TransferSpec) error 
 		return c.enqueueTorrent(ctx, s)
 	}
 	if err := os.MkdirAll(s.Directory, 0755); err != nil {
-		return err
+		return application.Wrap(application.ErrDirectoryUnavailable, err)
 	}
 	options := map[string]string{"gid": s.ID, "dir": s.Directory, "pause": strconv.FormatBool(s.Paused)}
 	options["max-download-limit"] = strconv.FormatInt(s.DownloadLimit, 10)

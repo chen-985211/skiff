@@ -47,6 +47,7 @@ var transferErrorMessages = map[application.ErrorCode]string{
 	application.ErrConnectionLimit:            "error.connectionLimit",
 	application.ErrInvalidOutputName:          "error.invalidOutputName",
 	application.ErrInvalidDirectory:           "error.invalidDirectory",
+	application.ErrDirectoryUnavailable:       "error.downloadDirectoryUnavailable",
 	application.ErrSingleMirrorTask:           "error.singleMirrorTask",
 	application.ErrMixedHeaderOrigins:         "error.mixedHeaderOrigins",
 	application.ErrInvalidDefaultDirectory:    "error.invalidDefaultDirectory",

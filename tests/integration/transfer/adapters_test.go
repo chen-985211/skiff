@@ -5,6 +5,7 @@ package transfer_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -76,6 +77,27 @@ func TestRPCEnqueueUsesSecretStableIDAndExplicitOptions(t *testing.T) {
 	_ = json.Unmarshal(request.Params[2], &options)
 	if options["gid"] != "0000000000000001" || options["pause"] != "true" || options["dir"] != dir {
 		t.Fatalf("bad options: %v", options)
+	}
+}
+
+func TestDownloadDirectoryFailuresKeepTheirCodeAndFilesystemCause(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "regular-file")
+	if err := os.WriteFile(dir, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	client := aria2.NewClient("", "")
+	_, protectErr := client.ProtectCheckpoints(t.Context(), dir, nil)
+	enqueueErr := client.Enqueue(t.Context(), application.TransferSpec{Directory: dir})
+	for _, tc := range []struct {
+		operation string
+		err       error
+	}{{"inspect", protectErr}, {"create", enqueueErr}} {
+		t.Run(tc.operation, func(t *testing.T) {
+			var cause *os.PathError
+			if application.CodeOf(tc.err) != application.ErrDirectoryUnavailable || !errors.As(tc.err, &cause) || cause.Path != dir {
+				t.Fatalf("directory failure lost its code or OS cause: %v", tc.err)
+			}
+		})
 	}
 }
 func TestRPCPropagatesEngineErrors(t *testing.T) {

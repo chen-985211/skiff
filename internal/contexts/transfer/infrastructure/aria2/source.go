@@ -167,7 +167,7 @@ func (c *Client) ProtectCheckpoints(ctx context.Context, dir string, candidates 
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, application.Wrap(application.ErrDirectoryUnavailable, err)
 	}
 	hasCheckpoint := false
 	for _, entry := range entries {
