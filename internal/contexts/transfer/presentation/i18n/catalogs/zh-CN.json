@@ -85,6 +85,7 @@
   "common.choose": "选择",
   "common.chooseFolder": "选择文件夹…",
   "common.close": "关闭",
+  "common.closeNamed": "关闭{title}",
   "common.connection": "连接",
   "common.custom": "自定义",
   "common.file": "文件",

@@ -78,7 +78,7 @@ func preferenceSheet(c *ui.Context, p palette, stage ui.Element, key, title, ico
 				})
 				ui.Text(c, title).Grow(1).FontSize(18).FontWeight(600)
 				close := ui.ButtonBase(c.Key("close")).Transition(controlMotion).Size(30, 30).Radius(cornerRemove).
-					Center().FocusRing(true).Label(tr(c, "common.close") + title).Tooltip(tr(c, "common.close"))
+					Center().FocusRing(true).Label(trf(c, "common.closeNamed", i18n.Args{"title": title})).Tooltip(tr(c, "common.close"))
 				if close.Hovered() {
 					close.Background(p.tint.Alpha(.45))
 				}

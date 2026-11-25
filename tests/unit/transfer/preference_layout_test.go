@@ -58,6 +58,19 @@ func TestNetworkSettingsAlignsProxyAndDNSControls(t *testing.T) {
 	}
 }
 
+func TestEnglishPreferenceDialogHasReadableCloseButton(t *testing.T) {
+	view := presentation.New(nil, presentation.Actions{})
+	view.Ready = true
+	scene := interactionScene(view, 800, 560)
+	scene.SetLocale("en")
+	chooseSource(t, scene, "Settings")
+	chooseSource(t, scene, "Proxy and DNS")
+	chooseSource(t, scene, "Close Proxy and DNS")
+	if _, open := scene.AccessByRole(ui.RoleDialog, "Proxy and DNS"); open {
+		t.Fatal("the dialog remained open after closing it")
+	}
+}
+
 func TestDiskSettingsShareAColumnAndRestoreDefaultsInPlace(t *testing.T) {
 	tt := downloadPreference(t, "性能与磁盘")
 	panel, titled := tt.AccessByRole(ui.RoleDialog, "性能与磁盘")

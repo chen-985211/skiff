@@ -85,6 +85,7 @@
   "common.choose": "Choose",
   "common.chooseFolder": "Choose Folder…",
   "common.close": "Close",
+  "common.closeNamed": "Close {title}",
   "common.connection": "Connections",
   "common.custom": "Custom",
   "common.file": "File",
