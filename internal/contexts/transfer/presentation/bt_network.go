@@ -25,14 +25,14 @@ type btNetworkPanel struct {
 	err                         error
 }
 type btInspector struct {
-	fileMessage   string
-	fileErr       error
-	peerLimit     string
-	open, pending bool
-	id            string
-	data          application.BTDetails
-	err           error
-	next          time.Time
+	fileMessageKey string
+	fileErr        error
+	peerLimit      string
+	open, pending  bool
+	id             string
+	data           application.BTDetails
+	err            error
+	next           time.Time
 }
 
 func (v *View) openBTNetwork() {
