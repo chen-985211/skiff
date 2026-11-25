@@ -1,6 +1,29 @@
 package diagnostics
 
-import "skiff/internal/contexts/transfer/application"
+import (
+	"context"
+
+	"skiff/internal/contexts/transfer/application"
+)
+
+// ObservedTransfer records diagnostics for manual and scheduled subscription refreshes.
+type ObservedTransfer struct {
+	*application.Service
+	logger *Logger
+}
+
+func (l *Logger) ObserveTransfer(service *application.Service) *ObservedTransfer {
+	return &ObservedTransfer{Service: service, logger: l}
+}
+
+func (s *ObservedTransfer) RefreshBTSubscriptions(ctx context.Context, force bool) error {
+	op := s.logger.Start("transfer.tracker", "refresh_subscriptions")
+	err := s.Service.RefreshBTSubscriptions(ctx, force)
+	if ctx.Err() == nil {
+		s.logger.TransferFailure(op, err)
+	}
+	return err
+}
 
 func (l *Logger) TransferFailure(op Operation, err error) {
 	if err == nil {

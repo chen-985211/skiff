@@ -203,16 +203,14 @@ func Run(logger *diagnostics.Logger) error {
 				return
 			}
 			initial := service.Snapshot()
+			observed := logger.ObserveTransfer(service)
 			logger.Success(startup)
-			win.Update(func() { view.FinishEngineStartup(service, initial, nil) })
+			win.Update(func() { view.FinishEngineStartup(observed, initial, nil) })
 			go func() {
 				timer := time.NewTicker(time.Minute)
 				defer timer.Stop()
 				for {
-					operation := logger.Start("transfer.tracker", "refresh_subscriptions")
-					if err := service.RefreshBTSubscriptions(pollCtx, false); err != nil && pollCtx.Err() == nil {
-						logger.TransferFailure(operation, err)
-					}
+					_ = observed.RefreshBTSubscriptions(pollCtx, false)
 					select {
 					case <-pollCtx.Done():
 						return

@@ -193,15 +193,17 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 	if err := s.SetBTSettings(t.Context(), cfg); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.RefreshBTSubscriptions(t.Context(), true); err != nil {
-		t.Fatal(err)
+	var output bytes.Buffer
+	observed := diagnostics.New(&output).ObserveTransfer(s)
+	if err := observed.RefreshBTSubscriptions(t.Context(), true); err != nil || output.Len() > 0 {
+		t.Fatalf("successful refresh returned %v and logged %s", err, output.String())
 	}
 	sub := s.Snapshot().BTSubscriptions
 	if len(sub) != 2 || len(sub[0].Trackers) != 2 || sub[0].Failure != "" || sub[1].Failure != "" {
 		t.Fatal(sub)
 	}
 	broken.Store(true)
-	err := s.RefreshBTSubscriptions(t.Context(), true)
+	err := observed.RefreshBTSubscriptions(t.Context(), true)
 	if !errors.Is(err, application.ErrReadSubscription) || !errors.Is(err, application.ErrEmptySubscription) {
 		t.Fatalf("refresh did not return both subscription errors: %v", err)
 	}
@@ -209,9 +211,9 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 	if len(sub[0].Trackers) != 2 || len(sub[1].Trackers) != 2 || sub[0].Failure != application.ErrEmptySubscription || sub[1].Failure != application.ErrReadSubscription {
 		t.Fatal("lost cached trackers or health", sub)
 	}
-	var output bytes.Buffer
-	logger := diagnostics.New(&output)
-	logger.TransferFailure(logger.Start("transfer.tracker", "refresh_subscriptions"), err)
+	if size := output.Len(); observed.RefreshBTSubscriptions(t.Context(), false) != nil || output.Len() != size {
+		t.Fatal("background refresh retried or logged fresh manual failure state", output.String())
+	}
 	if strings.Contains(output.String(), server.URL) {
 		t.Fatal("tracker URL leaked into diagnostics", output.String())
 	}
