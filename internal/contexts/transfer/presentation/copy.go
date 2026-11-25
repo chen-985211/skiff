@@ -56,6 +56,10 @@ func errorText(locale string, err error) string {
 		return message.text(locale)
 	}
 	code := application.CodeOf(err)
+	var seed *application.TorrentSeedError
+	if code == application.ErrTorrentSeed && errors.As(err, &seed) && seed.Cause != nil {
+		return i18n.Format(locale, "error.torrentSeedCause", i18n.Args{"reason": errorText(locale, seed.Cause)})
+	}
 	var named application.NamedError
 	if errors.As(err, &named) && named.Code == code {
 		args := i18n.Args{"name": named.Name}

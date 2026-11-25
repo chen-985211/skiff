@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"path/filepath"
 	"strconv"
@@ -10,6 +11,22 @@ import (
 
 type TorrentWriter interface {
 	WriteTorrent(context.Context, string, string, []string) (Torrent, error)
+}
+
+// TorrentSeedError reports a failure to start seeding after saving the torrent.
+type TorrentSeedError struct {
+	Cause error
+}
+
+func (e *TorrentSeedError) Error() string {
+	return fmt.Sprintf("%s: %v", ErrTorrentSeed, e.Cause)
+}
+
+func (e *TorrentSeedError) Unwrap() []error {
+	if e.Cause != nil {
+		return []error{ErrTorrentSeed, e.Cause}
+	}
+	return []error{ErrTorrentSeed}
 }
 
 func (s *Service) CreateTorrent(ctx context.Context, source, output string, trackers []string, seed bool) (Torrent, error) {
@@ -58,7 +75,7 @@ func (s *Service) CreateTorrent(ctx context.Context, source, output string, trac
 		_, err = s.addTorrent(ctx, meta.Hash, dir, selected, true)
 	}
 	if err != nil {
-		return meta, Wrap(ErrTorrentSeed, err)
+		return meta, &TorrentSeedError{Cause: err}
 	}
 	return meta, nil
 }

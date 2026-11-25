@@ -244,6 +244,7 @@
   "error.torrentRead": "Could not read the torrent",
   "error.torrentRecord": "The torrent record is invalid",
   "error.torrentSeed": "The torrent was saved. Seeding could not start.",
+  "error.torrentSeedCause": "The torrent was saved. Seeding could not start: {reason}",
   "error.torrentSelection": "Choose a download folder and at least one file",
   "error.torrentSourceChanged": "The source file has changed. Try again.",
   "error.torrentSourceChangedNamed": "The source file {name} has changed. Try again.",

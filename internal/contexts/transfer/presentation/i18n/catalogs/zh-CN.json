@@ -244,6 +244,7 @@
   "error.torrentRead": "无法读取种子",
   "error.torrentRecord": "种子记录无效",
   "error.torrentSeed": "种子已保存，启动做种失败",
+  "error.torrentSeedCause": "种子已保存，启动做种失败：{reason}",
   "error.torrentSelection": "请选择保存目录和至少一个文件",
   "error.torrentSourceChanged": "原文件已变化，请重试",
   "error.torrentSourceChangedNamed": "原文件 {name} 已变化，请重试",
