@@ -57,8 +57,20 @@ func errorText(locale string, err error) string {
 	}
 	code := application.CodeOf(err)
 	var named application.NamedError
-	if code == application.ErrManagedHeader && errors.As(err, &named) && named.Code == code {
-		return i18n.Format(locale, "error.managedHeaderNamed", i18n.Args{"name": named.Name})
+	if errors.As(err, &named) && named.Code == code {
+		args := i18n.Args{"name": named.Name}
+		switch code {
+		case application.ErrManagedHeader:
+			return i18n.Format(locale, "error.managedHeaderNamed", args)
+		case application.ErrTorrentFileMismatch:
+			return i18n.Format(locale, "error.torrentFileMismatchNamed", args)
+		case application.ErrTorrentFileChanged:
+			return i18n.Format(locale, "error.torrentFileChangedNamed", args)
+		case application.ErrTorrentDestinationChanged:
+			return i18n.Format(locale, "error.torrentDestinationChangedNamed", args)
+		case application.ErrTorrentSourceChanged:
+			return i18n.Format(locale, "error.torrentSourceChangedNamed", args)
+		}
 	}
 	key := transferErrorMessages[code]
 	if key == "" {

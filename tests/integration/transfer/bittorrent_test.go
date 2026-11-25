@@ -244,6 +244,12 @@ func TestBTRelocateVerifiedFilesMoveAndResumeSeeding(t *testing.T) {
 	if err = s.VerifyTorrentFiles(ctx, id); err == nil {
 		t.Fatal("accepted wrong piece with identical size")
 	}
+	if err = os.WriteFile(file, []byte("short"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.VerifyTorrentFiles(ctx, id); !errors.Is(err, application.ErrTorrentFileMismatch) || !strings.Contains(err.Error(), "set/a.txt") {
+		t.Fatalf("payload mismatch should identify its relative file: %v", err)
+	}
 	if err = os.WriteFile(file, original, 0600); err != nil {
 		t.Fatal(err)
 	}

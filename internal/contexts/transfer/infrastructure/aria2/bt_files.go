@@ -29,7 +29,7 @@ func openPayload(root *os.Root, name string, size int64) (*os.File, os.FileInfo,
 		return nil, nil, err
 	}
 	if !st.Mode().IsRegular() || st.Size() != size {
-		return nil, nil, application.ErrTorrentFileMismatch
+		return nil, nil, application.NamedError{Code: application.ErrTorrentFileMismatch, Name: filepath.ToSlash(name)}
 	}
 	file, err := root.Open(name)
 	if err != nil {
@@ -38,10 +38,29 @@ func openPayload(root *os.Root, name string, size int64) (*os.File, os.FileInfo,
 	info, err := file.Stat()
 	if err != nil || !os.SameFile(st, info) {
 		file.Close()
-		return nil, nil, application.ErrTorrentFileChanged
+		return nil, nil, application.NamedError{Code: application.ErrTorrentFileChanged, Name: filepath.ToSlash(name)}
 	}
 	return file, info, nil
 }
+func generatePayloadPieces(info *metainfo.Info, open func(metainfo.FileInfo) (io.ReadCloser, error)) error {
+	// The metainfo writer turns open failures into text on its worker goroutine.
+	// Keep the original cause so callers can read the code and relative name.
+	openFailure := make(chan error, 1)
+	err := info.GeneratePieces(func(entry metainfo.FileInfo) (io.ReadCloser, error) {
+		reader, err := open(entry)
+		if err != nil {
+			openFailure <- err
+		}
+		return reader, err
+	})
+	select {
+	case cause := <-openFailure:
+		return cause
+	default:
+		return err
+	}
+}
+
 func (c *Client) VerifyFiles(ctx context.Context, hash, dir string) error {
 	path, err := c.metadataFile(hash)
 	if err != nil {
@@ -68,7 +87,7 @@ func (c *Client) VerifyFiles(ctx context.Context, hash, dir string) error {
 	}
 	defer root.Close()
 	expected := info.Pieces
-	err = info.GeneratePieces(func(fi metainfo.FileInfo) (io.ReadCloser, error) {
+	err = generatePayloadPieces(&info, func(fi metainfo.FileInfo) (io.ReadCloser, error) {
 		name := meta.Name
 		if meta.Multi {
 			name = filepath.Join(meta.Name, filepath.FromSlash(fi.DisplayPath(&info)))
@@ -79,6 +98,9 @@ func (c *Client) VerifyFiles(ctx context.Context, hash, dir string) error {
 		}
 		return cancellableFile{file, ctx}, nil
 	})
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if err != nil {
 		return err
 	}
@@ -106,14 +128,14 @@ func (m *fileMove) Finish(commit bool) error {
 		if commit {
 			saved, e := m.to.Lstat(f.name)
 			if e != nil || !os.SameFile(saved, f.dst) || saved.Size() != f.dst.Size() || !saved.ModTime().Equal(f.dst.ModTime()) {
-				errs = append(errs, application.ErrTorrentDestinationChanged)
+				errs = append(errs, application.NamedError{Code: application.ErrTorrentDestinationChanged, Name: filepath.ToSlash(f.name)})
 				continue
 			}
 			root, expected = m.from, f.src
 		}
 		st, err := root.Lstat(f.name)
 		if err != nil || !os.SameFile(st, expected) || (commit && (st.Size() != expected.Size() || !st.ModTime().Equal(expected.ModTime()))) {
-			errs = append(errs, application.ErrTorrentFileChanged)
+			errs = append(errs, application.NamedError{Code: application.ErrTorrentFileChanged, Name: filepath.ToSlash(f.name)})
 			continue
 		}
 		errs = append(errs, root.Remove(f.name))

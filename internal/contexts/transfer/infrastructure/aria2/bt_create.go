@@ -100,7 +100,7 @@ func (c *Client) WriteTorrent(ctx context.Context, source, dest string, trackers
 		return empty, application.ErrTorrentSourceEmpty
 	}
 	info.PieceLength = metainfo.ChoosePieceLength(info.TotalLength())
-	err = info.GeneratePieces(func(f metainfo.FileInfo) (io.ReadCloser, error) {
+	err = generatePayloadPieces(&info, func(f metainfo.FileInfo) (io.ReadCloser, error) {
 		name := f.DisplayPath(&info)
 		file, _, err := openPayload(root, filepath.FromSlash(name), f.Length)
 		if err != nil {
@@ -120,7 +120,7 @@ func (c *Client) WriteTorrent(ctx context.Context, source, dest string, trackers
 		}
 		after, e := root.Lstat(filepath.FromSlash(path))
 		if e != nil || !os.SameFile(before, after) || before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime()) {
-			return empty, application.ErrTorrentSourceChanged
+			return empty, application.NamedError{Code: application.ErrTorrentSourceChanged, Name: path}
 		}
 	}
 	raw, err := bencode.Marshal(info)

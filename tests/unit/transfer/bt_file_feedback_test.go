@@ -13,15 +13,20 @@ import (
 
 type delayedBTFileAPI struct {
 	*application.Service
-	started  chan bool
-	finish   chan struct{}
-	snapshot application.Snapshot
+	started   chan bool
+	finish    chan struct{}
+	snapshot  application.Snapshot
+	verifyErr error
 }
 
 func (a delayedBTFileAPI) Snapshot() application.Snapshot { return a.snapshot }
 
 func (a delayedBTFileAPI) TorrentDetails(context.Context, string) (application.BTDetails, error) {
 	return application.BTDetails{}, nil
+}
+
+func (a delayedBTFileAPI) VerifyTorrentFiles(context.Context, string) error {
+	return a.verifyErr
 }
 
 func (a delayedBTFileAPI) UseTorrentFiles(ctx context.Context, _ string, _ string, move, _ bool) error {
@@ -134,5 +139,45 @@ func TestInvalidTorrentPeerLimitShowsTheAllowedRange(t *testing.T) {
 		if !scene.HasText("Enter a peer limit from 0 to 65535") {
 			t.Errorf("missing the peer limit range for %q: %v", input, scene.Texts())
 		}
+	}
+}
+
+func TestBTFileVerificationDisplaysTheMismatchedFileInBothLanguages(t *testing.T) {
+	api := delayedBTFileAPI{
+		Service: service(t, &fakeEngine{}, &fakeRepo{}),
+		snapshot: application.Snapshot{Tasks: []application.TaskDTO{{
+			ID: "task", Name: "sample.torrent", TorrentHash: "hash", Status: "complete",
+		}}},
+		verifyErr: application.NamedError{Code: application.ErrTorrentFileMismatch, Name: "sample/folder/a.txt"},
+	}
+	updates := make(chan func(), 2)
+	view := presentation.New(api, presentation.Actions{
+		Context: t.Context(), Dispatch: func(fn func()) { updates <- fn },
+	})
+	view.Snapshot = api.Snapshot()
+	scene := interactionScene(view, 1020, 680)
+	scene.SetLocale("en")
+	applyUpdate := func() {
+		t.Helper()
+		select {
+		case update := <-updates:
+			update()
+			scene.Frame()
+		case <-time.After(time.Second):
+			t.Fatal("no inspector update")
+		}
+	}
+	chooseSource(t, scene, "View details for sample.torrent")
+	chooseSource(t, scene, "BitTorrent Details")
+	applyUpdate()
+	chooseSource(t, scene, "Torrent file actions")
+	chooseSource(t, scene, "Verify Files")
+	applyUpdate()
+	if !scene.HasText("File sample/folder/a.txt has an unexpected size or type") {
+		t.Errorf("missing the mismatched file in English: %v", scene.Texts())
+	}
+	scene.SetLocale("zh-CN")
+	if !scene.HasText("文件 sample/folder/a.txt 的大小或类型不匹配") {
+		t.Errorf("missing the mismatched file in Chinese: %v", scene.Texts())
 	}
 }
