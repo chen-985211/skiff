@@ -9,7 +9,6 @@ import (
 	"github.com/egoist/mygo"
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 	"github.com/egoist/mygo/ui"
-	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -18,10 +17,11 @@ import (
 	"skiff/internal/contexts/transfer/infrastructure/persistence"
 	"skiff/internal/contexts/transfer/presentation"
 	"skiff/internal/contexts/transfer/presentation/i18n"
+	"skiff/internal/platform/diagnostics"
 	"time"
 )
 
-func Run() error {
+func Run(logger *diagnostics.Logger) error {
 	dataDir, err := dataDirectory()
 	if err != nil {
 		return err
@@ -63,14 +63,12 @@ func Run() error {
 			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 			defer cancel()
 			if service != nil {
-				if err := service.Flush(ctx); err != nil {
-					log.Print(err)
-				}
+				operation := logger.Start("transfer.queue", "flush")
+				reportFailure(logger, operation, service.Flush(ctx))
 			}
 			if process != nil {
-				if err := process.Close(ctx); err != nil {
-					log.Print(err)
-				}
+				operation := logger.Start("transfer.engine", "close")
+				reportFailure(logger, operation, process.Close(ctx))
 			}
 			mygo.RunOnMain(func() { closed = true; mygo.App.Quit() })
 		}()
@@ -173,9 +171,11 @@ func Run() error {
 		setMenu(mygo.App.Locale())
 		mygo.App.OnLocaleChanged(setMenu)
 		go func() {
-			binary, err := application.PrepareEngine(pollCtx, aria2.NewInstallation(dataDir), installRequests, func(reason error) {
+			installation := observedInstallation{EngineInstallation: aria2.NewInstallation(dataDir), logger: logger}
+			binary, err := application.PrepareEngine(pollCtx, installation, installRequests, func(reason error) {
 				win.Update(func() { view.OfferEngineDownload(reason) })
 			})
+			startup := logger.Start("transfer.engine", "start")
 			ctx, cancel := context.WithTimeout(pollCtx, 12*time.Second)
 			repo := persistence.Repository{Path: filepath.Join(dataDir, "tasks.json")}
 			if err == nil {
@@ -197,18 +197,21 @@ func Run() error {
 			close(initialized)
 			if err != nil {
 				if pollCtx.Err() == nil {
+					reportFailure(logger, startup, err)
 					win.Update(func() { view.FinishEngineStartup(nil, application.Snapshot{}, err) })
 				}
 				return
 			}
 			initial := service.Snapshot()
+			logger.Success(startup)
 			win.Update(func() { view.FinishEngineStartup(service, initial, nil) })
 			go func() {
 				timer := time.NewTicker(time.Minute)
 				defer timer.Stop()
 				for {
+					operation := logger.Start("transfer.tracker", "refresh_subscriptions")
 					if err := service.RefreshBTSubscriptions(pollCtx, false); err != nil && pollCtx.Err() == nil {
-						log.Print(err)
+						reportFailure(logger, operation, err)
 					}
 					select {
 					case <-pollCtx.Done():
@@ -227,6 +230,7 @@ func Run() error {
 					return
 				case <-ticker.C:
 				}
+				operation := logger.Start("transfer.engine", "refresh")
 				ctx, cancel := context.WithTimeout(pollCtx, 5*time.Second)
 				err := service.Refresh(ctx)
 				cancel()
@@ -235,6 +239,7 @@ func Run() error {
 						return
 					}
 					if !hadError {
+						reportFailure(logger, operation, err)
 						win.Update(func() { view.EngineError = err })
 					}
 					hadError = true

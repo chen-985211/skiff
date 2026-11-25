@@ -1,12 +1,17 @@
 package main
 
 import (
-	"log"
+	"os"
+
 	"skiff/internal/platform/desktop"
+	"skiff/internal/platform/diagnostics"
 )
 
 func main() {
-	if err := desktop.Run(); err != nil {
-		log.Fatal(err)
+	logger := diagnostics.Stderr()
+	run := logger.Start("desktop", "run")
+	if err := desktop.Run(logger); err != nil {
+		logger.Unexpected(run, err)
+		os.Exit(1)
 	}
 }

@@ -1,4 +1,4 @@
-.PHONY: run dev test test-integration test-race format-check check-i18n check-ui check package
+.PHONY: run dev test test-integration test-race format-check check-i18n check-diagnostics check-ui check package
 
 run:
 	go run ./cmd/skiff
@@ -20,6 +20,10 @@ format-check:
 
 check-i18n:
 	go test -count=1 ./tests/contract -run '^TestI18n'
+
+check-diagnostics:
+	go test -count=1 ./tests/contract -run '^TestDiagnosticsPolicy'
+	go test ./tests/unit/platform
 
 check-ui:
 	go test -count=1 ./tests/contract -run '^TestInterfacePolicy'
