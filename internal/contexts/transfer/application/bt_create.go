@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -27,7 +28,7 @@ func (s *Service) CreateTorrent(ctx context.Context, source, output string, trac
 		}
 		u, err := url.Parse(tr)
 		if err != nil || u.Hostname() == "" || strings.ContainsAny(tr, " \r\t\n") || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "udp") {
-			return Torrent{}, ErrInvalidTracker
+			return Torrent{}, NamedError{Code: ErrInvalidTracker, Name: strconv.Itoa(len(announce) + 1)}
 		}
 		announce = append(announce, tr)
 	}

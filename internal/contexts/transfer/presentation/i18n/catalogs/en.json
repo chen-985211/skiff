@@ -195,6 +195,7 @@
   "error.invalidProxyValue": "The proxy settings contain invalid characters",
   "error.invalidSeedPolicy": "The share ratio and seeding time must be nonnegative",
   "error.invalidTracker": "Enter a valid tracker URL",
+  "error.invalidTrackerEntry": "Tracker address {entry} is invalid.",
   "error.linksRequired": "Enter a download link",
   "error.magnetInvalid": "Enter a valid magnet link",
   "error.magnetMetadata": "Could not retrieve magnet metadata",

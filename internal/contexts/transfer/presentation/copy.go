@@ -60,6 +60,8 @@ func errorText(locale string, err error) string {
 	if errors.As(err, &named) && named.Code == code {
 		args := i18n.Args{"name": named.Name}
 		switch code {
+		case application.ErrInvalidTracker:
+			return i18n.Format(locale, "error.invalidTrackerEntry", i18n.Args{"entry": named.Name})
 		case application.ErrManagedHeader:
 			return i18n.Format(locale, "error.managedHeaderNamed", args)
 		case application.ErrTorrentFileMissing:
