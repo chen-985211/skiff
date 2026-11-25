@@ -78,7 +78,7 @@ func (v *View) btFileActions(c *ui.Context, p palette) {
 
 func btFileError(c *ui.Context, p palette, err error) {
 	var cleanup *application.TorrentMoveCleanupError
-	if application.CodeOf(err) != application.ErrTorrentMoveCleanup || !errors.As(err, &cleanup) {
+	if !errors.As(err, &cleanup) {
 		if message := errorText(c.Locale(), err); message != "" {
 			ui.Text(c.Key("bt-file-error"), message).FillWidth().MaxLines(3).Tooltip(message).
 				Transition(pageFade).ContentTransition(textChange).FontSize(12).TextColor(c.Theme().Danger)
@@ -86,31 +86,31 @@ func btFileError(c *ui.Context, p palette, err error) {
 		return
 	}
 	const rowHeight = 22
-	messageKey := "error.torrentMoveCleanup"
-	if errors.Is(cleanup, application.ErrTorrentDestinationChanged) {
-		messageKey = "error.torrentMoveCleanupVerify"
-	}
-	ui.Column(c.Key("move-cleanup")).FillWidth().Gap(6).Transition(pageFade).Children(func() {
-		ui.Text(c, tr(c, messageKey)).FontSize(12).TextColor(c.Theme().Danger)
-		ui.Scroll(c.Key(cleanup)).Height(float32(min(3, len(cleanup.Originals)) * rowHeight)).FillWidth().
-			Role(ui.RoleList).Label(tr(c, "bt.moveOriginals")).Focusable().FocusRing(true).Radius(cornerSmall).
-			ScrollbarStyle(settingsScrollbar(c, p)).Transition(panelMotion).Children(func() {
-			ui.Column(c).FillWidth().Padding(0, settingsScrollGutter, 0, 0).Children(func() {
-				for _, original := range cleanup.Originals {
-					reasonKey := "bt.moveRemoveFailed"
-					switch application.CodeOf(original.Cause) {
-					case application.ErrTorrentDestinationChanged:
-						reasonKey = "bt.moveDestinationChanged"
-					case application.ErrTorrentFileChanged:
-						reasonKey = "bt.moveOriginalChanged"
-					}
-					ui.Row(c.Key(original.Name)).Role(ui.RoleListItem).MinHeight(rowHeight).FillWidth().AlignItems(ui.Center).Gap(6).Children(func() {
-						ui.Text(c, original.Name).Grow(1).MinWidth(0).Padding(3, 4).FontSize(12).TextColor(p.muted).
-							SingleLine().TruncateMiddle().Selectable().Tooltip(original.Name)
-						ui.Text(c, tr(c, reasonKey)).SingleLine().FontSize(12).TextColor(p.muted)
-					})
-				}
+	group := ui.Column(c.Key(cleanup)).FillWidth().Gap(6).Transition(pageFade)
+	messageKey := ui.Local(group, "warning", func() string {
+		if errors.Is(cleanup, application.ErrTorrentDestinationChanged) {
+			return "error.torrentMoveCleanupVerify"
+		}
+		return "error.torrentMoveCleanup"
+	})
+	group.Children(func() {
+		ui.Text(c, tr(c, *messageKey)).FontSize(12).TextColor(c.Theme().Danger)
+		ui.List(c.Key("original-files"), nil, len(cleanup.Originals), func(i int) {
+			original := cleanup.Originals[i]
+			reasonKey := "bt.moveRemoveFailed"
+			switch application.CodeOf(original.Cause) {
+			case application.ErrTorrentDestinationChanged:
+				reasonKey = "bt.moveDestinationChanged"
+			case application.ErrTorrentFileChanged:
+				reasonKey = "bt.moveOriginalChanged"
+			}
+			ui.Row(c).MinHeight(rowHeight).FillWidth().AlignItems(ui.Center).Gap(6).Children(func() {
+				ui.Text(c, original.Name).Grow(1).MinWidth(0).Padding(3, 4).FontSize(12).TextColor(p.muted).
+					SingleLine().TruncateMiddle().Selectable().Tooltip(original.Name)
+				ui.Text(c, tr(c, reasonKey)).SingleLine().FontSize(12).TextColor(p.muted)
 			})
-		})
+		}).Height(float32(min(3, len(cleanup.Originals))*rowHeight)).FillWidth().Padding(0, settingsScrollGutter, 0, 0).
+			Label(tr(c, "bt.moveOriginals")).Focusable().FocusRing(true).Radius(cornerSmall).
+			ScrollbarStyle(settingsScrollbar(c, p)).Transition(panelMotion)
 	})
 }

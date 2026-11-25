@@ -212,8 +212,8 @@ func TestBTFileActionsIdentifyTheFileInBothLanguages(t *testing.T) {
 
 func TestRenderBTMoveFeedbackShowsAndScrollsTheOriginalFileList(t *testing.T) {
 	var originals []string
-	for i := range 12 {
-		originals = append(originals, fmt.Sprintf("set/sub/file-%02d.txt", i))
+	for i := range 2048 {
+		originals = append(originals, fmt.Sprintf("set/sub/file-%04d.txt", i))
 	}
 	leftovers := make([]application.TorrentMoveOriginal, 0, len(originals))
 	for _, name := range originals {
@@ -266,6 +266,9 @@ func TestRenderBTMoveFeedbackShowsAndScrollsTheOriginalFileList(t *testing.T) {
 		t.Errorf("missing the English move explanation: %v", scene.Texts())
 	}
 	list := sourceBounds(t, scene, ui.RoleList, label)
+	if scene.HasText(originals[len(originals)/2]) || scene.HasText(originals[len(originals)-1]) {
+		t.Error("the three-row viewport built offscreen file rows")
+	}
 	panel := sourceBounds(t, scene, ui.RoleDialog, "BitTorrent Details")
 	first := sourceBounds(t, scene, ui.RoleText, originals[0])
 	second := sourceBounds(t, scene, ui.RoleText, originals[1])
