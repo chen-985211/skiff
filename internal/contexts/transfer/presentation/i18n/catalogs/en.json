@@ -13,6 +13,7 @@
   "bt.createSource": "Torrent source",
   "bt.createTrackers": "Torrent trackers",
   "bt.details": "BitTorrent Details",
+  "bt.dht": "DHT",
   "bt.discovery": "Peer discovery",
   "bt.downloadAllChoice": "Download all in {seconds, plural, one {# second} other {# seconds}}",
   "bt.downloadAllCountdown": "Downloading all files in {seconds, plural, one {# second} other {# seconds}}",

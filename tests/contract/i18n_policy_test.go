@@ -29,13 +29,17 @@ func render(c *toolkit.Context) {
 	_ = "\u6682\u505c"
 	_ = desktop.MenuItem{Label: "New Download"}
 	_ = desktop.MenuItem{Label: tr(c, "download.new")}
+	checked := false
+	toolkit.Checkbox(c, &checked, "Seed after download")
+	toolkit.Toggle(c, &checked, "Use local discovery")
+	toolkit.Checkbox(c, &checked, tr(c, "bt.seedCompleted"))
 }
 `
 	issues, err := checkInterfaceCopy("fixture.go", []byte(fixture), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"fixture.go:6:", "fixture.go:10:", "fixture.go:11:", "fixture.go:12:"}
+	want := []string{"fixture.go:6:", "fixture.go:10:", "fixture.go:11:", "fixture.go:12:", "fixture.go:15:", "fixture.go:16:"}
 	if len(issues) != len(want) {
 		t.Fatalf("issues = %v, want %v", issues, want)
 	}
@@ -89,9 +93,13 @@ func checkInterfaceCopy(path string, source []byte, messages map[string]map[stri
 			}
 			if packageOf(sel, imports) == "github.com/egoist/mygo/ui" {
 				switch sel.Sel.Name {
-				case "Text", "Textf", "Button", "Label", "Checkbox", "Switch":
+				case "Text", "Textf", "Button", "Label":
 					if len(node.Args) > 1 {
 						mark(node.Args[1])
+					}
+				case "Checkbox", "Toggle":
+					if len(node.Args) > 2 {
+						mark(node.Args[2])
 					}
 				case "AlertDialog":
 					for _, arg := range node.Args[min(2, len(node.Args)):] {

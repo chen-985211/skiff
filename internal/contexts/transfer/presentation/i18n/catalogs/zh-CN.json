@@ -13,6 +13,7 @@
   "bt.createSource": "制种来源",
   "bt.createTrackers": "制种 Tracker",
   "bt.details": "BT 详情",
+  "bt.dht": "DHT",
   "bt.discovery": "节点发现",
   "bt.downloadAllChoice": "{seconds, plural, other {# 秒后下载全部}}",
   "bt.downloadAllCountdown": "{seconds, plural, other {# 秒后下载全部文件}}",

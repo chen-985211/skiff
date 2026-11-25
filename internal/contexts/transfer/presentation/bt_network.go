@@ -109,7 +109,7 @@ func (v *View) renderBTNetwork(c *ui.Context, p palette, stage ui.Element) {
 func (b *btNetworkPanel) connections(c *ui.Context, p palette) {
 	formRow(c, p, tr(c, "bt.discovery"), func() {
 		dht := !b.draft.DisableDHT
-		if ui.Checkbox(c, &dht, "DHT").Transition(controlMotion).Changed() {
+		if ui.Checkbox(c, &dht, tr(c, "bt.dht")).Transition(controlMotion).Changed() {
 			b.draft.DisableDHT = !dht
 		}
 		ui.Checkbox(c, &b.draft.LocalDiscovery, tr(c, "bt.localNetwork")).Transition(controlMotion)
