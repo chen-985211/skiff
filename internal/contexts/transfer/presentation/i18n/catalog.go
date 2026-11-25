@@ -33,6 +33,10 @@ func Languages() []string {
 	return messages.Languages()
 }
 
+func MatchLanguage(preferred ...string) string {
+	return native.Match(preferred, messages.Languages())
+}
+
 func LanguageName(locale string) string {
 	if locale == Source {
 		return native.Autonym("zh-Hans")

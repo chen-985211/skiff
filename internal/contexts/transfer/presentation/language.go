@@ -7,16 +7,18 @@ import (
 )
 
 func (v *View) languageSelector(c *ui.Context, p palette) {
-	current := v.Actions.ChosenLocale()
-	display := tr(c, "common.system")
-	for _, locale := range i18n.Languages() {
-		if current == locale {
-			display = i18n.LanguageName(locale)
-			break
+	preference := v.Actions.ChosenLocale()
+	current, display := "", tr(c, "common.system")
+	if preference != "" {
+		current = i18n.MatchLanguage(preference, c.Locale())
+		if current == "" {
+			display = i18n.LanguageName(preference)
+		} else {
+			display = i18n.LanguageName(current)
 		}
 	}
 	dropdown(c.Key("language"), p, tr(c, "language.title"), display, false, func(m *ui.Menu) {
-		if m.Item(tr(c, "common.system")).Checked(current == "").Chosen() {
+		if m.Item(tr(c, "common.system")).Checked(preference == "").Chosen() {
 			v.Actions.SetLocale("")
 		}
 		for _, locale := range i18n.Languages() {

@@ -87,3 +87,34 @@ func clickLanguageButton(t *testing.T, scene *ui.Tester, name string) {
 	b := button.Bounds
 	scene.ClickAt(b.X+b.W/2, b.Y+b.H/2)
 }
+
+func TestLanguageDropdownShowsTheMatchedNativePreference(t *testing.T) {
+	for _, tc := range []struct {
+		preference, effective, settings, label, selected, system string
+	}{
+		{"zh-Hans", "zh-CN", "设置", "界面语言", "简体中文", "跟随系统"},
+		{"en-GB", "en", "Settings", "Language", "English", "System"},
+		{"fr-CA", "en", "Settings", "Language", "English", "System"},
+		{"", "zh-CN", "设置", "界面语言", "跟随系统", "跟随系统"},
+	} {
+		t.Run(tc.preference, func(t *testing.T) {
+			view := presentation.New(nil, presentation.Actions{
+				ChosenLocale: func() string { return tc.preference },
+				SetLocale:    func(string) {},
+			})
+			scene := interactionScene(view, 1020, 680)
+			scene.SetLocale(tc.effective)
+			chooseSource(t, scene, tc.settings)
+			if !scene.HasText(tc.selected) {
+				t.Errorf("language button does not show %q: %v", tc.selected, scene.Texts())
+			}
+			clickLanguageButton(t, scene, tc.label)
+			if option, ok := scene.AccessByRole(ui.RoleMenuItemCheckBox, tc.selected); !ok || !option.Checked {
+				t.Errorf("resolved choice %q is not checked: %+v", tc.selected, option)
+			}
+			if system, ok := scene.AccessByRole(ui.RoleMenuItemCheckBox, tc.system); !ok || system.Checked != (tc.preference == "") {
+				t.Errorf("system choice does not reflect explicit preference %q: %+v", tc.preference, system)
+			}
+		})
+	}
+}
