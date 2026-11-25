@@ -156,6 +156,10 @@ func (s *Service) Open(ctx context.Context) error {
 	s.preferences = state.Preferences
 	s.subscriptions = make(map[string]BTSubscription)
 	for _, sub := range state.BTSubscriptions {
+		if sub.Error != "" && sub.Failure == "" {
+			sub.Failure = ErrUnexpected
+		}
+		sub.Error = ""
 		s.subscriptions[sub.URL] = sub
 	}
 	if s.preferences.Concurrency < 1 || s.preferences.Concurrency > MaxConcurrency {

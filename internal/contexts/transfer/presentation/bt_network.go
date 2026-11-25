@@ -151,12 +151,15 @@ func (v *View) trackerSubscriptions(c *ui.Context, p palette) {
 				ui.Row(c.Key(sub.URL)).Role(ui.RoleListItem).FillWidth().Height(btSubscriptionRowHeight).Gap(10).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, sub.URL).Grow(1).MinWidth(0).SingleLine().TruncateMiddle().Tooltip(sub.URL).FontSize(12).TextColor(p.muted)
 					status, color := trf(c, "bt.trackerCount", i18n.Args{"count": len(sub.Trackers)}), p.muted
-					if sub.Error != "" {
+					var reason string
+					if sub.Failure != "" {
+						reason = errorText(c.Locale(), sub.Failure)
 						status, color = tr(c, "bt.refreshFailed"), c.Theme().Danger
 					} else if sub.Checked.IsZero() {
 						status = tr(c, "bt.pendingRefresh")
 					}
-					ui.Text(c, status).SingleLine().FontSize(12).TextColor(color).ContentTransition(textChange)
+					ui.Text(c, status).SingleLine().FontSize(12).TextColor(color).ContentTransition(textChange).
+						Description(reason).Tooltip(reason)
 				})
 			}
 		})

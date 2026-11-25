@@ -16,11 +16,11 @@ import (
 func (c *Client) FetchTrackers(ctx context.Context, source string) ([]string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", source, nil)
 	if err != nil {
-		return nil, err
+		return nil, application.Wrap(application.ErrReadSubscription, err)
 	}
 	res, err := c.http.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, application.Wrap(application.ErrReadSubscription, err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
@@ -28,7 +28,10 @@ func (c *Client) FetchTrackers(ctx context.Context, source string) ([]string, er
 	}
 	const limit = 2 << 20
 	body, err := io.ReadAll(io.LimitReader(res.Body, limit+1))
-	if err != nil || len(body) > limit {
+	if err != nil {
+		return nil, application.Wrap(application.ErrReadSubscription, err)
+	}
+	if len(body) > limit {
 		return nil, application.ErrReadSubscription
 	}
 	var trackers []string

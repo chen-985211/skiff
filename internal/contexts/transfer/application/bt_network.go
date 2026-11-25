@@ -20,7 +20,8 @@ type BTSubscription struct {
 	URL      string
 	Trackers []string
 	Checked  time.Time
-	Error    string
+	Failure  ErrorCode `json:",omitempty"`
+	Error    string    `json:",omitempty"` // Legacy persisted error text.
 }
 type Peer struct {
 	Address, Download, Upload string
@@ -110,7 +111,7 @@ func (s *Service) RefreshBTSubscriptions(ctx context.Context, force bool) error 
 	var errs []error
 	for _, src := range sources {
 		interval := 12 * time.Hour
-		if src.Error != "" {
+		if src.Failure != "" {
 			interval = 30 * time.Minute
 		}
 		if !force && time.Since(src.Checked) < interval {
@@ -121,9 +122,9 @@ func (s *Service) RefreshBTSubscriptions(ctx context.Context, force bool) error 
 			return ctx.Err()
 		}
 		src.Checked = time.Now()
-		src.Error = ""
+		src.Failure = ""
 		if err != nil {
-			src.Error = err.Error()
+			src.Failure = CodeOf(err)
 			errs = append(errs, err)
 		} else {
 			src.Trackers = unique(list)

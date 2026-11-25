@@ -168,13 +168,17 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 	var broken atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if broken.Load() {
-			http.Error(w, "offline", 503)
+			if r.URL.Path == "/empty" {
+				fmt.Fprintln(w, "no trackers")
+			} else {
+				http.Error(w, "offline", 503)
+			}
 			return
 		}
 		fmt.Fprintln(w, "udp://127.0.0.1:9090/announce\n\nhttp://127.0.0.1:7070/announce\nudp://127.0.0.1:9090/announce")
 	}))
 	defer server.Close()
-	cfg := application.BTSettings{Sources: server.URL, MaxPeers: 12, ListenPort: 9870}
+	cfg := application.BTSettings{Sources: server.URL + "\n" + server.URL + "/empty", MaxPeers: 12, ListenPort: 9870}
 	if err := s.SetBTSettings(t.Context(), cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -182,15 +186,15 @@ func TestBTSubscriptionsRefreshDeduplicateAndRetainLastWorkingList(t *testing.T)
 		t.Fatal(err)
 	}
 	sub := s.Snapshot().BTSubscriptions
-	if len(sub) != 1 || len(sub[0].Trackers) != 2 || sub[0].Error != "" {
+	if len(sub) != 2 || len(sub[0].Trackers) != 2 || sub[0].Failure != "" || sub[1].Failure != "" {
 		t.Fatal(sub)
 	}
 	broken.Store(true)
-	if err := s.RefreshBTSubscriptions(t.Context(), true); err == nil {
-		t.Fatal("failed source reported healthy")
+	if err := s.RefreshBTSubscriptions(t.Context(), true); !errors.Is(err, application.ErrReadSubscription) || !errors.Is(err, application.ErrEmptySubscription) {
+		t.Fatalf("refresh did not return both subscription errors: %v", err)
 	}
 	sub = s.Snapshot().BTSubscriptions
-	if len(sub[0].Trackers) != 2 || sub[0].Error == "" {
+	if len(sub[0].Trackers) != 2 || len(sub[1].Trackers) != 2 || sub[0].Failure != application.ErrReadSubscription || sub[1].Failure != application.ErrEmptySubscription {
 		t.Fatal("lost cached trackers or health", sub)
 	}
 }
