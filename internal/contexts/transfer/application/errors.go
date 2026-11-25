@@ -90,6 +90,27 @@ const (
 	ErrMagnetInvalid              ErrorCode = "MAGNET_INVALID"
 	ErrMagnetMetadata             ErrorCode = "MAGNET_METADATA_FAILED"
 	ErrTorrentFiles               ErrorCode = "TORRENT_FILE_VERIFICATION_FAILED"
+	ErrTorrentSourceType          ErrorCode = "TORRENT_SOURCE_TYPE"
+	ErrTorrentExtension           ErrorCode = "TORRENT_EXTENSION"
+	ErrTorrentDestinationIsSource ErrorCode = "TORRENT_DESTINATION_IS_SOURCE"
+	ErrTorrentDestinationOverlaps ErrorCode = "TORRENT_DESTINATION_OVERLAPS"
+	ErrTorrentDestinationType     ErrorCode = "TORRENT_DESTINATION_TYPE"
+	ErrTorrentDestinationConflict ErrorCode = "TORRENT_DESTINATION_CONFLICT"
+	ErrTorrentSourceEmpty         ErrorCode = "TORRENT_SOURCE_EMPTY"
+	ErrTorrentSourceChanged       ErrorCode = "TORRENT_SOURCE_CHANGED"
+	ErrTorrentDestinationChanged  ErrorCode = "TORRENT_DESTINATION_CHANGED"
+	ErrTorrentFileMismatch        ErrorCode = "TORRENT_FILE_MISMATCH"
+	ErrTorrentFileChanged         ErrorCode = "TORRENT_FILE_CHANGED"
+	ErrTorrentHashChanged         ErrorCode = "TORRENT_HASH_CHANGED"
+	ErrTorrentName                ErrorCode = "TORRENT_NAME_INVALID"
+	ErrTorrentPath                ErrorCode = "TORRENT_PATH_INVALID"
+	ErrTorrentFileList            ErrorCode = "TORRENT_FILE_LIST_INVALID"
+	ErrTorrentPieces              ErrorCode = "TORRENT_PIECES_INVALID"
+	ErrTorrentRecord              ErrorCode = "TORRENT_RECORD_INVALID"
+	ErrTooManyRedirects           ErrorCode = "TOO_MANY_REDIRECTS"
+	ErrReadSubscription           ErrorCode = "READ_SUBSCRIPTION_FAILED"
+	ErrEmptySubscription          ErrorCode = "EMPTY_SUBSCRIPTION"
+	ErrReadQueue                  ErrorCode = "READ_QUEUE_FAILED"
 	ErrUnexpected                 ErrorCode = "UNEXPECTED_ERROR"
 )
 
@@ -117,7 +138,12 @@ func IsExpected(code ErrorCode) bool {
 		ErrConcurrencyRange, ErrInvalidSeedPolicy, ErrBTPortRange, ErrBadSubscriptionURL,
 		ErrSubscriptionsUnsupported, ErrBTPeerLimit, ErrCommandUnavailable, ErrFTPLoginUnneeded,
 		ErrInvalidFTPLogin, ErrEnginePlatform, ErrFileMissing, ErrTorrentInvalid,
-		ErrTorrentVersion, ErrMagnetInvalid, ErrTorrentFiles:
+		ErrTorrentVersion, ErrMagnetInvalid, ErrTorrentFiles,
+		ErrTorrentSourceType, ErrTorrentExtension, ErrTorrentDestinationIsSource, ErrTorrentDestinationOverlaps,
+		ErrTorrentDestinationType, ErrTorrentDestinationConflict, ErrTorrentSourceEmpty, ErrTorrentSourceChanged,
+		ErrTorrentDestinationChanged, ErrTorrentFileMismatch, ErrTorrentFileChanged, ErrTorrentHashChanged,
+		ErrTorrentName, ErrTorrentPath, ErrTorrentFileList, ErrTorrentPieces,
+		ErrEmptySubscription:
 		return true
 	default:
 		return false

@@ -3,7 +3,6 @@ package aria2
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -27,10 +26,10 @@ func (c *Client) WriteTorrent(ctx context.Context, source, dest string, trackers
 		return empty, err
 	}
 	if !st.IsDir() && !st.Mode().IsRegular() {
-		return empty, errors.New("请选择普通文件或文件夹")
+		return empty, application.ErrTorrentSourceType
 	}
 	if !strings.EqualFold(filepath.Ext(dest), ".torrent") {
-		return empty, errors.New("种子文件需要 .torrent 扩展名")
+		return empty, application.ErrTorrentExtension
 	}
 	destParent, err := filepath.EvalSymlinks(filepath.Dir(dest))
 	if err != nil {
@@ -42,7 +41,7 @@ func (c *Client) WriteTorrent(ctx context.Context, source, dest string, trackers
 		return empty, err
 	}
 	if actual == dest {
-		return empty, errors.New("请选择与原文件不同的种子保存位置")
+		return empty, application.ErrTorrentDestinationIsSource
 	}
 	prior, statErr := os.Lstat(dest)
 	if statErr != nil && !errors.Is(statErr, fs.ErrNotExist) {
@@ -51,13 +50,13 @@ func (c *Client) WriteTorrent(ctx context.Context, source, dest string, trackers
 	if prior != nil {
 		rel, _ := filepath.Rel(actual, dest)
 		if os.SameFile(st, prior) || (st.IsDir() && filepath.IsLocal(rel)) {
-			return empty, errors.New("保存会覆盖所选内容中的文件，请另选位置")
+			return empty, application.ErrTorrentDestinationOverlaps
 		}
 		if !prior.Mode().IsRegular() {
-			return empty, errors.New("种子保存目标不是普通文件")
+			return empty, application.ErrTorrentDestinationType
 		}
 		if _, _, err = readTorrent(dest); err != nil {
-			return empty, errors.New("同名文件不是有效种子，请另选名称")
+			return empty, application.ErrTorrentDestinationConflict
 		}
 	}
 	dir := actual
@@ -98,7 +97,7 @@ func (c *Client) WriteTorrent(ctx context.Context, source, dest string, trackers
 		stats[info.Name] = st
 	}
 	if info.TotalLength() <= 0 {
-		return empty, errors.New("所选内容没有可制种的数据")
+		return empty, application.ErrTorrentSourceEmpty
 	}
 	info.PieceLength = metainfo.ChoosePieceLength(info.TotalLength())
 	err = info.GeneratePieces(func(f metainfo.FileInfo) (io.ReadCloser, error) {
@@ -121,7 +120,7 @@ func (c *Client) WriteTorrent(ctx context.Context, source, dest string, trackers
 		}
 		after, e := root.Lstat(filepath.FromSlash(path))
 		if e != nil || !os.SameFile(before, after) || before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime()) {
-			return empty, fmt.Errorf("原文件已变化，请重试：%s", path)
+			return empty, application.ErrTorrentSourceChanged
 		}
 	}
 	raw, err := bencode.Marshal(info)
@@ -160,7 +159,7 @@ func (c *Client) WriteTorrent(ctx context.Context, source, dest string, trackers
 	} else {
 		now, e := os.Lstat(dest)
 		if e != nil || !os.SameFile(prior, now) || !prior.ModTime().Equal(now.ModTime()) {
-			return empty, errors.New("目标文件已变化，请重新选择")
+			return empty, application.ErrTorrentDestinationChanged
 		}
 		err = os.Rename(temp.Name(), dest)
 	}

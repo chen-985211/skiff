@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -51,7 +50,7 @@ func readTorrent(file string) ([]byte, application.Torrent, error) {
 		return filepath.IsLocal(part) && part != "." && !strings.ContainsAny(part, "/\\:\x00")
 	}
 	if !safe(info.Name) || !safe(info.BestName()) {
-		return nil, t, errors.New("种子文件名无效")
+		return nil, t, application.ErrTorrentName
 	}
 	t.Private = info.Private != nil && *info.Private
 	t.Name, t.Hash, t.Multi = info.BestName(), m.HashInfoBytes().HexString(), len(info.Files) > 0
@@ -60,26 +59,26 @@ func readTorrent(file string) ([]byte, application.Torrent, error) {
 		for _, path := range [][]string{file.Path, file.PathUtf8} {
 			for _, part := range path {
 				if !safe(part) {
-					return nil, t, errors.New("种子包含无效路径")
+					return nil, t, application.ErrTorrentPath
 				}
 			}
 		}
 		name := file.DisplayPath(&info)
 		if name == "" || seen[name] || file.Length < 0 || file.Length > math.MaxInt64-t.Total {
-			return nil, t, errors.New("种子文件列表无效")
+			return nil, t, application.ErrTorrentFileList
 		}
 		seen[name] = true
 		t.Total += file.Length
 		t.Files = append(t.Files, application.TorrentFile{Path: name, Size: file.Length})
 	}
 	if t.Total == 0 || int64(len(info.Pieces))/20 != (t.Total-1)/info.PieceLength+1 || len(info.Pieces)%20 != 0 {
-		return nil, t, errors.New("种子分片信息无效")
+		return nil, t, application.ErrTorrentPieces
 	}
 	return data, t, nil
 }
 func (c *Client) metadataFile(hash string) (string, error) {
 	if b, err := hex.DecodeString(hash); err != nil || len(b) != 20 || c.metadataDir == "" {
-		return "", errors.New("种子记录无效")
+		return "", application.ErrTorrentRecord
 	}
 	return filepath.Join(c.metadataDir, strings.ToLower(hash)+".torrent"), nil
 }
@@ -90,7 +89,7 @@ func (c *Client) CachedTorrent(hash string) (application.Torrent, error) {
 	}
 	_, t, err := readTorrent(f)
 	if err == nil && t.Hash != hash {
-		err = errors.New("元数据与磁力指纹不一致")
+		err = application.ErrMagnetMetadata
 	}
 	return t, err
 }
@@ -168,7 +167,7 @@ func (c *Client) enqueueTorrent(ctx context.Context, s application.TransferSpec)
 		return err
 	}
 	if meta.Hash != s.TorrentHash {
-		return errors.New("种子记录与文件不符")
+		return application.ErrTorrentRecord
 	}
 	opts := map[string]string{"gid": s.ID, "dir": s.Directory, "select-file": s.SelectedFiles, "pause": fmt.Sprint(s.Paused), "check-integrity": "true", "allow-overwrite": "false", "rpc-save-upload-metadata": "true"}
 	if !s.Seed.Enabled {

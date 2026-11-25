@@ -388,8 +388,8 @@ func TestBTCreateRejectsInputAsOutput(t *testing.T) {
 	if err := os.WriteFile(path, []byte("original bytes"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateTorrent(t.Context(), path, path, nil, false); err == nil {
-		t.Fatal("overwrote original")
+	if _, err := s.CreateTorrent(t.Context(), path, path, nil, false); application.CodeOf(err) != application.ErrTorrentDestinationIsSource {
+		t.Fatalf("expected a stable unsafe-destination error, got %v", err)
 	}
 	b, err := os.ReadFile(path)
 	if err != nil || string(b) != "original bytes" {

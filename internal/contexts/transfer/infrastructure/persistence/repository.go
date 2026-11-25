@@ -21,7 +21,7 @@ func (r Repository) Load(ctx context.Context) (application.State, error) {
 		return application.State{Version: 1}, nil
 	}
 	if err != nil {
-		return application.State{}, err
+		return application.State{}, application.Wrap(application.ErrReadQueue, err)
 	}
 	var state application.State
 	if err := json.Unmarshal(data, &state); err != nil {

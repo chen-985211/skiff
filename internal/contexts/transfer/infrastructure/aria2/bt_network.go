@@ -2,7 +2,6 @@ package aria2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/anacrolix/torrent/metainfo"
 	"io"
@@ -25,12 +24,12 @@ func (c *Client) FetchTrackers(ctx context.Context, source string) ([]string, er
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("订阅返回 HTTP %d", res.StatusCode)
+		return nil, fmt.Errorf("%w: HTTP status %d", application.ErrReadSubscription, res.StatusCode)
 	}
 	const limit = 2 << 20
 	body, err := io.ReadAll(io.LimitReader(res.Body, limit+1))
 	if err != nil || len(body) > limit {
-		return nil, errors.New("无法读取完整订阅")
+		return nil, application.ErrReadSubscription
 	}
 	var trackers []string
 	for line := range strings.Lines(string(body)) {
@@ -41,7 +40,7 @@ func (c *Client) FetchTrackers(ctx context.Context, source string) ([]string, er
 		}
 	}
 	if len(trackers) == 0 {
-		return nil, errors.New("订阅未返回有效 Tracker")
+		return nil, application.ErrEmptySubscription
 	}
 	return trackers, nil
 }
@@ -62,7 +61,7 @@ func (c *Client) ReadTorrentDetails(ctx context.Context, id, hash string) (appli
 			return d, e
 		}
 		if m.HashInfoBytes().HexString() != hash {
-			return d, errors.New("种子指纹已变化")
+			return d, application.ErrTorrentHashChanged
 		}
 		info, e := m.UnmarshalInfo()
 		if e != nil {

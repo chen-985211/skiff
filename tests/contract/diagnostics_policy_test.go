@@ -77,6 +77,7 @@ func diagnosticsViolations(path string, source []byte) ([]string, error) {
 	layerOwnsErrors := strings.Contains(path, "/contexts/") &&
 		(strings.Contains(path, "/domain/") || strings.Contains(path, "/application/"))
 	isPresentation := strings.Contains(path, "/presentation/")
+	isAdapter := strings.Contains(path, "/contexts/") && strings.Contains(path, "/infrastructure/")
 	var issues []string
 	add := func(pos token.Pos, rule string) {
 		issues = append(issues, fmt.Sprintf("%s: %s", fset.Position(pos), rule))
@@ -112,6 +113,10 @@ func diagnosticsViolations(path string, source []byte) ([]string, error) {
 			literal, ok := call.Args[0].(*ast.BasicLit)
 			if !ok || !wrapsCause(literal.Value) {
 				add(call.Pos(), "use a stable context error code or wrap an existing cause")
+			}
+		case isAdapter && (dependency == "errors" && name == "New" || dependency == "fmt" && name == "Errorf") && len(call.Args) > 0:
+			if value, ok := stringLiteral(call.Args[0]); ok && hasChineseCopy(value) {
+				add(call.Pos(), "represent adapter failures with a stable context error code")
 			}
 		case isPresentation && name == "Error" && len(call.Args) == 0:
 			add(call.Pos(), "use a localized error message from the presentation error mapping")
@@ -201,4 +206,16 @@ func wrapsCause(format string) bool {
 		}
 	}
 	return false
+}
+
+func TestDiagnosticsPolicyRecognizesAdapterCopy(t *testing.T) {
+	const source = `package adapter
+import "fmt"
+func fail() error { return fmt.Errorf("无法读取文件") }
+func httpStatus(n int) error { return fmt.Errorf("HTTP %d", n) }
+`
+	issues, err := diagnosticsViolations("internal/contexts/transfer/infrastructure/adapter.go", []byte(source))
+	if err != nil || len(issues) != 1 || !strings.Contains(issues[0], "stable context error code") {
+		t.Fatalf("adapter diagnostics = %v (%v)", issues, err)
+	}
 }

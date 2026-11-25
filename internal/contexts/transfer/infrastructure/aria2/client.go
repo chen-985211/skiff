@@ -101,7 +101,7 @@ func (c *Client) Execute(ctx context.Context, id string, cmd application.Command
 		}
 		return err
 	}
-	return errors.New("未知下载操作")
+	return application.ErrCommandUnavailable
 }
 
 type ariaTask struct {

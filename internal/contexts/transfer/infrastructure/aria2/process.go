@@ -120,7 +120,7 @@ func StartConfigured(ctx context.Context, dataDir, binary string, prefs applicat
 	p.cmd.Stdout, p.cmd.Stderr = logFile, logFile
 	if err := startEngineProcess(p.cmd); err != nil {
 		logFile.Close()
-		return nil, err
+		return nil, application.Wrap(application.ErrEngineStart, err)
 	}
 	go func() { _ = p.cmd.Wait(); logFile.Close(); close(p.done) }()
 	p.Client = NewClient(fmt.Sprintf("http://127.0.0.1:%d/jsonrpc", port), secret)

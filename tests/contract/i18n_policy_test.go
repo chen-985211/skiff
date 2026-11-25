@@ -306,3 +306,9 @@ func stringLiteral(expr ast.Expr) (string, bool) {
 	value, err := strconv.Unquote(lit.Value)
 	return value, err == nil
 }
+
+func hasChineseCopy(value string) bool {
+	return strings.ContainsFunc(value, func(r rune) bool {
+		return unicode.Is(unicode.Han, r) || strings.ContainsRune("。，；：！？（）", r)
+	})
+}
