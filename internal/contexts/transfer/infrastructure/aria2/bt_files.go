@@ -189,8 +189,9 @@ func (c *Client) CopyFiles(ctx context.Context, hash, src, dst string) (_ applic
 		if meta.Multi {
 			name = filepath.Join(name, filepath.FromSlash(entry.Path))
 		}
-		if err := to.MkdirAll(filepath.Dir(name), 0755); err != nil {
-			return nil, err
+		parent := filepath.Dir(name)
+		if err := to.MkdirAll(parent, 0755); err != nil {
+			return nil, moveDirectoryError(to, parent, err)
 		}
 		if err := m.copyOne(ctx, name, entry.Size); err != nil {
 			return nil, err
@@ -198,6 +199,23 @@ func (c *Client) CopyFiles(ctx context.Context, hash, src, dst string) (_ applic
 	}
 	return m, nil
 }
+
+func moveDirectoryError(root *os.Root, dir string, cause error) error {
+	for path := dir; path != "."; path = filepath.Dir(path) {
+		if entry, err := root.Stat(path); err == nil {
+			if !entry.IsDir() {
+				return moveConflict(path, cause)
+			}
+			break
+		}
+	}
+	return cause
+}
+
+func moveConflict(path string, cause error) error {
+	return application.NamedError{Code: application.ErrTorrentMoveConflict, Name: filepath.ToSlash(path), Cause: cause}
+}
+
 func (m *fileMove) copyOne(ctx context.Context, name string, size int64) error {
 	in, src, err := openPayload(m.from, name, size)
 	if err != nil {
@@ -207,7 +225,7 @@ func (m *fileMove) copyOne(ctx context.Context, name string, size int64) error {
 	out, err := m.to.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		if errors.Is(err, fs.ErrExist) {
-			return application.NamedError{Code: application.ErrTorrentMoveConflict, Name: filepath.ToSlash(name), Cause: err}
+			return moveConflict(name, err)
 		}
 		return err
 	}

@@ -330,28 +330,32 @@ func TestBTMoveNamesTheConflictingDestinationFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	awaitTask(t, svc, id, func(task application.TaskDTO) bool { return task.Status == "complete" })
-	destination := t.TempDir()
-	const conflict = "set/sub/b.txt"
-	path := filepath.Join(destination, filepath.FromSlash(conflict))
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte("keep existing file"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	err = svc.UseTorrentFiles(ctx, id, destination, true, false)
-	var named application.NamedError
-	if application.CodeOf(err) != application.ErrTorrentMoveConflict || !errors.As(err, &named) || named.Name != conflict || !errors.Is(err, os.ErrExist) {
-		t.Errorf("move conflict lost its stable code, relative name or OS cause: %v", err)
-	}
-	if contents, err := os.ReadFile(path); err != nil || string(contents) != "keep existing file" {
-		t.Errorf("move did not preserve the existing file: %q, %v", contents, err)
-	}
-	if task := svc.Snapshot().Tasks[0]; task.Directory != origin {
-		t.Errorf("failed move changed the saved location: %q", task.Directory)
-	}
-	if _, err := os.Stat(filepath.Join(destination, "set", "a.txt")); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("failed move kept an uncommitted copy: %v", err)
+	for _, conflict := range []string{"set/sub/b.txt", "set/sub", "set"} {
+		t.Run(conflict, func(t *testing.T) {
+			destination := t.TempDir()
+			path := filepath.Join(destination, filepath.FromSlash(conflict))
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("keep existing file"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			err := svc.UseTorrentFiles(ctx, id, destination, true, false)
+			var named application.NamedError
+			var cause *os.PathError
+			if application.CodeOf(err) != application.ErrTorrentMoveConflict || !errors.As(err, &named) || named.Name != conflict || !errors.As(err, &cause) {
+				t.Errorf("move conflict lost its stable code, relative name or OS cause: %v", err)
+			}
+			if contents, err := os.ReadFile(path); err != nil || string(contents) != "keep existing file" {
+				t.Errorf("move did not preserve the existing file: %q, %v", contents, err)
+			}
+			if task := svc.Snapshot().Tasks[0]; task.Directory != origin {
+				t.Errorf("failed move changed the saved location: %q", task.Directory)
+			}
+			if _, err := os.Stat(filepath.Join(destination, "set", "a.txt")); err == nil {
+				t.Error("failed move kept an uncommitted copy")
+			}
+		})
 	}
 }
 
