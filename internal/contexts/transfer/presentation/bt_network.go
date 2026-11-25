@@ -3,10 +3,9 @@ package presentation
 import (
 	"context"
 	"encoding/hex"
-	"errors"
-	"fmt"
 	"github.com/egoist/mygo/ui"
 	"skiff/internal/contexts/transfer/application"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 	"strconv"
 	"strings"
 	"time"
@@ -67,14 +66,14 @@ const (
 )
 
 var btNetworkTabs = [...]optionTabItem{
-	{"连接", "连接", "network"}, {"Tracker", "Tracker", "list"}, {"做种", "做种", "upload"},
+	{"common.connection", "common.connection", "network"}, {"Tracker", "Tracker", "list"}, {"bt.seeding", "bt.seeding", "upload"},
 }
 
 func (v *View) renderBTNetwork(c *ui.Context, p palette, stage ui.Element) {
 	b := &v.btNetwork
-	preferenceSheet(c, p, stage, "bt-network", "BT 网络", "network", &b.open, func() {
+	preferenceSheet(c, p, stage, "bt-network", tr(c, "bt.network"), "network", &b.open, func() {
 		const width = preferenceWidth - 2*(preferenceInset+preferenceBorder)
-		optionTabBar(c, p, "BT 设置类别", &b.tab, btNetworkTabs[:], width).Disabled(v.Busy)
+		optionTabBar(c, p, tr(c, "bt.settingsTabs"), &b.tab, btNetworkTabs[:], width).Disabled(v.Busy)
 		// Size the stable page for the address editor and three complete status rows.
 		const pageHeight = 18 + 68 + 2*10 + 3*btSubscriptionRowHeight
 		pages := ui.Box(c.Key("bt-network-pages")).FillWidth().Height(pageHeight)
@@ -100,7 +99,7 @@ func (v *View) renderBTNetwork(c *ui.Context, p palette, stage ui.Element) {
 		})
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
 			ui.Box(c).Grow(1).MinWidth(0).Children(func() { inlineError(c, b.err) })
-			if primaryAction(c, "保存并更新", "check", v.Busy).Shrink(0).Clicked() {
+			if primaryAction(c, tr(c, "bt.saveRefresh"), "check", v.Busy).Shrink(0).Clicked() {
 				v.saveBTSettings()
 			}
 		})
@@ -108,16 +107,16 @@ func (v *View) renderBTNetwork(c *ui.Context, p palette, stage ui.Element) {
 }
 
 func (b *btNetworkPanel) connections(c *ui.Context, p palette) {
-	formRow(c, p, "节点发现", func() {
+	formRow(c, p, tr(c, "bt.discovery"), func() {
 		dht := !b.draft.DisableDHT
 		if ui.Checkbox(c, &dht, "DHT").Transition(controlMotion).Changed() {
 			b.draft.DisableDHT = !dht
 		}
-		ui.Checkbox(c, &b.draft.LocalDiscovery, "局域网").Transition(controlMotion)
+		ui.Checkbox(c, &b.draft.LocalDiscovery, tr(c, "bt.localNetwork")).Transition(controlMotion)
 	})
-	formRow(c, p, "监听端口", func() { rowInput(c, p, "监听端口", "自动", &b.port, false) })
-	formRow(c, p, "节点上限", func() { rowInput(c, p, "每种节点上限", "自动", &b.peers, false) })
-	ui.Text(c, "更改端口或节点发现后，重启 Skiff 生效。").FontSize(12).TextColor(p.muted)
+	formRow(c, p, tr(c, "bt.listenPort"), func() { rowInput(c, p, tr(c, "bt.listenPort"), tr(c, "common.auto"), &b.port, false) })
+	formRow(c, p, tr(c, "bt.peerLimit"), func() { rowInput(c, p, tr(c, "bt.perTorrentLimit"), tr(c, "common.auto"), &b.peers, false) })
+	ui.Text(c, tr(c, "bt.requiresRestart")).FontSize(12).TextColor(p.muted)
 }
 
 const btSubscriptionRowHeight = 24
@@ -125,8 +124,8 @@ const btSubscriptionRowHeight = 24
 func (v *View) trackerSubscriptions(c *ui.Context, p palette) {
 	b := &v.btNetwork
 	ui.Row(c).FillWidth().Height(18).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "订阅地址").Grow(1).FontSize(13).FontWeight(560)
-		ui.Text(c, "每 12 小时更新").FontSize(12).TextColor(p.muted)
+		ui.Text(c, tr(c, "bt.subscriptionURLs")).Grow(1).FontSize(13).FontWeight(560)
+		ui.Text(c, tr(c, "bt.refreshInterval")).FontSize(12).TextColor(p.muted)
 	})
 	// Give the editor three full lines. MyGo paints scrolling text through
 	// its own padding, so the vertical insets belong to the surrounding box.
@@ -135,8 +134,8 @@ func (v *View) trackerSubscriptions(c *ui.Context, p palette) {
 		frame.Border(1, p.active)
 	}
 	frame.Children(func() {
-		field := ui.TextAreaBase(c, &b.draft.Sources).Transition(controlMotion).Label("Tracker 订阅源").
-			Placeholder("每行一个订阅地址").Fill().Clip().Padding(0, settingsScrollGutter, 0, 9).
+		field := ui.TextAreaBase(c, &b.draft.Sources).Transition(controlMotion).Label(tr(c, "bt.trackerSubscriptions")).
+			Placeholder(tr(c, "bt.subscriptionPerLine")).Fill().Clip().Padding(0, settingsScrollGutter, 0, 9).
 			ScrollbarStyle(settingsScrollbar(c, p)).FontSize(13).FixedLineHeight(18)
 		if b.showFirstSource {
 			field.SetTextSelection(0, 0)
@@ -145,17 +144,17 @@ func (v *View) trackerSubscriptions(c *ui.Context, p palette) {
 	})
 	// Only results scroll. The editor stays at the full form width, with the
 	// thumb in a separate gutter beside the status column.
-	ui.Scroll(c.Key("subscription-results")).ScrollbarStyle(settingsScrollbar(c, p)).Role(ui.RoleList).Label("订阅状态").
+	ui.Scroll(c.Key("subscription-results")).ScrollbarStyle(settingsScrollbar(c, p)).Role(ui.RoleList).Label(tr(c, "bt.subscriptionStatus")).
 		Grow(1).MinHeight(0).FillWidth().Children(func() {
 		ui.Column(c).FillWidth().Padding(0, settingsScrollGutter, 0, 0).Children(func() {
 			for _, sub := range v.Snapshot.BTSubscriptions {
 				ui.Row(c.Key(sub.URL)).Role(ui.RoleListItem).FillWidth().Height(btSubscriptionRowHeight).Gap(10).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, sub.URL).Grow(1).MinWidth(0).SingleLine().TruncateMiddle().Tooltip(sub.URL).FontSize(12).TextColor(p.muted)
-					status, color := fmt.Sprintf("%d 个 Tracker", len(sub.Trackers)), p.muted
+					status, color := trf(c, "bt.trackerCount", i18n.Args{"count": len(sub.Trackers)}), p.muted
 					if sub.Error != "" {
-						status, color = "更新失败", c.Theme().Danger
+						status, color = tr(c, "bt.refreshFailed"), c.Theme().Danger
 					} else if sub.Checked.IsZero() {
-						status = "待更新"
+						status = tr(c, "bt.pendingRefresh")
 					}
 					ui.Text(c, status).SingleLine().FontSize(12).TextColor(color).ContentTransition(textChange).Description(sub.Error).Tooltip(sub.Error)
 				})
@@ -165,7 +164,7 @@ func (v *View) trackerSubscriptions(c *ui.Context, p palette) {
 }
 
 func (b *btNetworkPanel) seeding(c *ui.Context, p palette) {
-	toggle := ui.Checkbox(c, &b.draft.Seed.Enabled, "下载完成后继续做种").Transition(controlMotion).Height(32)
+	toggle := ui.Checkbox(c, &b.draft.Seed.Enabled, tr(c, "bt.seedCompleted")).Transition(controlMotion).Height(32)
 	on := b.draft.Seed.Enabled
 	reveal := toggle.AnimateTo("stop-conditions", amount(on), panelSpring)
 	if !on && reveal == 0 {
@@ -173,9 +172,9 @@ func (b *btNetworkPanel) seeding(c *ui.Context, p palette) {
 	}
 	ui.Column(c.Key("seed-limits")).FillWidth().Gap(10).Opacity(reveal).Translate(0, -4*(1-reveal)).
 		AccessHidden(!on).IgnoreInput(!on).Children(func() {
-		numberWithUnit(c, p, "目标分享率", "倍", "不限", &b.ratio)
-		numberWithUnit(c, p, "做种时长", "分钟", "不限", &b.minutes)
-		ui.Text(c, "先达到任一条件时停止做种。").FontSize(12).TextColor(p.muted)
+		numberWithUnit(c, p, tr(c, "bt.targetRatio"), tr(c, "bt.ratioUnit"), tr(c, "bt.noSeedingLimit"), &b.ratio)
+		numberWithUnit(c, p, tr(c, "bt.seedTime"), tr(c, "bt.minutes"), tr(c, "bt.noSeedingLimit"), &b.minutes)
+		ui.Text(c, tr(c, "bt.stopAtLimit")).FontSize(12).TextColor(p.muted)
 	})
 }
 
@@ -185,7 +184,7 @@ func (v *View) saveBTSettings() {
 	port, e1 := optionalNumber(b.port)
 	peers, e2 := optionalNumber(b.peers)
 	if e1 != nil || e2 != nil {
-		b.tab, b.err = btConnections, errors.New("请输入有效的端口和节点数")
+		b.tab, b.err = btConnections, copyError("bt.invalidPeers", nil)
 		return
 	}
 	cfg.ListenPort, cfg.MaxPeers = port, peers
@@ -196,7 +195,7 @@ func (v *View) saveBTSettings() {
 			ratio, err = strconv.ParseFloat(strings.TrimSpace(b.ratio), 64)
 		}
 		if err != nil {
-			b.tab, b.err = btSeeding, errors.New("请输入有效的时长和分享率")
+			b.tab, b.err = btSeeding, copyError("bt.invalidSeeding", nil)
 			return
 		}
 		cfg.Seed.Minutes, cfg.Seed.Ratio = minutes, ratio
@@ -260,10 +259,10 @@ func (v *View) renderBTDetails(c *ui.Context, p palette, stage ui.Element) {
 		}
 		c.After(2 * time.Second)
 	}
-	preferenceSheet(c, p, stage, "bt-inspector", "BT 详情", "network", &b.open, func() {
-		formRow(c, p, "节点上限", func() {
-			rowInput(c, p, "此种子节点上限", "使用全局设置", &b.peerLimit, false)
-			if secondaryAction(c, "应用").Disabled(v.Busy).Clicked() {
+	preferenceSheet(c, p, stage, "bt-inspector", tr(c, "bt.details"), "network", &b.open, func() {
+		formRow(c, p, tr(c, "bt.peerLimit"), func() {
+			rowInput(c, p, tr(c, "bt.torrentPeerLimit"), tr(c, "bt.inherit"), &b.peerLimit, false)
+			if secondaryAction(c, tr(c, "common.apply")).Disabled(v.Busy).Clicked() {
 				n, err := optionalNumber(b.peerLimit)
 				if err != nil {
 					b.err = err
@@ -275,7 +274,7 @@ func (v *View) renderBTDetails(c *ui.Context, p palette, stage ui.Element) {
 		})
 		d := b.data
 		bits, _ := hex.DecodeString(d.Bitfield)
-		ui.Textf(c, "%d 个分片  ·  已上传 %s", d.Pieces, bytesText(d.Uploaded)).FontSize(13)
+		ui.Text(c, trf(c, "bt.swarmTotals", i18n.Args{"pieces": d.Pieces, "uploaded": bytesText(d.Uploaded)})).FontSize(13)
 		ui.Box(c).FillWidth().Height(8).Radius(cornerSmall).Clip().Background(p.tint).Draw(func(painter *ui.Painter, r ui.Rect) {
 			if d.Pieces <= 0 {
 				return
@@ -294,11 +293,11 @@ func (v *View) renderBTDetails(c *ui.Context, p palette, stage ui.Element) {
 		})
 		ui.Scroll(c).Height(168).FillWidth().Children(func() {
 			ui.Column(c).FillWidth().Gap(6).Children(func() {
-				ui.Textf(c, "Tracker · %d", len(d.Trackers)).FontWeight(600)
+				ui.Text(c, trf(c, "bt.trackersHeading", i18n.Args{"count": len(d.Trackers)})).FontWeight(600)
 				for _, tr := range d.Trackers {
 					ui.Text(c, tr).SingleLine().TruncateMiddle().Tooltip(tr).FontSize(12)
 				}
-				ui.Textf(c, "已连接节点 · %d", len(d.Peers)).FontWeight(600)
+				ui.Text(c, trf(c, "bt.connectedPeers", i18n.Args{"count": len(d.Peers)})).FontWeight(600)
 				for _, peer := range d.Peers {
 					down, _ := strconv.ParseInt(peer.Download, 10, 64)
 					up, _ := strconv.ParseInt(peer.Upload, 10, 64)

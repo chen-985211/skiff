@@ -3,6 +3,7 @@ package presentation
 import (
 	"context"
 	"github.com/egoist/mygo/ui"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 )
 
 // Keep the paint layer alive through dismissal, but release its modal
@@ -43,14 +44,14 @@ func optionField(c *ui.Context, p palette, label string, value *string, secret b
 func (v *View) ftpLogin(c *ui.Context, p palette, stage ui.Element) {
 	optionDialog(c, p, stage, "ftp", &v.ftpOpen, func(panel ui.Element) {
 		panel.Width(320).Column().Padding(20).Gap(12).Radius(cornerSheet).Background(p.panel).Children(func() {
-			ui.Text(c, "登录 FTP").FontSize(18).FontWeight(600)
-			optionField(c, p, "FTP 账号", &v.ftpUser, false)
-			optionField(c, p, "FTP 密码", &v.ftpPassword, true)
+			ui.Text(c, tr(c, "ftp.signIn")).FontSize(18).FontWeight(600)
+			optionField(c, p, tr(c, "ftp.user"), &v.ftpUser, false)
+			optionField(c, p, tr(c, "ftp.password"), &v.ftpPassword, true)
 			ui.Row(c).FillWidth().Justify(ui.End).Gap(8).Children(func() {
-				if secondaryAction(c, "取消").Clicked() {
+				if secondaryAction(c, tr(c, "common.cancel")).Clicked() {
 					v.ftpOpen = false
 				}
-				if primaryAction(c, "登录并继续", "download", v.ftpUser == "" || v.Busy).Clicked() {
+				if primaryAction(c, tr(c, "ftp.continue"), "download", v.ftpUser == "" || v.Busy).Clicked() {
 					id, user, password := v.ftpID, v.ftpUser, v.ftpPassword
 					v.ftpOpen = false
 					v.run(func(ctx context.Context) error { return v.API.RetryFTP(ctx, id, user, password) }, func(err error) { v.setTaskError(id, err) })
@@ -77,7 +78,7 @@ func preferenceSheet(c *ui.Context, p palette, stage ui.Element, key, title, ico
 				})
 				ui.Text(c, title).Grow(1).FontSize(18).FontWeight(600)
 				close := ui.ButtonBase(c.Key("close")).Transition(controlMotion).Size(30, 30).Radius(cornerRemove).
-					Center().FocusRing(true).Label("关闭" + title).Tooltip("关闭")
+					Center().FocusRing(true).Label(tr(c, "common.close") + title).Tooltip(tr(c, "common.close"))
 				if close.Hovered() {
 					close.Background(p.tint.Alpha(.45))
 				}
@@ -96,7 +97,7 @@ func preferenceSheet(c *ui.Context, p palette, stage ui.Element, key, title, ico
 func preferenceNumber(c *ui.Context, p palette, label, unit, placeholder, hint string, value *string) ui.Element {
 	var field ui.Element
 	ui.Column(c.Key(label)).FillWidth().Gap(4).Children(func() {
-		field = numberWithUnit(c, p, label, unit, placeholder, value).Description(unit + "。" + hint)
+		field = numberWithUnit(c, p, label, unit, placeholder, value).Description(trf(c, "common.unitHint", i18n.Args{"unit": unit, "hint": hint}))
 		ui.Text(c, hint).Margin(0, 0, 0, optionLabelWidth+optionGap).FontSize(12).TextColor(p.muted)
 	})
 	return field

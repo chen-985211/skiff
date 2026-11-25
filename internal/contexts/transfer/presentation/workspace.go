@@ -9,11 +9,11 @@ import (
 type category struct{ id, title, icon, empty string }
 
 var categories = []category{
-	{"all", "全部任务", "all", "还没有下载任务"},
-	{"active", "正在下载", "download", "当前没有正在下载的任务"},
-	{"paused", "已暂停", "pause", "没有暂停的任务"},
-	{"complete", "已完成", "check", "还没有已完成的任务"},
-	{"error", "下载失败", "error", "没有失败的任务"},
+	{"all", "workspace.all", "all", "workspace.allEmpty"},
+	{"active", "workspace.active", "download", "workspace.activeEmpty"},
+	{"paused", "task.paused", "pause", "workspace.pausedEmpty"},
+	{"complete", "task.complete", "check", "workspace.completedEmpty"},
+	{"error", "task.failed", "error", "workspace.failedEmpty"},
 }
 
 func (v *View) category() category {
@@ -72,12 +72,12 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 		ui.Box(c).FillWidth().Height(max(20, c.TitleBar().Bottom)).DragWindow()
 		ui.Row(c).Height(workspaceHeader).PaddingX(8).AlignItems(ui.Center).Gap(10).DragWindow().Children(func() {
 			ui.Image(c, icons["boat"]).Size(38, 38).Fit(ui.Contain)
-			ui.Text(c, "Skiff").FontSize(21).FontWeight(650)
+			ui.Text(c, tr(c, "common.appName")).FontSize(21).FontWeight(650)
 		})
 		ui.Column(c).ZIndex(1).Gap(rowGap).Children(func() {
 			for _, cat := range categories {
 				selected := !v.settingsOpen && v.Filter == cat.id
-				button := ui.ButtonBase(c.Key(cat.id)).FillWidth().Height(rowHeight).ZIndex(1).PaddingX(11).Label(cat.title).AccessSelected(selected).Radius(cornerRow).Transition(controlMotion)
+				button := ui.ButtonBase(c.Key(cat.id)).FillWidth().Height(rowHeight).ZIndex(1).PaddingX(11).Label(tr(c, cat.title)).AccessSelected(selected).Radius(cornerRow).Transition(controlMotion)
 				ink := p.muted
 				if selected {
 					ink = c.Theme().Text
@@ -87,7 +87,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 				button.Children(func() {
 					ui.Row(c).Fill().AlignItems(ui.Center).Gap(9).Children(func() {
 						ui.Icon(c, icons[cat.icon]).FontSize(17).TextColor(ink)
-						ui.Text(c, cat.title).Grow(1).FontSize(13).FontWeight(570).TextColor(ink)
+						ui.Text(c, tr(c, cat.title)).Grow(1).FontSize(13).FontWeight(570).TextColor(ink)
 						if count := v.count(cat.id); count > 0 {
 							ui.Textf(c, "%d", count).Transition(panelMotion).ContentTransition(numberChange).FontFeatures("tnum").FontSize(11).TextColor(ink)
 						}
@@ -104,7 +104,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 		ui.Box(c).Grow(1).DragWindow()
 		ui.Column(c).ZIndex(1).Gap(3).Children(func() {
 			if dir := v.Snapshot.Directory; dir != "" {
-				folder := ui.ButtonBase(c.Key("destination")).FillWidth().Height(34).Radius(cornerCompact).PaddingX(10).Label("打开下载目录").Description(dir).Disabled(v.Actions.OpenDirectory == nil).Transition(controlMotion)
+				folder := ui.ButtonBase(c.Key("destination")).FillWidth().Height(34).Radius(cornerCompact).PaddingX(10).Label(tr(c, "workspace.folder")).Description(dir).Disabled(v.Actions.OpenDirectory == nil).Transition(controlMotion)
 				if folder.Hovered() {
 					folder.Background(p.panel.Alpha(.38))
 				}
@@ -124,14 +124,14 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 				}
 				inlineError(c, v.openDirectoryError)
 			}
-			settings := ui.ButtonBase(c.Key("settings")).FillWidth().Height(settingsHeight).PaddingX(10).Radius(cornerCompact).Transition(controlMotion).Label("设置").AccessSelected(v.settingsOpen)
+			settings := ui.ButtonBase(c.Key("settings")).FillWidth().Height(settingsHeight).PaddingX(10).Radius(cornerCompact).Transition(controlMotion).Label(tr(c, "common.settings")).AccessSelected(v.settingsOpen)
 			if !v.settingsOpen && settings.Hovered() {
 				settings.Background(p.panel.Alpha(.48))
 			}
 			settings.Children(func() {
 				ui.Row(c).Fill().AlignItems(ui.Center).Gap(8).Children(func() {
 					ui.Icon(c, icons["settings"]).FontSize(16).TextColor(p.muted)
-					ui.Text(c, "设置").Grow(1).FontSize(12)
+					ui.Text(c, tr(c, "common.settings")).Grow(1).FontSize(12)
 
 				})
 			})
@@ -145,16 +145,16 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 
 func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 	ui.Row(c.Key("task-dock")).Transition(dockMotion).Height(cardGap+dockHeight+footerInset).Shrink(0).Padding(0, 0, footerInset).AlignItems(ui.End).Justify(ui.Start).Children(func() {
-		ui.Row(c).Role(ui.RoleToolbar).Label("下载工具栏").Width(cardWidth).MaxWidthPercent(100).Height(dockHeight).Gap(cardGap).Children(func() {
-			search = ui.Row(c).Role(ui.RoleSearch).Label("任务搜索").Grow(1).MinWidth(0).FillHeight().AlignItems(ui.Center).Padding(0, 8, 0, 16).Gap(8)
+		ui.Row(c).Role(ui.RoleToolbar).Label(tr(c, "workspace.toolbar")).Width(cardWidth).MaxWidthPercent(100).Height(dockHeight).Gap(cardGap).Children(func() {
+			search = ui.Row(c).Role(ui.RoleSearch).Label(tr(c, "workspace.searchRegion")).Grow(1).MinWidth(0).FillHeight().AlignItems(ui.Center).Padding(0, 8, 0, 16).Gap(8)
 			surface(c, search, p, cornerDock, searchGlass).Shadow(0, 3, 10, 0, c.Theme().Text.Alpha(.10)).Children(func() {
 				ui.Icon(c, icons["search"]).FontSize(18).TextColor(p.muted).IgnoreInput(true)
-				field := ui.TextInputBase(c, &v.Query).Transition(controlMotion).Label("搜索下载任务").Placeholder("搜索文件名或链接").Grow(1).MinWidth(0).FillHeight().FontSize(13).KeyShortcuts(ui.Cmd, ui.KeyF)
+				field := ui.TextInputBase(c, &v.Query).Transition(controlMotion).Label(tr(c, "workspace.searchLabel")).Placeholder(tr(c, "workspace.searchPlaceholder")).Grow(1).MinWidth(0).FillHeight().FontSize(13).KeyShortcuts(ui.Cmd, ui.KeyF)
 				if search.Clicked() || (!v.DialogOpen && !v.RestartOpen && c.Shortcut(ui.Cmd, ui.KeyF)) {
 					field.Focus()
 				}
 				cleared := false
-				if v.Query != "" && (iconButton(c, "close", "清空搜索框", false) || field.Shortcut(0, ui.KeyEscape)) {
+				if v.Query != "" && (iconButton(c, "close", tr(c, "workspace.searchClear"), false) || field.Shortcut(0, ui.KeyEscape)) {
 					v.Query = ""
 					cleared = true
 					field.Focus()
@@ -167,9 +167,9 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 				}
 			})
 			if !v.Ready && v.engineOffered {
-				label := "下载引擎"
+				label := tr(c, "engine.download")
 				if v.installingEngine {
-					label = "下载中…"
+					label = tr(c, "engine.downloading")
 				}
 				trigger = primaryAction(c, label, "download", v.installingEngine || v.Actions.DownloadEngine == nil)
 				if trigger.Clicked() && !v.installingEngine && v.Actions.DownloadEngine != nil {
@@ -183,7 +183,11 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 					v.OpenNew()
 				}
 			}
-			trigger.Width(composeButtonWidth).Shrink(0).FillHeight().Radius(cornerDock)
+			width := float32(composeButtonWidth)
+			if c.Locale() == "en" {
+				width = 146
+			}
+			trigger.Width(width).Shrink(0).FillHeight().Radius(cornerDock)
 		})
 	})
 	return search, trigger

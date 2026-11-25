@@ -2,7 +2,7 @@ package presentation
 
 import (
 	"context"
-	"fmt"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -57,7 +57,7 @@ func (v *View) queue(c *ui.Context, p palette) {
 				}
 			}
 		})
-	}).Width(gridWidth).Gap(cardGap).AlignSelf(ui.Start).Grow(1).MinHeight(0).Label("下载任务列表").Transition(pageFade)
+	}).Width(gridWidth).Gap(cardGap).AlignSelf(ui.Start).Grow(1).MinHeight(0).Label(tr(c, "workspace.queue")).Transition(pageFade)
 }
 
 func (v *View) queueHeader(c *ui.Context, p palette, gridWidth float32, items []application.TaskDTO) {
@@ -80,7 +80,7 @@ func (v *View) queueHeader(c *ui.Context, p palette, gridWidth float32, items []
 		}
 		if v.detailID == "" && strings.TrimSpace(v.Query) != "" {
 			const resultGap = 12
-			ui.Textf(c, "%d 个结果", len(items)).Transition(panelMotion).ContentTransition(numberChange).FontSize(12).TextColor(p.muted).IgnoreInput(true).Absolute().Left(0).Bottom(resultGap)
+			ui.Text(c, trf(c, "workspace.results", i18n.Args{"count": len(items)})).Transition(panelMotion).ContentTransition(numberChange).FontSize(12).TextColor(p.muted).IgnoreInput(true).Absolute().Left(0).Bottom(resultGap)
 		}
 	})
 }
@@ -95,11 +95,11 @@ func (v *View) batchAction(c *ui.Context, items []application.TaskDTO, cmd appli
 	if len(ids) < 2 {
 		return
 	}
-	action, icon := "继续", "play"
+	action, icon := "workspace.resumeMany", "play"
 	if cmd == application.Pause {
-		action, icon = "暂停", "pause"
+		action, icon = "workspace.pauseMany", "pause"
 	}
-	label := fmt.Sprintf("%s %d 项", action, len(ids))
+	label := trf(c, action, i18n.Args{"count": len(ids)})
 	t := c.Theme()
 	b := ui.ButtonBase(c.Key(cmd)).Label(label).Disabled(v.Busy || !v.Ready).Height(32).PaddingX(12).Radius(cornerAction).Center().Transition(pageFade)
 	fill := t.Surface.Alpha(.40)
@@ -127,20 +127,20 @@ func (v *View) empty(c *ui.Context, p palette, cat category) {
 	title, icon := cat.empty, cat.icon
 	switch {
 	case !v.Ready && v.engineOffered:
-		title, icon = "尚未安装下载引擎", "download"
+		title, icon = "engine.missing", "download"
 		if v.installingEngine {
-			title = "正在准备下载引擎"
+			title = "engine.starting"
 		}
 		if v.EngineError != nil {
-			title, icon = "引擎安装失败", "error"
+			title, icon = "engine.installFailed", "error"
 		}
 	case !v.Ready:
-		title, icon = "正在准备下载引擎", "download"
+		title, icon = "engine.starting", "download"
 		if v.EngineError != nil {
-			title, icon = "下载引擎未就绪", "error"
+			title, icon = "engine.notReady", "error"
 		}
 	case strings.TrimSpace(v.Query) != "":
-		title, icon = "没有匹配的任务", "search"
+		title, icon = "workspace.noResults", "search"
 	case cat.id == "all":
 		icon = "tray"
 	}
@@ -150,7 +150,7 @@ func (v *View) empty(c *ui.Context, p palette, cat category) {
 		} else {
 			ui.Icon(c, icons[icon]).FontSize(36).TextColor(p.muted)
 		}
-		ui.Text(c, title).FontSize(15).FontWeight(520).TextColor(p.muted)
+		ui.Text(c, tr(c, title)).FontSize(15).FontWeight(520).TextColor(p.muted)
 		if !v.Ready {
 			inlineError(c, v.EngineError)
 		}

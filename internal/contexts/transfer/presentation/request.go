@@ -3,6 +3,7 @@ package presentation
 import (
 	"github.com/egoist/mygo/ui"
 	"skiff/internal/contexts/transfer/application"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 	"slices"
 	"strconv"
 	"strings"
@@ -52,14 +53,14 @@ func (v *View) headerOptions(c *ui.Context, p palette) {
 	// Build the actions first so an added row can take focus in this frame.
 	// The rows already own their place above this trailing toolbar.
 	ui.Row(c).FillWidth().Height(28).Shrink(0).AlignItems(ui.Center).Justify(ui.End).Gap(8).Children(func() {
-		if headerAction(c, p, "paste", "导入", "从剪贴板导入请求头") {
+		if headerAction(c, p, "paste", tr(c, "headers.import"), tr(c, "headers.importClipboard")) {
 			block, err := application.ImportHeaders(c.ReadClipboard())
 			v.headerErr = err
 			if err == nil && block != "" {
 				v.loadHeaders(block)
 			}
 		}
-		if headerAction(c, p, "plus", "添加", "添加自定义请求头") {
+		if headerAction(c, p, "plus", tr(c, "headers.add"), tr(c, "headers.addCustom")) {
 			v.fields = append(v.fields, requestField{})
 			added = true
 		}
@@ -74,12 +75,12 @@ func (v *View) headerOptions(c *ui.Context, p palette) {
 				continue
 			}
 			ui.Row(c.Key("custom-" + strconv.Itoa(i))).Transition(pageFade).FillWidth().Height(32).Shrink(0).Gap(optionGap).AlignItems(ui.Center).Children(func() {
-				name := rowInput(c, p, "请求头名称", "名称", &h.Name, false).Grow(0).Basis(optionLabelWidth).MinWidth(optionLabelWidth)
+				name := rowInput(c, p, tr(c, "headers.nameLabel"), tr(c, "headers.name"), &h.Name, false).Grow(0).Basis(optionLabelWidth).MinWidth(optionLabelWidth)
 				if added && i == len(v.fields)-1 {
 					name.Focus().ScrollIntoView()
 				}
-				rowInput(c, p, "请求头值", "值", &h.Value, true)
-				if iconButton(c, "close", "移除自定义请求头 "+strconv.Itoa(i-3), false) {
+				rowInput(c, p, tr(c, "headers.valueLabel"), tr(c, "headers.value"), &h.Value, true)
+				if iconButton(c, "close", trf(c, "headers.removeCustom", i18n.Args{"index": i - 3}), false) {
 					remove = i
 				}
 			})

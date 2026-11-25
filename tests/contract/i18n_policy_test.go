@@ -5,6 +5,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -98,7 +100,7 @@ func checkInterfaceCopy(path string, source []byte) ([]string, error) {
 				}
 			} else {
 				switch sel.Sel.Name {
-				case "Label", "Tooltip", "Placeholder", "Description":
+				case "Label", "Tooltip", "Placeholder", "Description", "Item":
 					if len(node.Args) > 0 {
 						mark(node.Args[0])
 					}
@@ -133,7 +135,9 @@ func checkInterfaceCopy(path string, source []byte) ([]string, error) {
 			return true
 		}
 		value, _ := strconv.Unquote(literal.Value)
-		if strings.ContainsFunc(value, func(r rune) bool { return unicode.Is(unicode.Han, r) }) || visible[literal] && isProse(value) {
+		if strings.ContainsFunc(value, func(r rune) bool {
+			return unicode.Is(unicode.Han, r) || strings.ContainsRune("。，；：！？（）", r)
+		}) || visible[literal] && isProse(value) {
 			issues = append(issues, fmt.Sprintf("%s: move user-facing text to the i18n catalogs", fset.Position(literal.Pos())))
 		}
 		return true
@@ -156,4 +160,35 @@ func isProse(value string) bool {
 		return false
 	}
 	return strings.ContainsFunc(formatVerb.ReplaceAllString(value, ""), unicode.IsLetter)
+}
+
+func TestI18nPresentationCopy(t *testing.T) {
+	root := i18nRepositoryRoot()
+	for _, dir := range []string{"internal/contexts", "internal/platform/desktop"} {
+		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, entry fs.DirEntry, err error) error {
+			if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return err
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			rpath, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			relative := filepath.ToSlash(rpath)
+			if dir == "internal/contexts" && !strings.Contains(relative, "/presentation/") {
+				return nil
+			}
+			issues, err := checkInterfaceCopy(relative, data)
+			for _, issue := range issues {
+				t.Error(issue)
+			}
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 }

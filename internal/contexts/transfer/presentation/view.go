@@ -23,6 +23,8 @@ type API interface {
 	Snapshot() application.Snapshot
 }
 type Actions struct {
+	ChosenLocale   func() string
+	SetLocale      func(string)
 	PickSource     func(bool, func(string, error))
 	SaveTorrent    func(string, func(string, error))
 	PickTorrent    func(func(string, error))
@@ -170,13 +172,14 @@ func (v *View) Render(c *ui.Context) {
 	v.diskDialog(c, p, stage)
 	v.networkDialog(c, p, stage)
 	v.ftpLogin(c, p, stage)
-	if ui.AlertDialog(c, &v.RestartOpen, "从头重新下载？", "原来的未完成文件会保留，新下载使用不同文件名。", "取消", "重新下载") == 1 {
+	if ui.AlertDialog(c, &v.RestartOpen, tr(c, "task.confirmRestart"), tr(c, "task.restartExplanation"), tr(c, "common.cancel"), tr(c, "task.restartConfirm")) == 1 {
 		v.command(v.RestartID, application.Restart)
 	}
 }
 
 func inlineError(c *ui.Context, err error) {
 	if err != nil {
-		ui.Text(c.Key("inline-error"), err.Error()).Transition(pageFade).ContentTransition(textChange).MinWidth(0).MaxWidthPercent(100).SingleLine().FontSize(12).TextColor(c.Theme().Danger).Tooltip(err.Error())
+		message := errorText(c.Locale(), err)
+		ui.Text(c.Key("inline-error"), message).Transition(pageFade).ContentTransition(textChange).MinWidth(0).MaxWidthPercent(100).SingleLine().FontSize(12).TextColor(c.Theme().Danger).Tooltip(message)
 	}
 }

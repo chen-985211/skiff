@@ -2,7 +2,6 @@ package presentation
 
 import (
 	"context"
-	"fmt"
 	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/presentation/i18n"
 	"strconv"
@@ -24,11 +23,11 @@ func (v *View) submit() {
 	}
 	if strings.TrimSpace(v.URLs) == "" {
 		v.advanced, v.focusLinks = false, true
-		v.FormError = "请先输入下载链接"
+		v.FormError = i18n.Text(v.locale, "download.fileLinksRequired")
 		return
 	}
 	if strings.TrimSpace(v.Directory) == "" {
-		v.FormError = "请选择保存目录"
+		v.FormError = i18n.Text(v.locale, "download.chooseDirectory")
 		return
 	}
 	network := normalizedNetwork(v.taskNetwork)
@@ -46,7 +45,7 @@ func (v *View) submit() {
 		var err error
 		limit, err = strconv.Atoi(value)
 		if err != nil || limit < 1 || limit > application.MaxConnectionLimit {
-			v.FormError = fmt.Sprintf("连接上限应为 1 到 %d，留空使用自动设置", application.MaxConnectionLimit)
+			v.FormError = i18n.Format(v.locale, "download.connectionLimitError", i18n.Args{"limit": application.MaxConnectionLimit})
 			v.optionTab = fileTab
 			v.advanced = true
 			return
@@ -76,18 +75,18 @@ func (v *View) submit() {
 			v.Query = ""
 			summary := i18n.Format(v.locale, "batch.summary", i18n.Args{"added": result.Added, "duplicates": result.Duplicates, "invalid": result.Invalid})
 			if result.Deferred > 0 {
-				summary += fmt.Sprintf(" · 待下批 %d", result.Deferred)
+				summary = i18n.Format(v.locale, "batch.summaryDeferred", i18n.Args{"added": result.Added, "duplicates": result.Duplicates, "invalid": result.Invalid, "deferred": result.Deferred})
 			}
 			switch {
 			case err != nil:
-				v.FormError = fmt.Sprintf("已创建 %d 个任务，部分操作失败：%v", result.Added, err)
+				v.FormError = i18n.Format(v.locale, "batch.partialFailure", i18n.Args{"added": result.Added, "reason": err.Error()})
 				if len(result.Remaining) > 0 || result.Duplicates > 0 {
 					v.FormError = summary + "\n" + v.FormError
 				}
 			case len(result.Remaining) > 0:
 				v.FormError = summary
 				if result.Invalid > 0 {
-					v.FormError += "。请修改无效的文件链接。"
+					v.FormError = i18n.Format(v.locale, "batch.fixInvalid", i18n.Args{"summary": summary})
 				}
 			default:
 				v.DialogOpen = false

@@ -22,7 +22,7 @@ func (v *View) btFileActions(c *ui.Context, p palette) {
 		}
 		id := task.ID
 		run := func(action func(context.Context) error, msg string) {
-			b.fileMessage = "正在处理文件…"
+			b.fileMessage = tr(c, "bt.fileWorking")
 			b.fileErr = nil
 			v.run(action, func(err error) {
 				if b.id == id {
@@ -44,24 +44,24 @@ func (v *View) btFileActions(c *ui.Context, p palette) {
 					return
 				}
 				if path != "" {
-					run(func(ctx context.Context) error { return api.UseTorrentFiles(ctx, id, path, move, false) }, "文件已校验，位置已更新")
+					run(func(ctx context.Context) error { return api.UseTorrentFiles(ctx, id, path, move, false) }, tr(c, "bt.locationUpdated"))
 				}
 			})
 		}
-		dropdown(c.Key("bt-file-actions"), p, "BT 文件操作", "文件操作", v.Busy, func(m *ui.Menu) {
-			if m.Item("校验文件").Chosen() {
-				run(func(ctx context.Context) error { return api.VerifyTorrentFiles(ctx, id) }, "全部分片校验通过")
+		dropdown(c.Key("bt-file-actions"), p, tr(c, "bt.fileActions"), tr(c, "bt.files"), v.Busy, func(m *ui.Menu) {
+			if m.Item(tr(c, "bt.verifyFiles")).Chosen() {
+				run(func(ctx context.Context) error { return api.VerifyTorrentFiles(ctx, id) }, tr(c, "bt.verified"))
 			}
 			if v.Actions.PickDirectory != nil {
-				if m.Item("重新定位到已有文件…").Chosen() {
+				if m.Item(tr(c, "bt.relocate")).Chosen() {
 					choose(false)
 				}
-				if m.Item("移动文件到…").Chosen() {
+				if m.Item(tr(c, "bt.move")).Chosen() {
 					choose(true)
 				}
 			}
-			if m.Item("使用已有文件做种").Chosen() {
-				run(func(ctx context.Context) error { return api.UseTorrentFiles(ctx, id, task.Directory, false, true) }, "文件已校验，已提交做种")
+			if m.Item(tr(c, "bt.seedExisting")).Chosen() {
+				run(func(ctx context.Context) error { return api.UseTorrentFiles(ctx, id, task.Directory, false, true) }, tr(c, "bt.verifiedSeeding"))
 			}
 		})
 		if b.fileMessage != "" {

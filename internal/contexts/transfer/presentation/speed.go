@@ -2,15 +2,14 @@ package presentation
 
 import (
 	"context"
-	"errors"
 	"github.com/egoist/mygo/ui"
 	"strconv"
 )
 
-func rateLabel(rate int64) string {
+func rateLabel(c *ui.Context, rate int64) string {
 	switch {
 	case rate <= 0:
-		return "不限速"
+		return tr(c, "limit.unlimited")
 	case rate%(1<<20) == 0:
 		return strconv.FormatInt(rate>>20, 10) + " MiB/s"
 	case rate%1024 == 0:
@@ -22,30 +21,31 @@ func rateLabel(rate int64) string {
 
 func rateScope(id string) string {
 	if id != "" {
-		return "任务限速"
+		return "limit.task"
 	}
-	return "全局限速"
+	return "settings.globalLimit"
 }
 
 func (v *View) speedSelector(c *ui.Context, p palette, id string, current int64) {
 	if save := v.rateSaves[id]; save != nil {
 		current = save.current(current)
 	}
-	label, display := rateScope(id), rateLabel(current)
+	key := rateScope(id)
+	label, display := tr(c, key), rateLabel(c, current)
 	title := display
 	width := float32(112)
 	if id != "" {
 		title = label + " · " + display
 		width = 176
 	}
-	dropdown(c.Key(label), p, label+" · "+display, title, !v.Ready || v.Busy, func(m *ui.Menu) {
+	dropdown(c.Key(key), p, label+" · "+display, title, !v.Ready || v.Busy, func(m *ui.Menu) {
 		for _, rate := range []int64{0, 512 << 10, 1 << 20, 2 << 20, 5 << 20, 10 << 20} {
-			if m.Item(rateLabel(rate)).Checked(rate == current).Chosen() && rate != current {
+			if m.Item(rateLabel(c, rate)).Checked(rate == current).Chosen() && rate != current {
 				v.saveRate(id, rate)
 			}
 		}
 		m.Separator()
-		if m.Item("自定义…").Chosen() {
+		if m.Item(tr(c, "limit.custom")).Chosen() {
 			v.rateID = id
 			v.rateText = strconv.FormatInt(current>>10, 10)
 			v.rateErr = nil
@@ -103,15 +103,15 @@ func (v *View) saveRate(id string, rate int64) {
 	})
 }
 func (v *View) rateDialog(c *ui.Context, p palette, stage ui.Element) {
-	preferenceSheet(c, p, stage, "rate", rateScope(v.rateID), "clock", &v.rateOpen, func() {
-		if preferenceNumber(c, p, "下载上限", "KiB/s", "0", "填 0 表示不限速", &v.rateText).Changed() {
+	preferenceSheet(c, p, stage, "rate", tr(c, rateScope(v.rateID)), "clock", &v.rateOpen, func() {
+		if preferenceNumber(c, p, tr(c, "limit.download"), "KiB/s", "0", tr(c, "limit.zeroHint"), &v.rateText).Changed() {
 			v.rateErr = nil
 		}
 		inlineError(c, v.rateErr)
-		if primaryAction(c, "应用", "check", v.Busy).AlignSelf(ui.End).Clicked() {
+		if primaryAction(c, tr(c, "common.apply"), "check", v.Busy).AlignSelf(ui.End).Clicked() {
 			n, err := strconv.ParseUint(v.rateText, 10, 53)
 			if err != nil {
-				v.rateErr = errors.New("请输入非负整数")
+				v.rateErr = copyError("limit.invalid", nil)
 				return
 			}
 			v.saveRate(v.rateID, int64(n)<<10)

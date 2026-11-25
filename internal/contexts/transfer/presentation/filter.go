@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/egoist/mygo/ui"
+
 	"skiff/internal/contexts/transfer/application"
 )
 
@@ -32,20 +34,20 @@ func (v *View) count(filter string) int {
 	}
 	return n
 }
-func statusText(status string) string {
+func statusText(c *ui.Context, status string) string {
 	switch status {
 	case "active":
-		return "下载中"
+		return tr(c, "task.downloading")
 	case "waiting":
-		return "等待中"
+		return tr(c, "task.waiting")
 	case "paused":
-		return "已暂停"
+		return tr(c, "task.paused")
 	case "complete":
-		return "已完成"
+		return tr(c, "task.complete")
 	case "error":
-		return "下载失败"
+		return tr(c, "task.failed")
 	}
-	return "等待中"
+	return tr(c, "task.waiting")
 }
 func bytesText(value int64) string {
 	if value < 1024 {

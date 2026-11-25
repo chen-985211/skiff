@@ -33,6 +33,10 @@ func Languages() []string {
 	return messages.Languages()
 }
 
+func LanguageName(locale string) string {
+	return native.Autonym(locale)
+}
+
 func Text(locale, key string) string {
 	return Format(locale, key, nil)
 }

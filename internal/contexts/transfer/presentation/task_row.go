@@ -3,6 +3,7 @@ package presentation
 import (
 	"fmt"
 	"path"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -45,9 +46,9 @@ func cardAction(c *ui.Context, icon, text, label, status string, change ui.Conte
 		b.Background(c.Theme().SurfacePressed)
 	}
 	if status != "" {
-		b.Description(statusText(status))
+		b.Description(statusText(c, status))
 		if !b.Hovered() && !b.Focused() {
-			text, icon = statusText(status), stateSymbol(status)
+			text, icon = statusText(c, status), stateSymbol(status)
 		}
 	}
 	cardPill(c, b, icon, text, status, change)
@@ -60,19 +61,19 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO, displayStatus st
 	}
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		var cmd application.Command
-		label, text, icon := "查看文件详情", "详情", "file"
+		label, text, icon := tr(c, "task.fileDetails"), tr(c, "task.details"), "file"
 		switch {
 		case t.CanPause:
-			label, text, icon, cmd = "暂停下载", "暂停", "pause", application.Pause
+			label, text, icon, cmd = tr(c, "task.pause"), tr(c, "common.pause"), "pause", application.Pause
 		case t.CanResume:
-			label, text, icon, cmd = "继续下载", "继续", "play", application.Resume
+			label, text, icon, cmd = tr(c, "task.resume"), tr(c, "common.resume"), "play", application.Resume
 		case t.NeedsFTPLogin:
-			label, text, icon = "登录 FTP", "登录 FTP", "download"
+			label, text, icon = tr(c, "ftp.signIn"), tr(c, "ftp.signIn"), "download"
 		case t.CanRetry:
-			label, text, icon, cmd = "重试下载", "重试下载", "retry", application.Retry
+			label, text, icon, cmd = tr(c, "task.retry"), tr(c, "task.retry"), "retry", application.Retry
 		}
 		if cmd == "" && !t.NeedsFTPLogin && v.detailID == t.ID {
-			state := statusText(displayStatus)
+			state := statusText(c, displayStatus)
 			badge := ui.Box(c.Key("task-status")).Role(ui.RoleStatus).Label(state).Background(c.Theme().Surface.Alpha(.38))
 			cardPill(c, badge, stateSymbol(displayStatus), state, displayStatus, change)
 		} else if cardAction(c, icon, text, label, displayStatus, change) {
@@ -89,16 +90,16 @@ func (v *View) rowActions(c *ui.Context, t application.TaskDTO, displayStatus st
 				c.Invalidate()
 			}
 		}
-		if t.CanPrioritize && cardAction(c, "download", "优先下载", "优先下载", "", textChange) {
+		if t.CanPrioritize && cardAction(c, "download", tr(c, "task.prioritize"), tr(c, "task.prioritize"), "", textChange) {
 			v.command(t.ID, application.Prioritize)
 		}
 		if t.NextInQueue {
-			ui.Text(c.Key("next-in-queue"), "下一项").Transition(pageFade).FontSize(12).TextColor(c.Theme().TextMuted)
+			ui.Text(c.Key("next-in-queue"), tr(c, "task.priority")).Transition(pageFade).FontSize(12).TextColor(c.Theme().TextMuted)
 		}
-		if t.CanRestart && cardAction(c, "restart", "从头下载", "从头下载", "", textChange) {
+		if t.CanRestart && cardAction(c, "restart", tr(c, "task.restart"), tr(c, "task.restart"), "", textChange) {
 			v.RestartID, v.RestartOpen = t.ID, true
 		}
-		if t.Path != "" && v.Actions.Reveal != nil && cardAction(c, "folder", "位置", "在文件夹中显示", "", textChange) {
+		if t.Path != "" && v.Actions.Reveal != nil && cardAction(c, "folder", tr(c, "task.location"), tr(c, "task.reveal"), "", textChange) {
 			v.setTaskError(t.ID, v.Actions.Reveal(t.Path))
 			c.Invalidate()
 		}
@@ -109,7 +110,7 @@ func (v *View) removeTaskButton(c *ui.Context, id string) {
 	if v.Busy {
 		return
 	}
-	const label = "移除任务（保留文件）"
+	label := tr(c, "task.remove")
 	b := ui.ButtonBase(c.Key("remove-task")).Transition(controlMotion).Absolute().Top(8).Right(8).ZIndex(2).Size(30, 30).Center().Radius(cornerRemove).Label(label).Tooltip(label)
 	if b.Hovered() {
 		b.Background(c.Theme().SurfaceHover)
@@ -166,7 +167,7 @@ func (v *View) taskCard(c *ui.Context, p palette, t application.TaskDTO) {
 	change := progress.statusChange()
 	color := card.AnimateColor("status", taskColor(p, progress.status), *change.Animation)
 	v.cardSurface(c, card, p, t.ID, color, cornerCard).Children(func() {
-		head := ui.ButtonBase(c).Label("查看详情 " + t.Name).Tooltip(t.Name + " · " + statusText(t.Status)).Height(54).FillWidth().Radius(cornerRow).Transition(controlMotion)
+		head := ui.ButtonBase(c).Label(trf(c, "task.openDetails", i18n.Args{"name": t.Name})).Tooltip(t.Name + " · " + statusText(c, t.Status)).Height(54).FillWidth().Radius(cornerRow).Transition(controlMotion)
 		head.Children(func() {
 			ui.Row(c).Fill().Gap(fileColumnGap).AlignItems(ui.Center).Children(func() {
 				fileHeading(c, p, t, 16, 4)
@@ -231,7 +232,7 @@ func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, col
 			} else if t.Error != "" {
 				metric, ink = t.Error, c.Theme().Danger
 			} else if t.Seeding {
-				metric = "做种中"
+				metric = tr(c, "task.seeding")
 			} else if active && t.Speed > 0 {
 				metric = bytesText(t.Speed) + "/s"
 			}
@@ -240,11 +241,11 @@ func (v *View) taskProgress(c *ui.Context, p palette, t application.TaskDTO, col
 				ui.Textf(c, "%.0f%%", 100*fraction).Transition(pageFade).FontSize(12).FontWeight(600).FontFeatures("tnum")
 			}
 		})
-		track := ui.Box(c).Height(5).FillWidth().Radius(cornerProgress).Background(p.border).Clip().Role(ui.RoleProgress).Label("下载进度")
+		track := ui.Box(c).Height(5).FillWidth().Radius(cornerProgress).Background(p.border).Clip().Role(ui.RoleProgress).Label(tr(c, "task.progress"))
 		if known {
 			track.Range(0, 1, float64(fraction))
 		} else {
-			track.Description("文件大小未知")
+			track.Description(tr(c, "task.unknownSize"))
 		}
 		// Only the visible track requests paint frames. Counters and layout
 		// continue to update on actual engine observations.
@@ -306,7 +307,7 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 				if t.Status != "complete" {
 					v.speedSelector(c, p, t.ID, t.DownloadLimit)
 				}
-				if secondaryAction(c, "返回").Label("返回任务列表").Clicked() {
+				if secondaryAction(c, tr(c, "common.back")).Label(tr(c, "task.backToQueue")).Clicked() {
 					v.detailID = ""
 					c.Invalidate()
 				}
@@ -317,18 +318,18 @@ func (v *View) taskDetail(c *ui.Context, p palette, t application.TaskDTO, colum
 					if t.MirrorSource != "" {
 						source = t.MirrorSource
 					}
-					detailField(c, p, "来源", source)
+					detailField(c, p, tr(c, "task.source"), source)
 					target := t.Path
 					if target == "" {
 						target = t.Directory
 					}
-					detailField(c, p, "位置", target)
+					detailField(c, p, tr(c, "task.location"), target)
 					if t.TorrentHash != "" {
-						if secondaryAction(c, "BT 详情").Clicked() {
+						if secondaryAction(c, tr(c, "bt.details")).Clicked() {
 							v.showBTDetails(t.ID)
 						}
 					} else if t.Status == "active" && t.ConnectionLimit > 0 {
-						detailField(c, p, "连接", fmt.Sprintf("%d / %d", t.Connections, t.ConnectionLimit))
+						detailField(c, p, tr(c, "common.connection"), fmt.Sprintf("%d / %d", t.Connections, t.ConnectionLimit))
 					}
 				})
 				v.taskProgress(c, p, t, color, progress)

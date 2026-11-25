@@ -13,3 +13,23 @@ func tr(c *ui.Context, key string) string {
 func trf(c *ui.Context, key string, args i18n.Args) string {
 	return i18n.Format(c.Locale(), key, args)
 }
+
+type messageError struct {
+	key  string
+	args i18n.Args
+}
+
+func (e messageError) Error() string {
+	return i18n.Format(i18n.Source, e.key, e.args)
+}
+
+func copyError(key string, args i18n.Args) error {
+	return messageError{key, args}
+}
+
+func errorText(locale string, err error) string {
+	if message, ok := err.(messageError); ok {
+		return i18n.Format(locale, message.key, message.args)
+	}
+	return err.Error()
+}

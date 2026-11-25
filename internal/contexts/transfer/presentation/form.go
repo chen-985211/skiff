@@ -3,6 +3,7 @@ package presentation
 import (
 	"path/filepath"
 	"skiff/internal/contexts/transfer/application"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -31,9 +32,9 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 	closed := 1 - reveal
 	shown := true // Keep the modal and its draft mounted until the spring reaches the button.
 	ui.DialogBase(c, &shown, func(back, panel ui.Element) {
-		name := "新建下载"
+		name := tr(c, "download.new")
 		if v.advanced {
-			name = "下载选项"
+			name = tr(c, "download.options")
 		}
 		panel.Label(name).Absolute().Left(left+(anchor.X-left)*closed).Bottom(footerInset+(windowH-anchor.Y-anchor.H-footerInset)*closed).
 			Width(anchor.W+(width-anchor.W)*reveal).Column().AlignItems(ui.Start).Radius(cornerSheet).Clip().
@@ -83,7 +84,7 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 			ui.Row(c.Key("compose-title")).Transition(controlMotion).Absolute().Left(17).Top(9).Height(26).
 				Gap(7).AlignItems(ui.Center).Opacity(buttonInk).IgnoreInput(true).AccessHidden(true).Children(func() {
 				ui.Icon(c, icons["plus"]).FontSize(15).TextColor(c.Theme().AccentText)
-				ui.Text(c, "新建下载").SingleLine().FontSize(13).FontWeight(600).TextColor(c.Theme().AccentText)
+				ui.Text(c, tr(c, "download.new")).SingleLine().FontSize(13).FontWeight(600).TextColor(c.Theme().AccentText)
 			})
 		}
 		// Until the inputs are revealed, a second press belongs to the morphing
@@ -107,7 +108,10 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 }
 
 func (v *View) composeTools(c *ui.Context, p palette, width, ink, btInk float32, disabled bool) ui.Element {
-	const actionWidth = 64
+	actionWidth := float32(64)
+	if c.Locale() == "en" {
+		actionWidth = 88
+	}
 	const gap = 12
 	header := ui.Row(c.Key("compose-tools")).FillWidth().Height(formHeaderHeight).AlignItems(ui.Center).Gap(gap)
 	var toggle ui.Element
@@ -127,7 +131,7 @@ func (v *View) composeTools(c *ui.Context, p palette, width, ink, btInk float32,
 				}
 			}
 			if count > 1 && btInk < 1 {
-				ui.Textf(c, "已输入 %d 行", count).Transition(pageFade).Absolute().Right(0).Top(8).
+				ui.Text(c, trf(c, "download.lines", i18n.Args{"count": count})).Transition(pageFade).Absolute().Right(0).Top(8).
 					Opacity(editorOpacity(1-ink) * editorOpacity(1-btInk)).AccessHidden(v.advanced || v.bt.tab == 1).IgnoreInput(true).FontSize(11).TextColor(p.muted).ContentTransition(numberChange)
 			}
 		})
@@ -147,9 +151,9 @@ func (v *View) composeTools(c *ui.Context, p palette, width, ink, btInk float32,
 }
 
 func (v *View) advancedToggle(c *ui.Context, p palette, actionWidth, ink float32, disabled bool) ui.Element {
-	action := "高级选项"
+	action := tr(c, "download.advanced")
 	if v.advanced {
-		action = "返回链接"
+		action = tr(c, "download.backToLinks")
 	}
 	toggle := ui.ButtonBase(c.Key("advanced-toggle")).Transition(controlMotion).Label(action).Tooltip(action).Expanded(v.advanced).
 		Width(actionWidth).FillHeight().Radius(cornerSmall).FocusRing(true).Disabled(disabled)
@@ -161,7 +165,7 @@ func (v *View) advancedToggle(c *ui.Context, p palette, actionWidth, ink float32
 			ui.Icon(c, icons["settings"]).FontSize(15).TextColor(p.muted).Opacity(editorOpacity(1 - ink))
 			ui.Icon(c, icons["chevron"]).Absolute().Left(0).Top(0).FontSize(15).Rotate(90).TextColor(p.muted).Opacity(editorOpacity(ink))
 		})
-		composeCaption(c, "高级", "返回", ink, 12, 550, p.muted)
+		composeCaption(c, tr(c, "download.advancedShort"), tr(c, "common.back"), ink, 12, 550, p.muted)
 	})
 	return toggle
 }
@@ -247,11 +251,11 @@ func (v *View) composeFooter(c *ui.Context, p palette) {
 
 func (v *View) downloadFooter(c *ui.Context, p palette) {
 	v.composeDestination(c, p)
-	caption := "开始下载"
+	caption := tr(c, "download.start")
 	if v.bt.tab == 1 && v.bt.meta.Hash == "" {
-		caption = "读取文件列表"
+		caption = tr(c, "bt.readFiles")
 		if v.bt.cancel != nil {
-			caption = "取消获取"
+			caption = tr(c, "bt.cancelFetch")
 		}
 	}
 	if primaryAction(c, caption, "download", v.Busy).Width(composePrimaryWidth).Shrink(0).FocusRing(true).Clicked() {
@@ -261,8 +265,8 @@ func (v *View) downloadFooter(c *ui.Context, p palette) {
 
 func (v *View) linkEditor(c *ui.Context, p palette) {
 	links := ui.TextAreaBase(c, &v.URLs).Transition(controlMotion).FillWidth().Lines(2, 7).MinHeight(sourceMinHeight).Padding(12, 14).FontSize(13).FixedLineHeight(20).
-		Radius(cornerField).Label("下载链接").Placeholder("粘贴下载链接或 cURL").PlaceholderColor(p.muted).
-		Description("支持 HTTP、HTTPS 和 FTP 文件链接").Disabled(v.Busy)
+		Radius(cornerField).Label(tr(c, "download.urls")).Placeholder(tr(c, "download.paste")).PlaceholderColor(p.muted).
+		Description(tr(c, "download.protocols")).Disabled(v.Busy)
 	if v.focusLinks && !v.advanced && v.bt.tab == 0 {
 		links.Focus()
 		v.focusLinks = false
@@ -306,10 +310,10 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 			})
 		}
 		if v.Snapshot.Preferences.RecentDirectories[0] != "" {
-			dropdown(c.Key("recent-destinations"), p, "选择保存目录", "", v.Busy, func(m *ui.Menu) {
+			dropdown(c.Key("recent-destinations"), p, tr(c, "download.chooseDirectory"), "", v.Busy, func(m *ui.Menu) {
 				w, _ := c.Size()
 				m.MaxWidth(min(400, w-24))
-				if v.Actions.PickDirectory != nil && m.Item("选择文件夹…").Chosen() {
+				if v.Actions.PickDirectory != nil && m.Item(tr(c, "common.chooseFolder")).Chosen() {
 					pick()
 				}
 				for _, dir := range v.Snapshot.Preferences.RecentDirectories {
@@ -317,11 +321,11 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 						v.Directory, v.FormError = dir, ""
 					}
 				}
-			}, icons["folder"]).Tooltip("选择文件夹或最近位置")
+			}, icons["folder"]).Tooltip(tr(c, "download.folderOrRecent"))
 		} else {
 			var label ui.Element
 			if v.Actions.PickDirectory != nil {
-				label = ui.ButtonBase(c.Key("pick-directory")).Transition(controlMotion).Label("选择保存目录").Tooltip("选择保存目录").
+				label = ui.ButtonBase(c.Key("pick-directory")).Transition(controlMotion).Label(tr(c, "download.chooseDirectory")).Tooltip(tr(c, "download.chooseDirectory")).
 					Radius(cornerInline).FocusRing(true).Disabled(v.Busy)
 			} else {
 				label = ui.Row(c)
@@ -338,7 +342,7 @@ func (v *View) composeDestination(c *ui.Context, p palette) {
 		}
 		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Justify(ui.Center).Children(func() {
 			dir := ui.TextInputBase(c, &v.Directory).Transition(controlMotion).Absolute().Left(0).Right(0).Top(0).Bottom(0).PaddingX(6).
-				Radius(cornerInline).FontSize(12).Label("保存目录").Tooltip(v.Directory).Disabled(v.Busy)
+				Radius(cornerInline).FontSize(12).Label(tr(c, "download.folder")).Tooltip(v.Directory).Disabled(v.Busy)
 			if dir.Focused() || c.Preferences().HighContrast {
 				dir.Border(1, p.border)
 			}

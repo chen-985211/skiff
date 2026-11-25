@@ -24,9 +24,9 @@ func (v *View) createEditor(c *ui.Context, p palette) {
 	b := &v.bt.creator
 	ui.Column(c.Key("torrent-create")).FillWidth().Gap(8).Children(func() {
 		ui.Row(c).FillWidth().Gap(8).Children(func() {
-			rowInput(c, p, "制种来源", "选择文件或文件夹", &b.source, false).Disabled(v.Busy)
-			dropdown(c.Key("pick-source"), p, "选择制种来源", "选择", v.Busy || v.Actions.PickSource == nil, func(m *ui.Menu) {
-				for i, name := range []string{"文件…", "文件夹…"} {
+			rowInput(c, p, tr(c, "bt.createSource"), tr(c, "bt.fileOrFolder"), &b.source, false).Disabled(v.Busy)
+			dropdown(c.Key("pick-source"), p, tr(c, "bt.chooseSource"), tr(c, "common.choose"), v.Busy || v.Actions.PickSource == nil, func(m *ui.Menu) {
+				for i, name := range []string{tr(c, "bt.pickFile"), tr(c, "bt.pickFolder")} {
 					if m.Item(name).Chosen() {
 						v.Actions.PickSource(i == 1, func(path string, err error) {
 							if !b.open || !v.DialogOpen {
@@ -43,19 +43,19 @@ func (v *View) createEditor(c *ui.Context, p palette) {
 				}
 			})
 		})
-		ui.TextAreaBase(c, &b.trackers).Transition(controlMotion).Label("制种 Tracker").Placeholder("Tracker 地址（可选，每行一个）").FillWidth().Height(56).Padding(8).Border(1, p.border).Radius(cornerSmall).Disabled(v.Busy)
+		ui.TextAreaBase(c, &b.trackers).Transition(controlMotion).Label(tr(c, "bt.createTrackers")).Placeholder(tr(c, "bt.trackerHint")).FillWidth().Height(56).Padding(8).Border(1, p.border).Radius(cornerSmall).Disabled(v.Busy)
 	})
 }
 func (v *View) createFooter(c *ui.Context, p palette) {
 	b := &v.bt.creator
-	ui.Checkbox(c, &b.seed, "用原文件做种").Transition(controlMotion).Grow(1).Disabled(v.Busy)
+	ui.Checkbox(c, &b.seed, tr(c, "bt.seedOriginal")).Transition(controlMotion).Grow(1).Disabled(v.Busy)
 	if b.cancel != nil {
-		if secondaryAction(c, "取消生成").Width(composePrimaryWidth).Shrink(0).Clicked() {
+		if secondaryAction(c, tr(c, "bt.cancelCreate")).Width(composePrimaryWidth).Shrink(0).Clicked() {
 			b.cancel()
 		}
 		return
 	}
-	if !primaryAction(c, "保存种子…", "file", v.Busy || strings.TrimSpace(b.source) == "" || v.Actions.SaveTorrent == nil).Width(composePrimaryWidth).Shrink(0).Clicked() {
+	if !primaryAction(c, tr(c, "bt.save"), "file", v.Busy || strings.TrimSpace(b.source) == "" || v.Actions.SaveTorrent == nil).Width(composePrimaryWidth).Shrink(0).Clicked() {
 		return
 	}
 	source, trackers, seed := filepath.Clean(strings.TrimSpace(b.source)), strings.Fields(b.trackers), b.seed

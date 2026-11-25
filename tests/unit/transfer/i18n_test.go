@@ -3,6 +3,10 @@ package transfer_test
 import (
 	"testing"
 
+	"github.com/egoist/mygo/ui"
+
+	"skiff/internal/contexts/transfer/application"
+	"skiff/internal/contexts/transfer/presentation"
 	"skiff/internal/contexts/transfer/presentation/i18n"
 )
 
@@ -19,4 +23,64 @@ func TestDownloadTranslationsUseNamedValues(t *testing.T) {
 			t.Errorf("%s summary = %q, want %q", test.locale, got, test.summary)
 		}
 	}
+}
+
+func TestDownloadWorkspaceChangesLanguageWithoutResettingSearch(t *testing.T) {
+	view := presentation.New(nil, presentation.Actions{})
+	view.Ready = true
+	view.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "archive.zip", Status: "paused"}}
+	view.Query = "archive"
+	scene := interactionScene(view, 800, 560)
+	if !scene.HasText("全部任务") {
+		t.Fatalf("Chinese navigation missing: %v", scene.Texts())
+	}
+	scene.SetLocale("en")
+	scene.Frame()
+	for _, label := range []string{"All Tasks", "New Download", "archive.zip", "1 result"} {
+		if !scene.HasText(label) {
+			t.Errorf("English workspace missing %q: %v", label, scene.Texts())
+		}
+	}
+	if view.Query != "archive" {
+		t.Fatalf("search was reset to %q", view.Query)
+	}
+}
+
+func TestLanguageDropdownUsesSharedSelectionAndPreservesSettings(t *testing.T) {
+	var chosen string
+	view := presentation.New(nil, presentation.Actions{
+		ChosenLocale: func() string { return chosen },
+		SetLocale:    func(locale string) { chosen = locale },
+	})
+	scene := interactionScene(view, 1020, 680)
+	if err := scene.Click("设置"); err != nil {
+		t.Fatal(err)
+	}
+	clickLanguageButton(t, scene, "界面语言")
+	if err := scene.Click(i18n.LanguageName("en")); err != nil {
+		t.Fatal(err)
+	}
+	if chosen != "en" || view.Busy {
+		t.Fatalf("choosing English left locale %q and busy=%t", chosen, view.Busy)
+	}
+	scene.SetLocale(chosen)
+	if !scene.HasText("Appearance") || !scene.HasText("Language") {
+		t.Fatalf("settings did not stay open during the locale change: %v", scene.Texts())
+	}
+	clickLanguageButton(t, scene, "Language")
+	scene.Key(0, ui.KeyHome)
+	scene.Key(0, ui.KeyEnter)
+	if chosen != "" {
+		t.Fatalf("following the system left explicit preference %q", chosen)
+	}
+}
+
+func clickLanguageButton(t *testing.T, scene *ui.Tester, name string) {
+	t.Helper()
+	button, ok := scene.AccessByRole(ui.RoleMenuButton, name)
+	if !ok {
+		t.Fatalf("language dropdown %q is missing: %v", name, scene.Texts())
+	}
+	b := button.Bounds
+	scene.ClickAt(b.X+b.W/2, b.Y+b.H/2)
 }

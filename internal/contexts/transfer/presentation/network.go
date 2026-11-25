@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/egoist/mygo/ui"
 	"skiff/internal/contexts/transfer/application"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 	"strings"
 )
 
@@ -20,25 +21,25 @@ func normalizedNetwork(n application.NetworkSettings) application.NetworkSetting
 	return n
 }
 func (v *View) networkDialog(c *ui.Context, p palette, stage ui.Element) {
-	preferenceSheet(c, p, stage, "network", "代理与 DNS", "network", &v.networkOpen, func() {
+	preferenceSheet(c, p, stage, "network", tr(c, "network.proxyDNS"), "network", &v.networkOpen, func() {
 		v.proxyOptions(c, p, &v.networkDraft, false, preferenceWidth-2*(preferenceInset+preferenceBorder))
 		ui.Box(c).Role(ui.RoleSeparator).FillWidth().Height(1).Background(p.border.Alpha(.55))
 		formRow(c, p, "DNS", func() {
-			label := "自动"
+			label := tr(c, "common.auto")
 			if v.networkDraft.DNS == "system" {
-				label = "系统解析"
+				label = tr(c, "network.systemDNS")
 			}
 			dropdown(c.Key("dns"), p, "DNS · "+label, label, v.Busy, func(m *ui.Menu) {
-				if m.Item("自动").Checked(v.networkDraft.DNS == "").Chosen() {
+				if m.Item(tr(c, "common.auto")).Checked(v.networkDraft.DNS == "").Chosen() {
 					v.networkDraft.DNS = ""
 				}
-				if m.Item("系统解析").Checked(v.networkDraft.DNS == "system").Chosen() {
+				if m.Item(tr(c, "network.systemDNS")).Checked(v.networkDraft.DNS == "system").Chosen() {
 					v.networkDraft.DNS = "system"
 				}
 			}).Grow(1)
 		})
 		inlineError(c, v.networkErr)
-		if primaryAction(c, "保存", "check", v.Busy).AlignSelf(ui.End).Clicked() {
+		if primaryAction(c, tr(c, "common.save"), "check", v.Busy).AlignSelf(ui.End).Clicked() {
 			value := normalizedNetwork(v.networkDraft)
 			if err := value.Validate(); err != nil {
 				v.networkErr = err
@@ -51,7 +52,7 @@ func (v *View) networkDialog(c *ui.Context, p palette, stage ui.Element) {
 
 type proxyChoice struct{ mode, label string }
 
-var proxyChoices = [...]proxyChoice{{"", "全局设置"}, {"system", "跟随系统"}, {"direct", "直连"}, {"manual", "手动代理"}}
+var proxyChoices = [...]proxyChoice{{"", "network.global"}, {"system", "common.system"}, {"direct", "network.direct"}, {"manual", "network.manual"}}
 
 func (v *View) proxyOptions(c *ui.Context, p palette, n *application.NetworkSettings, task bool, width float32) {
 	ui.Column(c.Key("proxy-options")).Width(width).Shrink(0).Children(func() {
@@ -66,15 +67,15 @@ func (v *View) proxyOptions(c *ui.Context, p palette, n *application.NetworkSett
 		hint := track.AnimateTo("inheritance", amount(inherits), panelSpring)
 		line := ui.Box(c.Key("inherited-proxy")).FillWidth().Height(26 * hint).Clip().Opacity(hint).AccessHidden(!inherits)
 		if inherits || hint > 0 {
-			label := "跟随系统"
+			label := tr(c, "common.system")
 			switch v.Snapshot.Preferences.Network.Mode {
 			case "direct":
-				label = "直连"
+				label = tr(c, "network.direct")
 			case "manual":
 				label = v.Snapshot.Preferences.Network.Proxy
 			}
 			line.Children(func() {
-				ui.Text(c, "当前全局设置 · "+label).Absolute().Left(0).Right(0).Top(7).TruncateMiddle().Tooltip(label).SingleLine().FontSize(12).TextColor(p.muted)
+				ui.Text(c, trf(c, "network.currentGlobal", i18n.Args{"mode": label})).Absolute().Left(0).Right(0).Top(7).TruncateMiddle().Tooltip(label).SingleLine().FontSize(12).TextColor(p.muted)
 			})
 		}
 		// Include the gap above the fields in the reveal. An outer layout gap
@@ -84,17 +85,17 @@ func (v *View) proxyOptions(c *ui.Context, p palette, n *application.NetworkSett
 		if manual || visible > 0 {
 			details.Children(func() {
 				ui.Column(c).Absolute().Top(7).Left(0).Right(0).Gap(7).Children(func() {
-					formRow(c, p, "地址", func() {
-						if rowInput(c, p, "HTTP 代理地址", "http://proxy:8080", &n.Proxy, false).Changed() {
+					formRow(c, p, tr(c, "network.address"), func() {
+						if rowInput(c, p, tr(c, "network.proxyURL"), "http://proxy:8080", &n.Proxy, false).Changed() {
 							v.networkErr = nil
 							v.FormError = ""
 						}
 					})
-					formRow(c, p, "身份验证", func() {
-						rowInput(c, p, "代理账号", "账号", &n.User, false)
-						rowInput(c, p, "代理密码", "密码", &n.Password, true)
+					formRow(c, p, tr(c, "network.auth"), func() {
+						rowInput(c, p, tr(c, "network.user"), tr(c, "common.username"), &n.User, false)
+						rowInput(c, p, tr(c, "network.password"), tr(c, "common.password"), &n.Password, true)
 					})
-					formRow(c, p, "绕过代理", func() { rowInput(c, p, "绕过代理", "域名或网段，逗号分隔", &n.Bypass, false) })
+					formRow(c, p, tr(c, "network.bypass"), func() { rowInput(c, p, tr(c, "network.bypass"), tr(c, "network.bypassHint"), &n.Bypass, false) })
 				})
 			})
 		}
@@ -110,15 +111,17 @@ func (v *View) proxySelector(c *ui.Context, p palette, n *application.NetworkSet
 	}
 	parts := ui.SegmentedBase(c, &index, len(choices))
 	cell := (width - 4) / float32(len(choices))
-	track := parts.Track.Label("代理模式").Width(width).Height(32).Shrink(0).Padding(2).Radius(cornerCompact).Background(p.haze.Alpha(.22))
+	track := parts.Track.Label(tr(c, "network.mode")).Width(width).Height(32).Shrink(0).Padding(2).Radius(cornerCompact).Background(p.haze.Alpha(.22))
 	x := track.AnimateTo("selection", float32(index)*cell, selectionSpring)
 	track.Draw(func(painter *ui.Painter, r ui.Rect) {
 		painter.Fill(ui.Rect{X: r.X + 2 + x, Y: r.Y + 2, W: cell, H: 28}, p.panel, cornerSmall)
 	})
 	track.Children(func() {
 		for i, choice := range choices {
-			item := parts.Segment(i).ZIndex(1).Transition(controlMotion).Size(cell, 28).Label(choice.label).Radius(cornerSmall).FocusRing(true)
-			item.Children(func() { ui.Text(c, choice.label).SingleLine().TextColor(c.Theme().Text).FontSize(12).FontWeight(560) })
+			item := parts.Segment(i).ZIndex(1).Transition(controlMotion).Size(cell, 28).Label(tr(c, choice.label)).Radius(cornerSmall).FocusRing(true)
+			item.Children(func() {
+				ui.Text(c, tr(c, choice.label)).SingleLine().TextColor(c.Theme().Text).FontSize(12).FontWeight(560)
+			})
 			if item.Changed() {
 				n.Mode = choice.mode
 				v.networkErr = nil

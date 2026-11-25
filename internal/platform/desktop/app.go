@@ -17,6 +17,7 @@ import (
 	"skiff/internal/contexts/transfer/infrastructure/aria2"
 	"skiff/internal/contexts/transfer/infrastructure/persistence"
 	"skiff/internal/contexts/transfer/presentation"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 	"time"
 )
 
@@ -25,8 +26,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	mygo.App.SetName("Skiff")
-	mygo.App.SetLanguages("zh-CN")
+	mygo.App.SetName(i18n.Text(i18n.Source, "common.appName"))
 	mygo.App.SetPath(mygo.PathUserData, dataDir)
 	if !mygo.App.RequestSingleInstanceLock() {
 		return nil
@@ -81,10 +81,12 @@ func Run() error {
 		defaultDirectory := filepath.Join(downloads, "Skiff")
 		installRequests := make(chan struct{}, 1)
 		actions := presentation.Actions{
-			Context: pollCtx,
+			Context:      pollCtx,
+			ChosenLocale: mygo.App.ChosenLocale,
+			SetLocale:    mygo.App.SetLocale,
 			PickSource: func(folder bool, done func(string, error)) {
 				go func() {
-					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "选择制种来源", Directory: folder})
+					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.Text(mygo.App.Locale(), "bt.chooseSource"), Directory: folder})
 					win.Update(func() {
 						if len(paths) > 0 {
 							done(paths[0], err)
@@ -96,13 +98,13 @@ func Run() error {
 			},
 			SaveTorrent: func(path string, done func(string, error)) {
 				go func() {
-					out, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: "保存种子", DefaultPath: path, CreateDirectories: true, Filters: []mygo.FileFilter{{Name: "BitTorrent 种子", Extensions: []string{"torrent"}}}})
+					out, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: i18n.Text(mygo.App.Locale(), "native.saveTorrent"), DefaultPath: path, CreateDirectories: true, Filters: []mygo.FileFilter{{Name: i18n.Text(mygo.App.Locale(), "native.torrentFilter"), Extensions: []string{"torrent"}}}})
 					win.Update(func() { done(out, err) })
 				}()
 			},
 			PickTorrent: func(done func(string, error)) {
 				go func() {
-					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "打开种子", Filters: []mygo.FileFilter{{Name: "BitTorrent 种子", Extensions: []string{"torrent"}}}})
+					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.Text(mygo.App.Locale(), "bt.open"), Filters: []mygo.FileFilter{{Name: i18n.Text(mygo.App.Locale(), "native.torrentFilter"), Extensions: []string{"torrent"}}}})
 					win.Update(func() {
 						if err != nil {
 							done("", err)
@@ -123,14 +125,14 @@ func Run() error {
 						var info os.FileInfo
 						info, err = os.Stat(path)
 						if err == nil && !info.IsDir() {
-							err = errors.New("所选路径不是文件夹")
+							err = errors.New("path is not a directory")
 						}
 					}
 					if err == nil {
 						err = mygo.Shell.OpenPath(path)
 					}
 					if err != nil {
-						err = fmt.Errorf("无法打开保存目录：%w", err)
+						err = fmt.Errorf("open download directory: %w", err)
 					}
 					win.Update(func() { done(err) })
 				}()
@@ -138,7 +140,7 @@ func Run() error {
 			Dispatch: func(fn func()) { win.Update(fn) },
 			PickDirectory: func(current string, done func(string, error)) {
 				go func() {
-					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "选择下载保存目录", DefaultPath: current, Directory: true, CreateDirectories: true, ButtonLabel: "选择文件夹"})
+					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: i18n.Text(mygo.App.Locale(), "native.pickDirectory"), DefaultPath: current, Directory: true, CreateDirectories: true, ButtonLabel: i18n.Text(mygo.App.Locale(), "native.pickFolder")})
 					win.Update(func() {
 						if err != nil {
 							done("", err)
@@ -151,7 +153,7 @@ func Run() error {
 			Reveal: func(path string) error {
 				if _, err := os.Stat(path); err != nil {
 					if os.IsNotExist(err) {
-						return errors.New("文件或文件夹不存在")
+						return errors.New("file or directory not found")
 					}
 					return err
 				}
@@ -160,12 +162,16 @@ func Run() error {
 			},
 		}
 		view = presentation.New(nil, actions)
-		win = mygo.NewWindow(mygo.WindowOptions{Title: "Skiff", TitleBarStyle: mygo.TitleBarHiddenInset, Width: 1020, Height: 680, MinWidth: 800, MinHeight: 560, StateKey: "skiff-main", Content: ui.View(view.Render)})
-		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-			{Role: mygo.RoleAppMenu},
-			{Label: "文件", Submenu: []*mygo.MenuItem{{Label: "新建下载…", Accelerator: "CmdOrCtrl+N", Click: func(*mygo.MenuItem, *mygo.Window) { view.OpenNew(); win.Invalidate() }}}},
-			{Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},
-		}))
+		win = mygo.NewWindow(mygo.WindowOptions{Title: i18n.Text(mygo.App.Locale(), "common.appName"), TitleBarStyle: mygo.TitleBarHiddenInset, Width: 1020, Height: 680, MinWidth: 800, MinHeight: 560, StateKey: "skiff-main", Content: ui.View(view.Render)})
+		setMenu := func(locale string) {
+			mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+				{Role: mygo.RoleAppMenu},
+				{Label: i18n.Text(locale, "common.file"), Submenu: []*mygo.MenuItem{{Label: i18n.Text(locale, "native.newDownload"), Accelerator: "CmdOrCtrl+N", Click: func(*mygo.MenuItem, *mygo.Window) { view.OpenNew(); win.Invalidate() }}}},
+				{Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu},
+			}))
+		}
+		setMenu(mygo.App.Locale())
+		mygo.App.OnLocaleChanged(setMenu)
 		go func() {
 			binary, err := application.PrepareEngine(pollCtx, aria2.NewInstallation(dataDir), installRequests, func(reason error) {
 				win.Update(func() { view.OfferEngineDownload(reason) })
@@ -264,7 +270,7 @@ func dataDirectory() (string, error) {
 func newID() string {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		panic(errors.New("无法生成下载任务 ID"))
+		panic(fmt.Errorf("generate task ID: %w", err))
 	}
 	return hex.EncodeToString(b[:])
 }
