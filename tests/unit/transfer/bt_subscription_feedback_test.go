@@ -104,10 +104,11 @@ func (r *rejectRefreshedTrackerRepository) Save(ctx context.Context, state appli
 }
 
 func TestManualTrackerRefreshShowsFetchAndSaveFailures(t *testing.T) {
-	const source = "https://tracker.test/subscription"
-	engine := &trackerFailureEngine{failures: map[string]error{source: application.ErrReadSubscription}}
+	const empty = "https://tracker.test/empty"
+	const unreadable = "https://tracker.test/unreadable"
+	engine := &trackerFailureEngine{failures: map[string]error{empty: application.ErrEmptySubscription, unreadable: application.ErrReadSubscription}}
 	repo := &rejectRefreshedTrackerRepository{fakeRepo{state: application.State{
-		Preferences: application.Preferences{BT: application.BTSettings{Sources: source}},
+		Preferences: application.Preferences{BT: application.BTSettings{Sources: empty + "\n" + unreadable}},
 	}}}
 	svc := application.New(engine, repo, t.TempDir(), nil)
 	if err := svc.Open(t.Context()); err != nil {
@@ -127,13 +128,15 @@ func TestManualTrackerRefreshShowsFetchAndSaveFailures(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("refresh did not finish")
 	}
-	for _, tc := range []struct{ locale, message string }{
-		{"zh-CN", "无法读取完整订阅\n保存任务失败"},
-		{"en", "Could not load the complete tracker subscription\nCould not save the download queue"},
+	for _, tc := range []struct{ locale, message, button string }{
+		{"zh-CN", "订阅未返回有效 Tracker\n保存任务失败\n无法读取完整订阅", "保存并更新"},
+		{"en", "The subscription returned no valid trackers\nCould not save the download queue\nCould not load the complete tracker subscription", "Save and Refresh"},
 	} {
 		scene.SetLocale(tc.locale)
-		if bounds := sourceBounds(t, scene, ui.RoleText, tc.message); bounds.H < 24 {
-			t.Errorf("%s refresh errors did not have room for both lines: %v", tc.locale, bounds)
+		bounds := sourceBounds(t, scene, ui.RoleText, tc.message)
+		button := sourceBounds(t, scene, ui.RoleButton, tc.button)
+		if bounds.W < 300 || bounds.H < 40 || bounds.Y+bounds.H > button.Y || button.Y+button.H > 560 {
+			t.Errorf("%s refresh errors do not fit above the action: message %v, action %v", tc.locale, bounds, button)
 		}
 	}
 }

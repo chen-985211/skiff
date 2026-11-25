@@ -97,14 +97,12 @@ func (v *View) renderBTNetwork(c *ui.Context, p palette, stage ui.Element) {
 				})
 			}
 		})
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
-			ui.Box(c).Grow(1).MinWidth(0).Children(func() {
-				if message := errorText(c.Locale(), b.err); message != "" {
-					ui.Text(c.Key("tracker-refresh-error"), message).FillWidth().MaxLines(3).Tooltip(message).
-						Transition(pageFade).ContentTransition(textChange).FontSize(12).TextColor(c.Theme().Danger)
-				}
-			})
-			if primaryAction(c, tr(c, "bt.saveRefresh"), "check", v.Busy).Shrink(0).Clicked() {
+		ui.Column(c).FillWidth().Gap(8).Children(func() {
+			if message := errorText(c.Locale(), b.err); message != "" {
+				ui.Text(c.Key("tracker-refresh-error"), message).FillWidth().
+					Transition(pageFade).ContentTransition(textChange).FontSize(12).TextColor(c.Theme().Danger)
+			}
+			if primaryAction(c, tr(c, "bt.saveRefresh"), "check", v.Busy).AlignSelf(ui.End).Shrink(0).Clicked() {
 				v.saveBTSettings()
 			}
 		})
