@@ -75,7 +75,7 @@ func TestCardsOpenDetailsAndComposeFromTheDock(t *testing.T) {
 	}
 }
 
-func TestRetryFailureIsReportedOnceOnItsCard(t *testing.T) {
+func TestRetryFailureClearsWhenEngineResumesTask(t *testing.T) {
 	f := &fakeEngine{}
 	s := service(t, f, &fakeRepo{})
 	_, err := s.Add(context.Background(), "https://example.org/a", t.TempDir())
@@ -109,6 +109,21 @@ func TestRetryFailureIsReportedOnceOnItsCard(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("rendered %d copies of the same task failure", n)
+	}
+	id := v.Snapshot.Tasks[0].ID
+	for _, status := range []string{"active", "complete"} {
+		f.observed = []application.Observation{{ID: id, Status: status, Total: 100, Completed: 50}}
+		if err := s.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		v.Snapshot = s.Snapshot()
+		tt.Frame()
+		if got := v.Snapshot.Tasks[0].Status; got != status {
+			t.Fatalf("observed task status = %q, want %q", got, status)
+		}
+		if tt.HasText("无法连接下载引擎") {
+			t.Errorf("retry error remained visible after engine reported %s", status)
+		}
 	}
 }
 

@@ -123,7 +123,10 @@ func (v *View) setTaskError(id string, err error) {
 		if task.ID != id {
 			continue
 		}
-		v.taskErrors[id] = err
+		// A failure already stored on the task will clear with the next engine observation.
+		if task.Status != "error" || task.Failure != string(application.CodeOf(err)) {
+			v.taskErrors[id] = err
+		}
 		return
 	}
 	// A remove can take effect in the engine before saving the queue fails.
