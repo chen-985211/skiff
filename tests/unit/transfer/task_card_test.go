@@ -184,7 +184,10 @@ func TestRenderTransferFlowTracksActivityAndMotionPreference(t *testing.T) {
 			v := presentation.New(nil, presentation.Actions{})
 			v.Ready = true
 			v.Snapshot.Tasks = []application.TaskDTO{{ID: "a", Name: "one.zip", Status: tc.status, Total: tc.total, Completed: 512, Progress: .5, Speed: 128}}
-			tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: tc.reduced}})
+			// Sample the progress animation without rendering the surrounding glass.
+			tt := ui.NewTesterWith(v.Render, 900, 600, ui.TesterOptions{Preferences: ui.Preferences{
+				ReduceMotion: tc.reduced, ReduceTransparency: true,
+			}})
 			tt.Advance(time.Second)
 			n, ok := tt.AccessByRole(ui.RoleProgress, "下载进度")
 			if !ok {

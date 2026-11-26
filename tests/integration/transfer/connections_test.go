@@ -23,6 +23,8 @@ func TestConnectionPlanMatchesActualDownload(t *testing.T) {
 		{"small", 64 << 10, 0, 1, true}, {"ignored-range", 9 << 20, 0, 1, false}, {"manual", 12 << 20, 2, 2, true}, {"auto", 12 << 20, 0, 3, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			data := bytes.Repeat([]byte{37}, tc.size)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if tc.ranges {
