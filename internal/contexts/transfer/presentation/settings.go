@@ -28,9 +28,10 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 	ui.Scroll(c.Key("settings-page")).ScrollbarStyle(settingsScrollbar(c, p)).Grow(1).MinHeight(0).Transition(pageFade).Children(func() {
 		list := ui.Column(c).MaxWidth(820).FillWidth().AlignSelf(ui.Center).Padding(12, settingsScrollGutter, 12, 8)
 		list.Children(func() {
-			ui.Text(c, tr(c, "common.settings")).FontSize(28).FontWeight(650).Margin(0, 0, 4)
+			// Headings keep their line boxes when a locale selects a different font.
+			ui.Text(c, tr(c, "common.settings")).SingleLine().FontSize(28).FontWeight(650).FixedLineHeight(40).Margin(0, 0, 4)
 			section := func(label string, body func()) {
-				ui.Text(c, label).Margin(9, 3, 5).FontSize(12).FontWeight(610).TextColor(p.muted)
+				ui.Text(c, label).SingleLine().Margin(9, 3, 5).FontSize(12).FontWeight(610).FixedLineHeight(18).TextColor(p.muted)
 				block := ui.Column(c).FillWidth().Radius(cornerPrimary)
 				if c.Preferences().ReduceTransparency || c.Preferences().HighContrast {
 					block.Background(p.panel)
@@ -122,9 +123,12 @@ func settingsRow(c *ui.Context, row ui.Element, icon, name, hint string, err err
 		}
 		labels.Children(func() {
 			label = ui.Text(c, name).FontSize(14).FontWeight(600).Shrink(0)
+			if hint != "" {
+				label.SingleLine().FixedLineHeight(22)
+			}
 			if err == nil && hint != "" {
 				ui.Text(c.Key("setting-hint"), hint).FillWidth().SingleLine().Tooltip(hint).
-					Transition(pageFade).ContentTransition(textChange).FontSize(12).TextColor(p.muted)
+					Transition(pageFade).ContentTransition(textChange).FontSize(12).FixedLineHeight(18).TextColor(p.muted)
 			} else {
 				inlineError(c, err)
 			}

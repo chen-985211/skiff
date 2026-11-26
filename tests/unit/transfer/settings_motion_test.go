@@ -12,6 +12,7 @@ import (
 
 	"skiff/internal/contexts/transfer/application"
 	"skiff/internal/contexts/transfer/presentation"
+	"skiff/internal/contexts/transfer/presentation/i18n"
 )
 
 func TestSettingsListAlignsRowsAndKeepsFullPathAccessible(t *testing.T) {
@@ -511,16 +512,29 @@ func TestRenderConcurrencySelectionTravelsBetweenPresets(t *testing.T) {
 func TestRenderConcurrencyHintStaysAlignedWhileChangingLanguage(t *testing.T) {
 	locales := []struct{ tag, title, hint, preset, field string }{
 		{"zh-CN", "同时下载数", "1–200 项，超出后排队", "同时下载 1 项", "自定义同时下载数"},
-		{"en", "Concurrent downloads", "1–200 at once. The rest are queued.", "Download 1 at a time", "Custom concurrent downloads"},
+		{"en", "Concurrent downloads", "1–200 at once. The rest queue.", "Download 1 at a time", "Custom concurrent downloads"},
 		{"zh-Hant", "同時下載數", "1–200 項，超過時排入佇列", "同時下載 1 項", "自訂同時下載數"},
 		{"ja", "同時ダウンロード数", "1～200 件。超過分は待機", "同時に 1 件ダウンロード", "同時ダウンロード数を指定"},
+	}
+	aligned := func(a, b ui.Rect) bool {
+		for _, delta := range []float32{a.X - b.X, a.Y - b.Y, a.W - b.W, a.H - b.H} {
+			if math.Abs(float64(delta)) > .5 {
+				return false
+			}
+		}
+		return true
 	}
 	for _, size := range [][2]int{{800, 560}, {1020, 680}} {
 		for _, reduced := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%dx%d/reduced_motion=%t", size[0], size[1], reduced), func(t *testing.T) {
 				view := presentation.New(service(t, &fakeEngine{}, &fakeRepo{}), presentation.Actions{})
 				view.Snapshot.Preferences.StaticBackground = true
-				scene := ui.NewTesterWith(view.Render, size[0], size[1], ui.TesterOptions{Preferences: ui.Preferences{
+				var hintWidth float32
+				scene := ui.NewTesterWith(func(c *ui.Context) {
+					hint := i18n.Format(c.Locale(), "settings.concurrencyHint", i18n.Args{"limit": application.MaxConcurrency})
+					hintWidth, _ = c.MeasureText(0, ui.Span{Text: hint, Size: 12})
+					view.Render(c)
+				}, size[0], size[1], ui.TesterOptions{Preferences: ui.Preferences{
 					ReduceMotion: reduced, ReduceTransparency: true,
 				}})
 				scene.SetLocale("zh-CN")
@@ -554,8 +568,9 @@ func TestRenderConcurrencyHintStaysAlignedWhileChangingLanguage(t *testing.T) {
 						hint := sourceBounds(t, scene, ui.RoleText, current.hint)
 						preset := sourceBounds(t, scene, ui.RoleButton, current.preset)
 						field := sourceBounds(t, scene, ui.RoleTextField, current.field)
-						if title.Y != initialTitle.Y || hint.Y != initialHint.Y || hint.H != initialHint.H ||
-							preset != initialPreset || field != initialField || field.X+field.W > float32(size[0]) || hint.X+hint.W > preset.X || hint.H <= 0 {
+						if !aligned(title, initialTitle) || !aligned(hint, initialHint) ||
+							!aligned(preset, initialPreset) || !aligned(field, initialField) ||
+							field.X+field.W > float32(size[0]) || hint.X+hint.W > preset.X || hint.W < hintWidth || hint.H <= 0 {
 							t.Errorf("%s moved or wrapped the subtitle or controls: title %v, hint %v, preset %v, field %v", current.tag, title, hint, preset, field)
 						}
 					}

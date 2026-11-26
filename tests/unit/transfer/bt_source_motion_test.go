@@ -250,18 +250,18 @@ func TestRenderEnglishPrimaryDownloadActionsFitWithoutMoving(t *testing.T) {
 		}
 		return bounds
 	}
-	t.Run("getting engine", func(t *testing.T) {
+	t.Run("installing engine", func(t *testing.T) {
 		view := presentation.New(nil, presentation.Actions{DownloadEngine: func() {}})
 		view.OfferEngineDownload(nil)
 		var textWidth float32
 		scene := ui.NewTesterWith(func(c *ui.Context) {
-			textWidth, _ = c.MeasureText(0, ui.Span{Text: "Getting engine…", Size: 13, Weight: 600})
+			textWidth, _ = c.MeasureText(0, ui.Span{Text: "Installing…", Size: 13, Weight: 600})
 			view.Render(c)
 		}, 800, 560, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: true}})
 		scene.SetLocale("en")
 		before := sourceBounds(t, scene, ui.RoleButton, "Get Engine")
 		chooseSource(t, scene, "Get Engine")
-		if after := verifyWidth(t, scene, "Getting engine…", textWidth, 8); before != after {
+		if after := verifyWidth(t, scene, "Installing…", textWidth, 8); before != after {
 			t.Errorf("engine action moved when its caption changed: %v to %v", before, after)
 		}
 	})

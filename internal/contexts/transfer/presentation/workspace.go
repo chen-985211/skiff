@@ -43,8 +43,8 @@ const (
 	settingsHeight  = 34
 	footerInset     = 23
 	dockHeight      = primaryActionHeight
-	dockWidth       = 384
-	dockActionWidth = 144 // Shared by every locale and engine state.
+	dockWidth       = 404
+	dockActionWidth = 152 // Shared by every locale and engine state.
 	dockActionInset = 8
 	cardWidth       = 336
 	cardHeight      = 156
