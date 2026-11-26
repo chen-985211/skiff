@@ -23,11 +23,12 @@ def prepare(tag, source, output):
         if not path.is_file() or not path.stat().st_size:
             raise SystemExit(f"Missing or empty package: {path}. Check the version in mygo.json.")
 
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+    readme_path = Path(__file__).resolve().parents[1] / "README.zh-CN.md"
+    readme = readme_path.read_text(encoding="utf-8")
     heading = "### macOS 首次打开"
     section = re.search(rf"^{heading}\n(.+?)(?=^#{{1,3}} |\Z)", readme, re.MULTILINE | re.DOTALL)
     if not section or "[macos-dmg]" not in section[1]:
-        raise SystemExit("README.md is missing the macOS first-open guide or its [macos-dmg] link.")
+        raise SystemExit(f"{readme_path.name} is missing the macOS first-open guide or its [macos-dmg] link.")
     url = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}/{dmg}"
 
     output.mkdir()
