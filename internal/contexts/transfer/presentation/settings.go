@@ -28,10 +28,13 @@ func (v *View) settingsPage(c *ui.Context, p palette) {
 	ui.Scroll(c.Key("settings-page")).ScrollbarStyle(settingsScrollbar(c, p)).Grow(1).MinHeight(0).Transition(pageFade).Children(func() {
 		list := ui.Column(c).MaxWidth(820).FillWidth().AlignSelf(ui.Center).Padding(12, settingsScrollGutter, 12, 8)
 		list.Children(func() {
-			// Headings keep their line boxes when a locale selects a different font.
-			ui.Text(c, tr(c, "common.settings")).SingleLine().FontSize(28).FontWeight(650).FixedLineHeight(40).Margin(0, 0, 4)
+			// Fallback fonts can exceed the line height, so reserve the heading boxes in layout.
+			const titleHeight, sectionHeight = 42, 18
+			ui.Text(c, tr(c, "common.settings")).SingleLine().FontSize(28).FontWeight(650).
+				Height(titleHeight).FixedLineHeight(titleHeight).Margin(0, 0, 4)
 			section := func(label string, body func()) {
-				ui.Text(c, label).SingleLine().Margin(9, 3, 5).FontSize(12).FontWeight(610).FixedLineHeight(18).TextColor(p.muted)
+				ui.Text(c, label).SingleLine().Margin(9, 3, 5).FontSize(12).FontWeight(610).
+					Height(sectionHeight).FixedLineHeight(sectionHeight).TextColor(p.muted)
 				block := ui.Column(c).FillWidth().Radius(cornerPrimary)
 				if c.Preferences().ReduceTransparency || c.Preferences().HighContrast {
 					block.Background(p.panel)
@@ -122,13 +125,15 @@ func settingsRow(c *ui.Context, row ui.Element, icon, name, hint string, err err
 			labels.Grow(1).ClipX()
 		}
 		labels.Children(func() {
+			const titleHeight, hintHeight = 22, 18
 			label = ui.Text(c, name).FontSize(14).FontWeight(600).Shrink(0)
 			if hint != "" {
-				label.SingleLine().FixedLineHeight(22)
+				label.SingleLine().Height(titleHeight).FixedLineHeight(titleHeight)
 			}
 			if err == nil && hint != "" {
 				ui.Text(c.Key("setting-hint"), hint).FillWidth().SingleLine().Tooltip(hint).
-					Transition(pageFade).ContentTransition(textChange).FontSize(12).FixedLineHeight(18).TextColor(p.muted)
+					Transition(pageFade).ContentTransition(textChange).FontSize(12).
+					Height(hintHeight).FixedLineHeight(hintHeight).TextColor(p.muted)
 			} else {
 				inlineError(c, err)
 			}

@@ -569,9 +569,12 @@ func TestRenderConcurrencyHintStaysAlignedWhileChangingLanguage(t *testing.T) {
 						preset := sourceBounds(t, scene, ui.RoleButton, current.preset)
 						field := sourceBounds(t, scene, ui.RoleTextField, current.field)
 						if !aligned(title, initialTitle) || !aligned(hint, initialHint) ||
-							!aligned(preset, initialPreset) || !aligned(field, initialField) ||
-							field.X+field.W > float32(size[0]) || hint.X+hint.W > preset.X || hint.W < hintWidth || hint.H <= 0 {
-							t.Errorf("%s moved or wrapped the subtitle or controls: title %v, hint %v, preset %v, field %v", current.tag, title, hint, preset, field)
+							!aligned(preset, initialPreset) || !aligned(field, initialField) {
+							t.Errorf("%s moved settings: title %v → %v, hint %v → %v, preset %v → %v, field %v → %v",
+								current.tag, initialTitle, title, initialHint, hint, initialPreset, preset, initialField, field)
+						}
+						if field.X+field.W > float32(size[0]) || hint.X+hint.W > preset.X || hint.W < hintWidth || hint.H <= 0 {
+							t.Errorf("%s subtitle needs %.1f pt inside %v; preset %v, field %v", current.tag, hintWidth, hint, preset, field)
 						}
 					}
 					after := pixels()
