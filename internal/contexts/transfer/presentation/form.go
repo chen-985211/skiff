@@ -14,7 +14,7 @@ const (
 	formInsetY          = 14
 	formGap             = 10
 	formHeaderHeight    = 32
-	formFooterHeight    = 36
+	formFooterHeight    = primaryActionHeight
 	formErrorMaxHeight  = 68
 	sourceMinHeight     = 104
 	composePrimaryWidth = 132
@@ -27,9 +27,15 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 	width := min(float32(420), windowW-left-workspaceInset)
 	if anchor.W == 0 {
 		// A menu or keyboard shortcut can open the form from Settings, without a dock.
-		anchor = ui.Rect{X: left + min(dockWidth, width) - dockActionWidth, Y: windowH - footerInset - dockHeight, W: dockActionWidth, H: dockHeight}
+		anchor = ui.Rect{
+			X: left + min(dockWidth, width) - dockActionWidth,
+			Y: windowH - footerInset - dockHeight,
+			W: dockActionWidth,
+			H: primaryActionHeight,
+		}
 	}
 	closed := 1 - reveal
+	radius := cornerPrimary + (cornerSheet-cornerPrimary)*reveal
 	shown := true // Keep the modal and its draft mounted until the spring reaches the button.
 	ui.DialogBase(c, &shown, func(back, panel ui.Element) {
 		name := tr(c, "download.new")
@@ -37,7 +43,7 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 			name = tr(c, "download.options")
 		}
 		panel.Label(name).Absolute().Left(left+(anchor.X-left)*closed).Bottom(footerInset+(windowH-anchor.Y-anchor.H-footerInset)*closed).
-			Width(anchor.W+(width-anchor.W)*reveal).Column().AlignItems(ui.Start).Radius(cornerSheet).Clip().
+			Width(anchor.W+(width-anchor.W)*reveal).Column().AlignItems(ui.Start).Radius(radius).Clip().
 			Shadow(0, 6*reveal, 20*reveal, 0, p.scrim.Alpha(.15*reveal))
 
 		buttonInk := max(0, 1-reveal/.35)
@@ -45,8 +51,8 @@ func (v *View) newDialog(c *ui.Context, p palette, anchor ui.Rect, reveal float3
 		// offset the button label and add its thickness again at the open endpoint.
 		glass := ui.Box(c.Key("sheet-glass")).Absolute().Left(0).Top(0).Right(0).Bottom(0).
 			ZIndex(-1).Opacity(1 - buttonInk).IgnoreInput(true).AccessHidden(true)
-		surface(c, glass, p, cornerSheet, sheetFrost)
-		ui.Box(c.Key("button-fill")).Absolute().Left(0).Top(0).Right(0).Bottom(0).Radius(cornerSheet).
+		surface(c, glass, p, radius, sheetFrost)
+		ui.Box(c.Key("button-fill")).Absolute().Left(0).Top(0).Right(0).Bottom(0).Radius(radius).
 			Background(p.accent.Alpha(buttonInk)).IgnoreInput(true)
 		fields := min(max((reveal-.48)/.42, 0), 1)
 		// Measure the clipped form at its reading width throughout the transition.

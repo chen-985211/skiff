@@ -42,7 +42,7 @@ const (
 	workspaceHeader = 64
 	settingsHeight  = 34
 	footerInset     = 23
-	dockHeight      = 44
+	dockHeight      = primaryActionHeight
 	dockWidth       = 384
 	dockActionWidth = 144 // Shared by every locale and engine state.
 	dockActionInset = 8
@@ -147,7 +147,7 @@ func (v *View) sidebar(c *ui.Context, p palette) {
 
 func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 	ui.Row(c.Key("task-dock")).Transition(dockMotion).Height(cardGap+dockHeight+footerInset).Shrink(0).Padding(0, 0, footerInset).AlignItems(ui.End).Justify(ui.Start).Children(func() {
-		ui.Row(c).Role(ui.RoleToolbar).Label(tr(c, "workspace.toolbar")).Width(dockWidth).MaxWidthPercent(100).Height(dockHeight).Gap(cardGap).Children(func() {
+		ui.Row(c).Role(ui.RoleToolbar).Label(tr(c, "workspace.toolbar")).Width(dockWidth).MaxWidthPercent(100).Height(dockHeight).AlignItems(ui.Center).Gap(cardGap).Children(func() {
 			search = ui.Row(c).Role(ui.RoleSearch).Label(tr(c, "workspace.searchRegion")).Grow(1).MinWidth(0).FillHeight().AlignItems(ui.Center).Padding(0, 8, 0, 16).Gap(8)
 			surface(c, search, p, cornerDock, searchGlass).Shadow(0, 3, 10, 0, c.Theme().Text.Alpha(.10)).Children(func() {
 				ui.Icon(c, icons["search"]).FontSize(18).TextColor(p.muted).IgnoreInput(true)
@@ -185,7 +185,7 @@ func (v *View) dock(c *ui.Context, p palette) (search, trigger ui.Element) {
 					v.OpenNew()
 				}
 			}
-			trigger.Width(dockActionWidth).PaddingX(dockActionInset).Shrink(0).FillHeight().Radius(cornerDock)
+			trigger.Width(dockActionWidth).PaddingX(dockActionInset).Shrink(0)
 		})
 	})
 	return search, trigger

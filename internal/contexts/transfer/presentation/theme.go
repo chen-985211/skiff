@@ -98,6 +98,7 @@ func iconButton(c *ui.Context, name, label string, disabled bool) bool {
 }
 
 const (
+	primaryActionHeight     = 36
 	primaryActionInset      = 12
 	primaryActionGap        = 7
 	primaryActionIconSize   = 15
@@ -115,7 +116,7 @@ func primaryActionWidth(c *ui.Context, minimum float32, captions ...string) floa
 
 func primaryAction(c *ui.Context, title, icon string, disabled bool) ui.Element {
 	t := c.Theme()
-	b := ui.ButtonBase(c).Label(title).Disabled(disabled).Height(36).PaddingX(primaryActionInset).Radius(cornerPrimary).Transition(controlMotion)
+	b := ui.ButtonBase(c).Label(title).Disabled(disabled).Height(primaryActionHeight).PaddingX(primaryActionInset).Radius(cornerPrimary).Transition(controlMotion)
 	fill := t.Accent
 	if b.Pressed() {
 		fill = t.AccentPressed

@@ -147,12 +147,15 @@ func TestWorkspaceCardsKeepTheirSizeAndAlignmentOnResize(t *testing.T) {
 			t.Errorf("%d: bottom toolbar %v, card %v, settings %v", size.width, bar, card, settings)
 		}
 		add := get("新建下载")
-		if add.X+add.W != bar.X+bar.W || add.Y+add.H != bar.Y+bar.H {
-			t.Errorf("%d: new download button %v does not meet the right and bottom edges of %v", size.width, add, bar)
+		if add.X+add.W != bar.X+bar.W {
+			t.Errorf("%d: new download button %v does not meet the right edge of %v", size.width, add, bar)
 		}
 		search := get("任务搜索")
-		if search.X != card.X || search.Y != add.Y || search.H != add.H || add.X-(search.X+search.W) != 12 {
-			t.Errorf("%d: search %v, new download %v; want aligned edges and a 12 pt gap", size.width, search, add)
+		if search.X != card.X || search.Y != bar.Y || search.H != bar.H || add.X-(search.X+search.W) != 12 {
+			t.Errorf("%d: search %v does not fill the toolbar height or leave a 12 pt gap to %v", size.width, search, add)
+		}
+		if add.Y != search.Y || add.H != search.H {
+			t.Errorf("%d: new download %v and search %v should be equally tall and vertically aligned", size.width, add, search)
 		}
 	}
 }
@@ -165,12 +168,17 @@ func TestWorkspaceDownloadSheetSharesTheSearchBarAnchor(t *testing.T) {
 	if !found {
 		t.Fatal("missing download toolbar")
 	}
+	trigger := sourceBounds(t, tt, ui.RoleButton, "新建下载")
 	if err := tt.Click("新建下载"); err != nil {
 		t.Fatal(err)
 	}
 	sheet, found := tt.AccessByRole(ui.RoleDialog, "")
 	if !found || sheet.Bounds.X != bar.Bounds.X || sheet.Bounds.Y+sheet.Bounds.H != bar.Bounds.Y+bar.Bounds.H {
 		t.Fatalf("sheet %v does not open from the leading and bottom edges of the search bar %v", sheet.Bounds, bar.Bounds)
+	}
+	submit := sourceBounds(t, tt, ui.RoleButton, "开始下载")
+	if trigger.H != submit.H {
+		t.Errorf("new download is %.1f pt high, start download is %.1f pt high", trigger.H, submit.H)
 	}
 }
 
